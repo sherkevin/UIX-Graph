@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx vite:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "mcp__chrome-devtools__list_network_requests",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__wait_for",
+      "Bash(powershell:*)",
+      "Bash(netstat:*)",
+      "Bash(timeout:*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  }
+}
