@@ -1,0 +1,944 @@
+{
+    "1": {
+        "name": "cowa",
+        "type": "故障状态",
+        "_dataset": "1",
+        "_original_id": "1"
+    },
+    "2": {
+        "name": "对准倍率超限",
+        "type": "故障状态",
+        "_dataset": "1",
+        "_original_id": "2"
+    },
+    "3": {
+        "name": "硅片质量问题",
+        "type": "故障状态",
+        "_dataset": "1",
+        "_original_id": "3"
+    },
+    "4": {
+        "name": "硅片对准问题",
+        "type": "故障状态",
+        "_dataset": "1",
+        "_original_id": "4"
+    },
+    "5": {
+        "name": "docking损坏",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "1",
+        "_original_id": "5"
+    },
+    "6": {
+        "name": "预对准问题",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "1",
+        "_original_id": "6"
+    },
+    "7": {
+        "name": "交接异常",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "1",
+        "_original_id": "7"
+    },
+    "8": {
+        "name": "控制性能异常",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "1",
+        "_original_id": "8"
+    },
+    "9": {
+        "name": "吸盘异常",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "1",
+        "_original_id": "9"
+    },
+    "10": {
+        "name": "交接异常",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "1",
+        "_original_id": "10"
+    },
+    "11": {
+        "name": "上片偏差标定异常",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "1",
+        "_original_id": "11"
+    },
+    "12": {
+        "name": "EMBMWL测试",
+        "type": "数据前置",
+        "_dataset": "1",
+        "_original_id": "12"
+    },
+    "13": {
+        "name": "WHMC上片旋转机器常数",
+        "type": "数据表征",
+        "attribute": [],
+        "_dataset": "1",
+        "_original_id": "13"
+    },
+    "14": {
+        "name": "cowa",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "1"
+    },
+    "15": {
+        "name": "上片旋转超限",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "2"
+    },
+    "16": {
+        "name": "阈值问题",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "3"
+    },
+    "17": {
+        "name": "上片旋转阈值",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "4"
+    },
+    "18": {
+        "name": "EPWARE",
+        "type": "数据前置",
+        "_dataset": "2",
+        "_original_id": "5"
+    },
+    "19": {
+        "name": "对准问题",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "6"
+    },
+    "20": {
+        "name": "对准重复性差",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "7"
+    },
+    "21": {
+        "name": "工艺适应性差",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "8"
+    },
+    "22": {
+        "name": "硅片本身问题",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "9"
+    },
+    "23": {
+        "name": "前层存在旋转",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "10"
+    },
+    "24": {
+        "name": "mark/质量不佳",
+        "type": "故障状态",
+        "_dataset": "2",
+        "_original_id": "11"
+    },
+    "25": {
+        "name": "docking plate",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "2",
+        "_original_id": "12"
+    },
+    "26": {
+        "name": "吸盘",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "2",
+        "_original_id": "13"
+    },
+    "27": {
+        "name": "Epin",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "2",
+        "_original_id": "14"
+    },
+    "28": {
+        "name": "上片工艺适应性/上片chuck间差异",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "2",
+        "_original_id": "15"
+    },
+    "29": {
+        "name": "上片标定问题",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "2",
+        "_original_id": "16"
+    },
+    "30": {
+        "name": "HWSTGA--上片重复性",
+        "type": "数据表征",
+        "attribute": [],
+        "_dataset": "2",
+        "_original_id": "17"
+    },
+    "31": {
+        "name": "Epin与Table交接重复性",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "2",
+        "_original_id": "18"
+    },
+    "32": {
+        "name": "cowa拒片",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "1"
+    },
+    "33": {
+        "name": "上片旋转超限",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "2"
+    },
+    "34": {
+        "name": "阈值问题",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "3"
+    },
+    "35": {
+        "name": "上片旋转阈值",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "4"
+    },
+    "36": {
+        "name": "EPWARE",
+        "type": "数据前置",
+        "_dataset": "3",
+        "_original_id": "5"
+    },
+    "37": {
+        "name": "对准问题",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "6"
+    },
+    "38": {
+        "name": "对准重复性差",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "7"
+    },
+    "39": {
+        "name": "工艺适应性差",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "8"
+    },
+    "40": {
+        "name": "硅片本身问题",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "9"
+    },
+    "41": {
+        "name": "前层存在旋转",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "10"
+    },
+    "42": {
+        "name": "mark质量不佳",
+        "type": "故障状态",
+        "_dataset": "3",
+        "_original_id": "11"
+    },
+    "43": {
+        "name": "docking plate",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "12"
+    },
+    "44": {
+        "name": "吸盘",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "13"
+    },
+    "45": {
+        "name": "Epin",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "14"
+    },
+    "46": {
+        "name": "上片工艺适应性/上片chuck间差异",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "15"
+    },
+    "47": {
+        "name": "上片标定问题",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "16"
+    },
+    "48": {
+        "name": "HWSTGA--上片重复性",
+        "type": "数据表征",
+        "_dataset": "3",
+        "_original_id": "17"
+    },
+    "49": {
+        "name": "Epin与Table交接重复性",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "18"
+    },
+    "50": {
+        "name": "工件台粗微粗相对误差",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "19"
+    },
+    "51": {
+        "name": "E-pins运动重复性",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "20"
+    },
+    "52": {
+        "name": "动感串扰",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "3",
+        "_original_id": "21"
+    },
+    "53": {
+        "name": "cowa拒片",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "1"
+    },
+    "54": {
+        "name": "上片旋转超限",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "2"
+    },
+    "55": {
+        "name": "上片RZ值",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "3"
+    },
+    "56": {
+        "name": "软件异常",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "4"
+    },
+    "57": {
+        "name": "部署版本",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "5"
+    },
+    "58": {
+        "name": "流程存在缺陷",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "6"
+    },
+    "59": {
+        "name": "SBO异常",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "4",
+        "_original_id": "7"
+    },
+    "60": {
+        "name": "数据中心FDC WSA SBO",
+        "type": "数据表征",
+        "_dataset": "4",
+        "_original_id": "8"
+    },
+    "61": {
+        "name": "测量系统异常",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "9"
+    },
+    "62": {
+        "name": "干涉仪功能异常",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "10"
+    },
+    "63": {
+        "name": "MHR、EH、机器常数更新日志",
+        "type": "数据表征",
+        "_dataset": "4",
+        "_original_id": "11"
+    },
+    "64": {
+        "name": "工艺相关",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "12"
+    },
+    "65": {
+        "name": "处方设置",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "13"
+    },
+    "66": {
+        "name": "SRC/DBJOA/NL301.dat处方NL3层",
+        "type": "数据表征",
+        "_dataset": "4",
+        "_original_id": "14"
+    },
+    "67": {
+        "name": "对准mark/质量差",
+        "type": "故障状态",
+        "_dataset": "4",
+        "_original_id": "15"
+    },
+    "68": {
+        "name": "Mark MCC值",
+        "type": "数据表征",
+        "_dataset": "4",
+        "_original_id": "16"
+    },
+    "69": {
+        "name": "扫描轨迹异常",
+        "type": "故障状态",
+        "subsystem": "WRS",
+        "_dataset": "4",
+        "_original_id": "17"
+    },
+    "70": {
+        "name": "cowa拒片",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "1"
+    },
+    "71": {
+        "name": "上片旋转超限",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "2"
+    },
+    "72": {
+        "name": "chuck1 chuck2",
+        "type": "数据表征",
+        "_dataset": "5",
+        "_original_id": "3"
+    },
+    "73": {
+        "name": "软件",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "4"
+    },
+    "74": {
+        "name": "软件版本",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "5"
+    },
+    "75": {
+        "name": "机器常数修改",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "6"
+    },
+    "76": {
+        "name": "标记捕获",
+        "type": "故障状态",
+        "subsystem": "WRS",
+        "_dataset": "5",
+        "_original_id": "7"
+    },
+    "77": {
+        "name": "工艺",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "8"
+    },
+    "78": {
+        "name": "预对准工艺适应",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "9"
+    },
+    "79": {
+        "name": "前层标记质量",
+        "type": "故障状态",
+        "_dataset": "5",
+        "_original_id": "10"
+    },
+    "80": {
+        "name": "上片交接工位",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "5",
+        "_original_id": "11"
+    },
+    "81": {
+        "name": "伺服误差",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "5",
+        "_original_id": "12"
+    },
+    "82": {
+        "name": "标准片上片重复性",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "5",
+        "_original_id": "13"
+    },
+    "83": {
+        "name": "标准片上片旋转",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "5",
+        "_original_id": "14"
+    },
+    "84": {
+        "name": "EPWARE",
+        "type": "数据前置",
+        "_dataset": "5",
+        "_original_id": "15"
+    },
+    "85": {
+        "name": "cowa拒片",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "1"
+    },
+    "86": {
+        "name": "2DC补偿开关关闭时cowa建模参数超限",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "2"
+    },
+    "87": {
+        "name": "软件流程",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "3"
+    },
+    "88": {
+        "name": "2DC测校与在线批流程之间存在差异",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "4"
+    },
+    "89": {
+        "name": "上片标定",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "6",
+        "_original_id": "5"
+    },
+    "90": {
+        "name": "上片重复稳定性",
+        "type": "故障状态",
+        "subsystem": "WS",
+        "_dataset": "6",
+        "_original_id": "6"
+    },
+    "91": {
+        "name": "EMBMWL测试",
+        "type": "数据表征",
+        "_dataset": "6",
+        "_original_id": "7"
+    },
+    "92": {
+        "name": "ETLWRE测试",
+        "type": "数据表征",
+        "_dataset": "6",
+        "_original_id": "8"
+    },
+    "93": {
+        "name": "WA跳变",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "6",
+        "_original_id": "9"
+    },
+    "94": {
+        "name": "WA对准重复性",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "6",
+        "_original_id": "10"
+    },
+    "95": {
+        "name": "EPWARE",
+        "type": "数据前置",
+        "_dataset": "6",
+        "_original_id": "11"
+    },
+    "96": {
+        "name": "硅片",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "12"
+    },
+    "97": {
+        "name": "mark异常",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "13"
+    },
+    "98": {
+        "name": "2DC测试",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "14"
+    },
+    "99": {
+        "name": "2DC补偿开关",
+        "type": "故障状态",
+        "_dataset": "6",
+        "_original_id": "15"
+    },
+    "100": {
+        "name": "EPWARE(2DC处方)",
+        "type": "数据表征",
+        "_dataset": "6",
+        "_original_id": "16"
+    },
+    "101": {
+        "name": "ETLWRE测试(2DC开关)",
+        "type": "数据表征",
+        "_dataset": "6",
+        "_original_id": "17"
+    },
+    "102": {
+        "name": "FIWA",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "1"
+    },
+    "103": {
+        "name": "软件异常",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "2"
+    },
+    "104": {
+        "name": "处方设置不合理",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "3"
+    },
+    "105": {
+        "name": "流程存在缺陷",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "4"
+    },
+    "106": {
+        "name": "部署版本不正确",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "5"
+    },
+    "107": {
+        "name": "硅片异常",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "6"
+    },
+    "108": {
+        "name": "曝光mark质量差",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "7"
+    },
+    "109": {
+        "name": "mark mcc值",
+        "type": "数据表征",
+        "_dataset": "7",
+        "_original_id": "8"
+    },
+    "110": {
+        "name": "对准失败标记(mark位置)",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "9"
+    },
+    "111": {
+        "name": "台对准、cowa成功",
+        "type": "数据表征",
+        "_dataset": "7",
+        "_original_id": "10"
+    },
+    "112": {
+        "name": "SBO异常",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "7",
+        "_original_id": "11"
+    },
+    "113": {
+        "name": "SBO是什么",
+        "type": "数据表征",
+        "_dataset": "7",
+        "_original_id": "12"
+    },
+    "114": {
+        "name": "对准焦距异常",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "7",
+        "_original_id": "13"
+    },
+    "115": {
+        "name": "对准残差",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "7",
+        "_original_id": "14"
+    },
+    "116": {
+        "name": "归于哪一类",
+        "type": "数据表征",
+        "_dataset": "7",
+        "_original_id": "15"
+    },
+    "117": {
+        "name": "鱼骨图未提到",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "16"
+    },
+    "118": {
+        "name": "上片偏差",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "17"
+    },
+    "119": {
+        "name": "上片旋转",
+        "type": "故障状态",
+        "_dataset": "7",
+        "_original_id": "18"
+    },
+    "120": {
+        "name": "chuck1chuck2",
+        "type": "数据表征",
+        "_dataset": "7",
+        "_original_id": "19"
+    },
+    "121": {
+        "name": "动态错误超限",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "1"
+    },
+    "122": {
+        "name": "软件异常",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "2"
+    },
+    "123": {
+        "name": "部署版本",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "3"
+    },
+    "124": {
+        "name": "流程存在缺陷",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "4"
+    },
+    "125": {
+        "name": "工艺相关",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "5"
+    },
+    "126": {
+        "name": "对准mark质量差",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "6"
+    },
+    "127": {
+        "name": "处方设置",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "7"
+    },
+    "128": {
+        "name": "/SRC/DBPMA/PA201.dat处方PA2层",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "8"
+    },
+    "129": {
+        "name": "SBO异常",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "8",
+        "_original_id": "9"
+    },
+    "130": {
+        "name": "数据中心FDC、SBO",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "10"
+    },
+    "131": {
+        "name": "对准焦距异常",
+        "type": "故障状态",
+        "subsystem": "WA",
+        "_dataset": "8",
+        "_original_id": "11"
+    },
+    "132": {
+        "name": "mark测量端MCC值",
+        "type": "数据表征",
+        "subsystem": "WA",
+        "_dataset": "8",
+        "_original_id": "12"
+    },
+    "133": {
+        "name": "阈值0.7",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "13"
+    },
+    "134": {
+        "name": "曝光端Rz旋转大",
+        "type": "故障状态",
+        "subsystem": "WRS",
+        "_dataset": "8",
+        "_original_id": "14"
+    },
+    "135": {
+        "name": "扫描轨迹异常",
+        "type": "故障状态",
+        "subsystem": "WRS",
+        "_dataset": "8",
+        "_original_id": "15"
+    },
+    "136": {
+        "name": "存在异常振动",
+        "type": "故障状态",
+        "subsystem": "WRS",
+        "_dataset": "8",
+        "_original_id": "16"
+    },
+    "137": {
+        "name": "动态上片偏差----MSD数据关系",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "17"
+    },
+    "138": {
+        "name": "动态上片Rz",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "18"
+    },
+    "139": {
+        "name": "曝光性能Rz",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "19"
+    },
+    "140": {
+        "name": "曝光性能x&y",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "20"
+    },
+    "141": {
+        "name": "90度上片",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "8",
+        "_original_id": "21"
+    },
+    "142": {
+        "name": "上片跳点现象",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "8",
+        "_original_id": "22"
+    },
+    "143": {
+        "name": "上片重复性",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "8",
+        "_original_id": "23"
+    },
+    "144": {
+        "name": "测量端上片旋转大",
+        "type": "故障状态",
+        "subsystem": "WH",
+        "_dataset": "8",
+        "_original_id": "24"
+    },
+    "145": {
+        "name": "上片旋转Rz超阈值---推测工艺有关",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "25"
+    },
+    "146": {
+        "name": "阈值(-250urad, 250urad)",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "26"
+    },
+    "147": {
+        "name": "测量系统异常",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "27"
+    },
+    "148": {
+        "name": "干涉仪功能异常",
+        "type": "故障状态",
+        "_dataset": "8",
+        "_original_id": "28"
+    },
+    "149": {
+        "name": "MHR、EH、机器常数更新日志",
+        "type": "数据表征",
+        "_dataset": "8",
+        "_original_id": "29"
+    }
+}

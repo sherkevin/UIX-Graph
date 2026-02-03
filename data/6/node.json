@@ -1,0 +1,19 @@
+{
+    "1": { "name": "cowa拒片", "type": "故障状态" },
+    "2": { "name": "2DC补偿开关关闭时cowa建模参数超限", "type": "故障状态" },
+    "3": { "name": "软件流程", "type": "故障状态" },
+    "4": { "name": "2DC测校与在线批流程之间存在差异", "type": "故障状态" },
+    "5": { "name": "上片标定", "type": "故障状态", "subsystem": "WS" },
+    "6": { "name": "上片重复稳定性", "type": "故障状态", "subsystem": "WS" },
+    "7": { "name": "EMBMWL测试", "type": "数据表征" },
+    "8": { "name": "ETLWRE测试", "type": "数据表征" },
+    "9": { "name": "WA跳变", "type": "故障状态", "subsystem": "WA" },
+    "10": { "name": "WA对准重复性", "type": "故障状态", "subsystem": "WA" },
+    "11": { "name": "EPWARE", "type": "数据前置" },
+    "12": { "name": "硅片", "type": "故障状态" },
+    "13": { "name": "mark异常", "type": "故障状态" },
+    "14": { "name": "2DC测试", "type": "故障状态" },
+    "15": { "name": "2DC补偿开关", "type": "故障状态" },
+    "16": { "name": "EPWARE(2DC处方)", "type": "数据表征" },
+    "17": { "name": "ETLWRE测试(2DC开关)", "type": "数据表征" }
+}

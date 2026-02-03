@@ -1,0 +1,62 @@
+{
+    "1": {
+        "name": "cowa",
+        "type": "故障状态"
+    },
+    "2": {
+        "name": "对准倍率超限",
+        "type": "故障状态"
+    },
+    "3": {
+        "name": "硅片质量问题",
+        "type": "故障状态"
+    },
+    "4": {
+        "name": "硅片对准问题",
+        "type": "故障状态"
+    },
+    "5": {
+        "name": "docking损坏",
+        "type": "故障状态",
+        "subsystem": "WH"
+    },
+    "6": {
+        "name": "预对准问题",
+        "type": "故障状态",
+        "subsystem": "WH"
+    },
+    "7": {
+        "name": "交接异常",
+        "type": "故障状态",
+        "subsystem": "WH"
+    },
+    "8": {
+        "name": "控制性能异常",
+        "type": "故障状态",
+        "subsystem": "WS"
+    },
+    "9": {
+        "name": "吸盘异常",
+        "type": "故障状态",
+        "subsystem": "WS"
+    },
+    "10": {
+        "name": "交接异常",
+        "type": "故障状态",
+        "subsystem": "WS"
+    },
+    "11": {
+        "name": "上片偏差标定异常",
+        "type": "故障状态",
+        "subsystem": "WS"
+    },
+    "12": {
+        "name": "EMBMWL测试",
+        "type": "数据前置"
+    },
+    "13": {
+        "name": "WHMC上片旋转机器常数",
+        "type": "数据表征",
+        "attribute": []
+    }
+}

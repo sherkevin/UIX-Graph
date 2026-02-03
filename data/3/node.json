@@ -1,0 +1,23 @@
+{
+    "1": { "name": "cowa拒片", "type": "故障状态" },
+    "2": { "name": "上片旋转超限", "type": "故障状态" },
+    "3": { "name": "阈值问题", "type": "故障状态" },
+    "4": { "name": "上片旋转阈值", "type": "故障状态" },
+    "5": { "name": "EPWARE", "type": "数据前置" },
+    "6": { "name": "对准问题", "type": "故障状态" },
+    "7": { "name": "对准重复性差", "type": "故障状态" },
+    "8": { "name": "工艺适应性差", "type": "故障状态" },
+    "9": { "name": "硅片本身问题", "type": "故障状态" },
+    "10": { "name": "前层存在旋转", "type": "故障状态" },
+    "11": { "name": "mark质量不佳", "type": "故障状态" },
+    "12": { "name": "docking plate", "type": "故障状态", "subsystem": "WS" },
+    "13": { "name": "吸盘", "type": "故障状态", "subsystem": "WS" },
+    "14": { "name": "Epin", "type": "故障状态", "subsystem": "WS" },
+    "15": { "name": "上片工艺适应性/上片chuck间差异", "type": "故障状态", "subsystem": "WS" },
+    "16": { "name": "上片标定问题", "type": "故障状态", "subsystem": "WS" },
+    "17": { "name": "HWSTGA--上片重复性", "type": "数据表征" },
+    "18": { "name": "Epin与Table交接重复性", "type": "故障状态", "subsystem": "WS" },
+    "19": { "name": "工件台粗微粗相对误差", "type": "故障状态", "subsystem": "WS" },
+    "20": { "name": "E-pins运动重复性", "type": "故障状态", "subsystem": "WS" },
+    "21": { "name": "动感串扰", "type": "故障状态", "subsystem": "WS" }
+}

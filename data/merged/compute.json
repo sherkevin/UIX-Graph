@@ -1,0 +1,380 @@
+{
+    "1": {
+        "target": "{1}",
+        "operator": "{2}",
+        "_dataset": "1",
+        "_original_id": "1"
+    },
+    "2": {
+        "target": "{2}",
+        "operator": "{3}||{4}||({5}||{6}||{7})||({8}||{9}||{10}||{11})",
+        "_dataset": "1",
+        "_original_id": "2"
+    },
+    "3": {
+        "target": "{13}",
+        "operator": "{do}{12}",
+        "_dataset": "1",
+        "_original_id": "3"
+    },
+    "4": {
+        "target": "{14}",
+        "operator": "{15}",
+        "_dataset": "2",
+        "_original_id": "1"
+    },
+    "5": {
+        "target": "{15}",
+        "operator": "{16}||{19}||{22}||({25}||{26}||{27})||({28}||{29}||{31})",
+        "_dataset": "2",
+        "_original_id": "2"
+    },
+    "6": {
+        "target": "{16}",
+        "operator": "{17}",
+        "_dataset": "2",
+        "_original_id": "3"
+    },
+    "7": {
+        "target": "{17}",
+        "operator": "{18}",
+        "_dataset": "2",
+        "_original_id": "4"
+    },
+    "8": {
+        "target": "{19}",
+        "operator": "{20}||{21}",
+        "_dataset": "2",
+        "_original_id": "5"
+    },
+    "9": {
+        "target": "{22}",
+        "operator": "{23}||{24}",
+        "_dataset": "2",
+        "_original_id": "6"
+    },
+    "10": {
+        "target": "{29}",
+        "operator": "{30}",
+        "_dataset": "2",
+        "_original_id": "7"
+    },
+    "11": {
+        "target": "{32}",
+        "operator": "{33}",
+        "_dataset": "3",
+        "_original_id": "1"
+    },
+    "12": {
+        "target": "{33}",
+        "operator": "{34}||{37}||{40}||({43}||{44}||{45})||({46}||{47}||{49}||{50}||{51}||{52})",
+        "_dataset": "3",
+        "_original_id": "2"
+    },
+    "13": {
+        "target": "{34}",
+        "operator": "{35}",
+        "_dataset": "3",
+        "_original_id": "3"
+    },
+    "14": {
+        "target": "{35}",
+        "operator": "{36}",
+        "_dataset": "3",
+        "_original_id": "4"
+    },
+    "15": {
+        "target": "{37}",
+        "operator": "{38}||{39}",
+        "_dataset": "3",
+        "_original_id": "5"
+    },
+    "16": {
+        "target": "{40}",
+        "operator": "{41}||{42}",
+        "_dataset": "3",
+        "_original_id": "6"
+    },
+    "17": {
+        "target": "{47}",
+        "operator": "{48}",
+        "_dataset": "3",
+        "_original_id": "7"
+    },
+    "18": {
+        "target": "{53}",
+        "operator": "{54}||{55}",
+        "_dataset": "4",
+        "_original_id": "1"
+    },
+    "19": {
+        "target": "{54}",
+        "operator": "{56}||({59})||{61}||{64}||({69})",
+        "_dataset": "4",
+        "_original_id": "2"
+    },
+    "20": {
+        "target": "{55}",
+        "operator": "{56}||({59})||{61}||{64}||({69})",
+        "_dataset": "4",
+        "_original_id": "3"
+    },
+    "21": {
+        "target": "{56}",
+        "operator": "{57}||{58}",
+        "_dataset": "4",
+        "_original_id": "4"
+    },
+    "22": {
+        "target": "{59}",
+        "operator": "{60}",
+        "_dataset": "4",
+        "_original_id": "5"
+    },
+    "23": {
+        "target": "{61}",
+        "operator": "{62}",
+        "_dataset": "4",
+        "_original_id": "6"
+    },
+    "24": {
+        "target": "{62}",
+        "operator": "{63}",
+        "_dataset": "4",
+        "_original_id": "7"
+    },
+    "25": {
+        "target": "{64}",
+        "operator": "{65}||{67}",
+        "_dataset": "4",
+        "_original_id": "8"
+    },
+    "26": {
+        "target": "{65}",
+        "operator": "{66}",
+        "_dataset": "4",
+        "_original_id": "9"
+    },
+    "27": {
+        "target": "{67}",
+        "operator": "{68}",
+        "_dataset": "4",
+        "_original_id": "10"
+    },
+    "28": {
+        "target": "{70}",
+        "operator": "{71}",
+        "_dataset": "5",
+        "_original_id": "1"
+    },
+    "29": {
+        "target": "{71}",
+        "operator": "{72}&&({73}||({76})||{77}||({80}||{81})||({82}||{83}))",
+        "_dataset": "5",
+        "_original_id": "2"
+    },
+    "30": {
+        "target": "{73}",
+        "operator": "{74}||{75}",
+        "_dataset": "5",
+        "_original_id": "3"
+    },
+    "31": {
+        "target": "{77}",
+        "operator": "{78}||{79}",
+        "_dataset": "5",
+        "_original_id": "4"
+    },
+    "32": {
+        "target": "{83}",
+        "operator": "{84}",
+        "_dataset": "5",
+        "_original_id": "5"
+    },
+    "33": {
+        "target": "{85}",
+        "operator": "{86}",
+        "_dataset": "6",
+        "_original_id": "1"
+    },
+    "34": {
+        "target": "{86}",
+        "operator": "{87}||({89}||{90})||({93}||{94})||{96}||{98}",
+        "_dataset": "6",
+        "_original_id": "2"
+    },
+    "35": {
+        "target": "{87}",
+        "operator": "{88}",
+        "_dataset": "6",
+        "_original_id": "3"
+    },
+    "36": {
+        "target": "{89}",
+        "operator": "{91}",
+        "_dataset": "6",
+        "_original_id": "4"
+    },
+    "37": {
+        "target": "{90}",
+        "operator": "{92}",
+        "_dataset": "6",
+        "_original_id": "5"
+    },
+    "38": {
+        "target": "{94}",
+        "operator": "{95}",
+        "_dataset": "6",
+        "_original_id": "6"
+    },
+    "39": {
+        "target": "{96}",
+        "operator": "{97}",
+        "_dataset": "6",
+        "_original_id": "7"
+    },
+    "40": {
+        "target": "{98}",
+        "operator": "{99}",
+        "_dataset": "6",
+        "_original_id": "8"
+    },
+    "41": {
+        "target": "{99}",
+        "operator": "{100}||{101}",
+        "_dataset": "6",
+        "_original_id": "9"
+    },
+    "42": {
+        "target": "{102}",
+        "operator": "{103}||{107}||({112}||{114}||{115})||{117}",
+        "_dataset": "7",
+        "_original_id": "1"
+    },
+    "43": {
+        "target": "{103}",
+        "operator": "{104}||{105}||{106}",
+        "_dataset": "7",
+        "_original_id": "2"
+    },
+    "44": {
+        "target": "{107}",
+        "operator": "{108}||{110}",
+        "_dataset": "7",
+        "_original_id": "3"
+    },
+    "45": {
+        "target": "{108}",
+        "operator": "{109}",
+        "_dataset": "7",
+        "_original_id": "4"
+    },
+    "46": {
+        "target": "{110}",
+        "operator": "{111}",
+        "_dataset": "7",
+        "_original_id": "5"
+    },
+    "47": {
+        "target": "{112}",
+        "operator": "{113}",
+        "_dataset": "7",
+        "_original_id": "6"
+    },
+    "48": {
+        "target": "{115}",
+        "operator": "{116}",
+        "_dataset": "7",
+        "_original_id": "7"
+    },
+    "49": {
+        "target": "{117}",
+        "operator": "{118}||{119}",
+        "_dataset": "7",
+        "_original_id": "8"
+    },
+    "50": {
+        "target": "{118}",
+        "operator": "{120}",
+        "_dataset": "7",
+        "_original_id": "9"
+    },
+    "51": {
+        "target": "{119}",
+        "operator": "{120}",
+        "_dataset": "7",
+        "_original_id": "10"
+    },
+    "52": {
+        "target": "{121}",
+        "operator": "{122}||{125}||({129}||{131})||({134}||{135}||{136})||({141}||{142}||{143}||{144})||{147}",
+        "_dataset": "8",
+        "_original_id": "1"
+    },
+    "53": {
+        "target": "{122}",
+        "operator": "{123}||{124}",
+        "_dataset": "8",
+        "_original_id": "2"
+    },
+    "54": {
+        "target": "{125}",
+        "operator": "{126}||{127}",
+        "_dataset": "8",
+        "_original_id": "3"
+    },
+    "55": {
+        "target": "{127}",
+        "operator": "{128}",
+        "_dataset": "8",
+        "_original_id": "4"
+    },
+    "56": {
+        "target": "{129}",
+        "operator": "{130}",
+        "_dataset": "8",
+        "_original_id": "5"
+    },
+    "57": {
+        "target": "{131}",
+        "operator": "{132}",
+        "_dataset": "8",
+        "_original_id": "6"
+    },
+    "58": {
+        "target": "{132}",
+        "operator": "{133}",
+        "_dataset": "8",
+        "_original_id": "7"
+    },
+    "59": {
+        "target": "{136}",
+        "operator": "{137}||{138}||{139}||{140}",
+        "_dataset": "8",
+        "_original_id": "8"
+    },
+    "60": {
+        "target": "{144}",
+        "operator": "{145}",
+        "_dataset": "8",
+        "_original_id": "9"
+    },
+    "61": {
+        "target": "{145}",
+        "operator": "{146}",
+        "_dataset": "8",
+        "_original_id": "10"
+    },
+    "62": {
+        "target": "{147}",
+        "operator": "{148}",
+        "_dataset": "8",
+        "_original_id": "11"
+    },
+    "63": {
+        "target": "{148}",
+        "operator": "{149}",
+        "_dataset": "8",
+        "_original_id": "12"
+    }
+}

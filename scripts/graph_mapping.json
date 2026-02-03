@@ -1,0 +1,13 @@
+{
+    "virtual_to_id": {
+        "{12}||{13}||{14}": "10001",
+        "{15}||{16}||{18}": "10002"
+    },
+    "operator_instances": {
+        "note": "算子节点根据逻辑表达式动态生成，每次解析可能生成不同的ID"
+    },
+    "id_ranges": {
+        "virtual_nodes_start": 10001,
+        "operator_nodes_start": 20001
+    }
+}

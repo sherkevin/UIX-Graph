@@ -1,0 +1,2012 @@
+{
+    "nodes": {
+        "1": {
+            "name": "cowa",
+            "type": "故障状态",
+            "_dataset": "1",
+            "_original_id": "1"
+        },
+        "2": {
+            "name": "对准倍率超限",
+            "type": "故障状态",
+            "_dataset": "1",
+            "_original_id": "2"
+        },
+        "3": {
+            "name": "硅片质量问题",
+            "type": "故障状态",
+            "_dataset": "1",
+            "_original_id": "3"
+        },
+        "4": {
+            "name": "硅片对准问题",
+            "type": "故障状态",
+            "_dataset": "1",
+            "_original_id": "4"
+        },
+        "5": {
+            "name": "docking损坏",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "1",
+            "_original_id": "5"
+        },
+        "6": {
+            "name": "预对准问题",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "1",
+            "_original_id": "6"
+        },
+        "7": {
+            "name": "交接异常",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "1",
+            "_original_id": "7"
+        },
+        "8": {
+            "name": "控制性能异常",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "1",
+            "_original_id": "8"
+        },
+        "9": {
+            "name": "吸盘异常",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "1",
+            "_original_id": "9"
+        },
+        "10": {
+            "name": "交接异常",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "1",
+            "_original_id": "10"
+        },
+        "11": {
+            "name": "上片偏差标定异常",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "1",
+            "_original_id": "11"
+        },
+        "12": {
+            "name": "EMBMWL测试",
+            "type": "数据前置",
+            "_dataset": "1",
+            "_original_id": "12"
+        },
+        "13": {
+            "name": "WHMC上片旋转机器常数",
+            "type": "数据表征",
+            "attribute": [],
+            "_dataset": "1",
+            "_original_id": "13"
+        },
+        "14": {
+            "name": "cowa",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "1"
+        },
+        "15": {
+            "name": "上片旋转超限",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "2"
+        },
+        "16": {
+            "name": "阈值问题",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "3"
+        },
+        "17": {
+            "name": "上片旋转阈值",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "4"
+        },
+        "18": {
+            "name": "EPWARE",
+            "type": "数据前置",
+            "_dataset": "2",
+            "_original_id": "5"
+        },
+        "19": {
+            "name": "对准问题",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "6"
+        },
+        "20": {
+            "name": "对准重复性差",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "7"
+        },
+        "21": {
+            "name": "工艺适应性差",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "8"
+        },
+        "22": {
+            "name": "硅片本身问题",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "9"
+        },
+        "23": {
+            "name": "前层存在旋转",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "10"
+        },
+        "24": {
+            "name": "mark/质量不佳",
+            "type": "故障状态",
+            "_dataset": "2",
+            "_original_id": "11"
+        },
+        "25": {
+            "name": "docking plate",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "2",
+            "_original_id": "12"
+        },
+        "26": {
+            "name": "吸盘",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "2",
+            "_original_id": "13"
+        },
+        "27": {
+            "name": "Epin",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "2",
+            "_original_id": "14"
+        },
+        "28": {
+            "name": "上片工艺适应性/上片chuck间差异",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "2",
+            "_original_id": "15"
+        },
+        "29": {
+            "name": "上片标定问题",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "2",
+            "_original_id": "16"
+        },
+        "30": {
+            "name": "HWSTGA--上片重复性",
+            "type": "数据表征",
+            "attribute": [],
+            "_dataset": "2",
+            "_original_id": "17"
+        },
+        "31": {
+            "name": "Epin与Table交接重复性",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "2",
+            "_original_id": "18"
+        },
+        "32": {
+            "name": "cowa拒片",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "1"
+        },
+        "33": {
+            "name": "上片旋转超限",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "2"
+        },
+        "34": {
+            "name": "阈值问题",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "3"
+        },
+        "35": {
+            "name": "上片旋转阈值",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "4"
+        },
+        "36": {
+            "name": "EPWARE",
+            "type": "数据前置",
+            "_dataset": "3",
+            "_original_id": "5"
+        },
+        "37": {
+            "name": "对准问题",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "6"
+        },
+        "38": {
+            "name": "对准重复性差",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "7"
+        },
+        "39": {
+            "name": "工艺适应性差",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "8"
+        },
+        "40": {
+            "name": "硅片本身问题",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "9"
+        },
+        "41": {
+            "name": "前层存在旋转",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "10"
+        },
+        "42": {
+            "name": "mark质量不佳",
+            "type": "故障状态",
+            "_dataset": "3",
+            "_original_id": "11"
+        },
+        "43": {
+            "name": "docking plate",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "12"
+        },
+        "44": {
+            "name": "吸盘",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "13"
+        },
+        "45": {
+            "name": "Epin",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "14"
+        },
+        "46": {
+            "name": "上片工艺适应性/上片chuck间差异",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "15"
+        },
+        "47": {
+            "name": "上片标定问题",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "16"
+        },
+        "48": {
+            "name": "HWSTGA--上片重复性",
+            "type": "数据表征",
+            "_dataset": "3",
+            "_original_id": "17"
+        },
+        "49": {
+            "name": "Epin与Table交接重复性",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "18"
+        },
+        "50": {
+            "name": "工件台粗微粗相对误差",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "19"
+        },
+        "51": {
+            "name": "E-pins运动重复性",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "20"
+        },
+        "52": {
+            "name": "动感串扰",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "3",
+            "_original_id": "21"
+        },
+        "53": {
+            "name": "cowa拒片",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "1"
+        },
+        "54": {
+            "name": "上片旋转超限",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "2"
+        },
+        "55": {
+            "name": "上片RZ值",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "3"
+        },
+        "56": {
+            "name": "软件异常",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "4"
+        },
+        "57": {
+            "name": "部署版本",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "5"
+        },
+        "58": {
+            "name": "流程存在缺陷",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "6"
+        },
+        "59": {
+            "name": "SBO异常",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "4",
+            "_original_id": "7"
+        },
+        "60": {
+            "name": "数据中心FDC WSA SBO",
+            "type": "数据表征",
+            "_dataset": "4",
+            "_original_id": "8"
+        },
+        "61": {
+            "name": "测量系统异常",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "9"
+        },
+        "62": {
+            "name": "干涉仪功能异常",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "10"
+        },
+        "63": {
+            "name": "MHR、EH、机器常数更新日志",
+            "type": "数据表征",
+            "_dataset": "4",
+            "_original_id": "11"
+        },
+        "64": {
+            "name": "工艺相关",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "12"
+        },
+        "65": {
+            "name": "处方设置",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "13"
+        },
+        "66": {
+            "name": "SRC/DBJOA/NL301.dat处方NL3层",
+            "type": "数据表征",
+            "_dataset": "4",
+            "_original_id": "14"
+        },
+        "67": {
+            "name": "对准mark/质量差",
+            "type": "故障状态",
+            "_dataset": "4",
+            "_original_id": "15"
+        },
+        "68": {
+            "name": "Mark MCC值",
+            "type": "数据表征",
+            "_dataset": "4",
+            "_original_id": "16"
+        },
+        "69": {
+            "name": "扫描轨迹异常",
+            "type": "故障状态",
+            "subsystem": "WRS",
+            "_dataset": "4",
+            "_original_id": "17"
+        },
+        "70": {
+            "name": "cowa拒片",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "1"
+        },
+        "71": {
+            "name": "上片旋转超限",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "2"
+        },
+        "72": {
+            "name": "chuck1 chuck2",
+            "type": "数据表征",
+            "_dataset": "5",
+            "_original_id": "3"
+        },
+        "73": {
+            "name": "软件",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "4"
+        },
+        "74": {
+            "name": "软件版本",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "5"
+        },
+        "75": {
+            "name": "机器常数修改",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "6"
+        },
+        "76": {
+            "name": "标记捕获",
+            "type": "故障状态",
+            "subsystem": "WRS",
+            "_dataset": "5",
+            "_original_id": "7"
+        },
+        "77": {
+            "name": "工艺",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "8"
+        },
+        "78": {
+            "name": "预对准工艺适应",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "9"
+        },
+        "79": {
+            "name": "前层标记质量",
+            "type": "故障状态",
+            "_dataset": "5",
+            "_original_id": "10"
+        },
+        "80": {
+            "name": "上片交接工位",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "5",
+            "_original_id": "11"
+        },
+        "81": {
+            "name": "伺服误差",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "5",
+            "_original_id": "12"
+        },
+        "82": {
+            "name": "标准片上片重复性",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "5",
+            "_original_id": "13"
+        },
+        "83": {
+            "name": "标准片上片旋转",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "5",
+            "_original_id": "14"
+        },
+        "84": {
+            "name": "EPWARE",
+            "type": "数据前置",
+            "_dataset": "5",
+            "_original_id": "15"
+        },
+        "85": {
+            "name": "cowa拒片",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "1"
+        },
+        "86": {
+            "name": "2DC补偿开关关闭时cowa建模参数超限",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "2"
+        },
+        "87": {
+            "name": "软件流程",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "3"
+        },
+        "88": {
+            "name": "2DC测校与在线批流程之间存在差异",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "4"
+        },
+        "89": {
+            "name": "上片标定",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "6",
+            "_original_id": "5"
+        },
+        "90": {
+            "name": "上片重复稳定性",
+            "type": "故障状态",
+            "subsystem": "WS",
+            "_dataset": "6",
+            "_original_id": "6"
+        },
+        "91": {
+            "name": "EMBMWL测试",
+            "type": "数据表征",
+            "_dataset": "6",
+            "_original_id": "7"
+        },
+        "92": {
+            "name": "ETLWRE测试",
+            "type": "数据表征",
+            "_dataset": "6",
+            "_original_id": "8"
+        },
+        "93": {
+            "name": "WA跳变",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "6",
+            "_original_id": "9"
+        },
+        "94": {
+            "name": "WA对准重复性",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "6",
+            "_original_id": "10"
+        },
+        "95": {
+            "name": "EPWARE",
+            "type": "数据前置",
+            "_dataset": "6",
+            "_original_id": "11"
+        },
+        "96": {
+            "name": "硅片",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "12"
+        },
+        "97": {
+            "name": "mark异常",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "13"
+        },
+        "98": {
+            "name": "2DC测试",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "14"
+        },
+        "99": {
+            "name": "2DC补偿开关",
+            "type": "故障状态",
+            "_dataset": "6",
+            "_original_id": "15"
+        },
+        "100": {
+            "name": "EPWARE(2DC处方)",
+            "type": "数据表征",
+            "_dataset": "6",
+            "_original_id": "16"
+        },
+        "101": {
+            "name": "ETLWRE测试(2DC开关)",
+            "type": "数据表征",
+            "_dataset": "6",
+            "_original_id": "17"
+        },
+        "102": {
+            "name": "FIWA",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "1"
+        },
+        "103": {
+            "name": "软件异常",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "2"
+        },
+        "104": {
+            "name": "处方设置不合理",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "3"
+        },
+        "105": {
+            "name": "流程存在缺陷",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "4"
+        },
+        "106": {
+            "name": "部署版本不正确",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "5"
+        },
+        "107": {
+            "name": "硅片异常",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "6"
+        },
+        "108": {
+            "name": "曝光mark质量差",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "7"
+        },
+        "109": {
+            "name": "mark mcc值",
+            "type": "数据表征",
+            "_dataset": "7",
+            "_original_id": "8"
+        },
+        "110": {
+            "name": "对准失败标记(mark位置)",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "9"
+        },
+        "111": {
+            "name": "台对准、cowa成功",
+            "type": "数据表征",
+            "_dataset": "7",
+            "_original_id": "10"
+        },
+        "112": {
+            "name": "SBO异常",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "7",
+            "_original_id": "11"
+        },
+        "113": {
+            "name": "SBO是什么",
+            "type": "数据表征",
+            "_dataset": "7",
+            "_original_id": "12"
+        },
+        "114": {
+            "name": "对准焦距异常",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "7",
+            "_original_id": "13"
+        },
+        "115": {
+            "name": "对准残差",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "7",
+            "_original_id": "14"
+        },
+        "116": {
+            "name": "归于哪一类",
+            "type": "数据表征",
+            "_dataset": "7",
+            "_original_id": "15"
+        },
+        "117": {
+            "name": "鱼骨图未提到",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "16"
+        },
+        "118": {
+            "name": "上片偏差",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "17"
+        },
+        "119": {
+            "name": "上片旋转",
+            "type": "故障状态",
+            "_dataset": "7",
+            "_original_id": "18"
+        },
+        "120": {
+            "name": "chuck1chuck2",
+            "type": "数据表征",
+            "_dataset": "7",
+            "_original_id": "19"
+        },
+        "121": {
+            "name": "动态错误超限",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "1"
+        },
+        "122": {
+            "name": "软件异常",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "2"
+        },
+        "123": {
+            "name": "部署版本",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "3"
+        },
+        "124": {
+            "name": "流程存在缺陷",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "4"
+        },
+        "125": {
+            "name": "工艺相关",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "5"
+        },
+        "126": {
+            "name": "对准mark质量差",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "6"
+        },
+        "127": {
+            "name": "处方设置",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "7"
+        },
+        "128": {
+            "name": "/SRC/DBPMA/PA201.dat处方PA2层",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "8"
+        },
+        "129": {
+            "name": "SBO异常",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "8",
+            "_original_id": "9"
+        },
+        "130": {
+            "name": "数据中心FDC、SBO",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "10"
+        },
+        "131": {
+            "name": "对准焦距异常",
+            "type": "故障状态",
+            "subsystem": "WA",
+            "_dataset": "8",
+            "_original_id": "11"
+        },
+        "132": {
+            "name": "mark测量端MCC值",
+            "type": "数据表征",
+            "subsystem": "WA",
+            "_dataset": "8",
+            "_original_id": "12"
+        },
+        "133": {
+            "name": "阈值0.7",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "13"
+        },
+        "134": {
+            "name": "曝光端Rz旋转大",
+            "type": "故障状态",
+            "subsystem": "WRS",
+            "_dataset": "8",
+            "_original_id": "14"
+        },
+        "135": {
+            "name": "扫描轨迹异常",
+            "type": "故障状态",
+            "subsystem": "WRS",
+            "_dataset": "8",
+            "_original_id": "15"
+        },
+        "136": {
+            "name": "存在异常振动",
+            "type": "故障状态",
+            "subsystem": "WRS",
+            "_dataset": "8",
+            "_original_id": "16"
+        },
+        "137": {
+            "name": "动态上片偏差----MSD数据关系",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "17"
+        },
+        "138": {
+            "name": "动态上片Rz",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "18"
+        },
+        "139": {
+            "name": "曝光性能Rz",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "19"
+        },
+        "140": {
+            "name": "曝光性能x&y",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "20"
+        },
+        "141": {
+            "name": "90度上片",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "8",
+            "_original_id": "21"
+        },
+        "142": {
+            "name": "上片跳点现象",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "8",
+            "_original_id": "22"
+        },
+        "143": {
+            "name": "上片重复性",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "8",
+            "_original_id": "23"
+        },
+        "144": {
+            "name": "测量端上片旋转大",
+            "type": "故障状态",
+            "subsystem": "WH",
+            "_dataset": "8",
+            "_original_id": "24"
+        },
+        "145": {
+            "name": "上片旋转Rz超阈值---推测工艺有关",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "25"
+        },
+        "146": {
+            "name": "阈值(-250urad, 250urad)",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "26"
+        },
+        "147": {
+            "name": "测量系统异常",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "27"
+        },
+        "148": {
+            "name": "干涉仪功能异常",
+            "type": "故障状态",
+            "_dataset": "8",
+            "_original_id": "28"
+        },
+        "149": {
+            "name": "MHR、EH、机器常数更新日志",
+            "type": "数据表征",
+            "_dataset": "8",
+            "_original_id": "29"
+        },
+        "10001": {
+            "name": "{5}||{6}||{7}",
+            "type": "虚拟分组"
+        },
+        "20001": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10002": {
+            "name": "{8}||{9}||{10}||{11}",
+            "type": "虚拟分组"
+        },
+        "20002": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20003": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20004": {
+            "name": "do",
+            "type": "算子"
+        },
+        "10003": {
+            "name": "{25}||{26}||{27}",
+            "type": "虚拟分组"
+        },
+        "20005": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10004": {
+            "name": "{28}||{29}||{31}",
+            "type": "虚拟分组"
+        },
+        "20006": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20007": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20008": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20009": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10005": {
+            "name": "{43}||{44}||{45}",
+            "type": "虚拟分组"
+        },
+        "20010": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10006": {
+            "name": "{46}||{47}||{49}||{50}||{51}||{52}",
+            "type": "虚拟分组"
+        },
+        "20011": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20012": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20013": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20014": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20015": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10007": {
+            "name": "{59}",
+            "type": "虚拟分组"
+        },
+        "10008": {
+            "name": "{69}",
+            "type": "虚拟分组"
+        },
+        "20016": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20017": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20018": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20019": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10009": {
+            "name": "{76}",
+            "type": "虚拟分组"
+        },
+        "10010": {
+            "name": "{80}||{81}",
+            "type": "虚拟分组"
+        },
+        "20020": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10011": {
+            "name": "{82}||{83}",
+            "type": "虚拟分组"
+        },
+        "20021": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10012": {
+            "name": "{73}||{10009}||{77}||{10010}||{10011}",
+            "type": "虚拟分组"
+        },
+        "20022": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20023": {
+            "name": "&&",
+            "type": "算子"
+        },
+        "20024": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20025": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10013": {
+            "name": "{89}||{90}",
+            "type": "虚拟分组"
+        },
+        "20026": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10014": {
+            "name": "{93}||{94}",
+            "type": "虚拟分组"
+        },
+        "20027": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20028": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20029": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10015": {
+            "name": "{112}||{114}||{115}",
+            "type": "虚拟分组"
+        },
+        "20030": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20031": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20032": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20033": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20034": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10016": {
+            "name": "{129}||{131}",
+            "type": "虚拟分组"
+        },
+        "20035": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10017": {
+            "name": "{134}||{135}||{136}",
+            "type": "虚拟分组"
+        },
+        "20036": {
+            "name": "||",
+            "type": "算子"
+        },
+        "10018": {
+            "name": "{141}||{142}||{143}||{144}",
+            "type": "虚拟分组"
+        },
+        "20037": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20038": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20039": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20040": {
+            "name": "||",
+            "type": "算子"
+        },
+        "20041": {
+            "name": "||",
+            "type": "算子"
+        }
+    },
+    "edges": [
+        {
+            "source": "2",
+            "target": "1"
+        },
+        {
+            "source": "5",
+            "target": "20001"
+        },
+        {
+            "source": "6",
+            "target": "20001"
+        },
+        {
+            "source": "7",
+            "target": "20001"
+        },
+        {
+            "source": "20001",
+            "target": "10001"
+        },
+        {
+            "source": "8",
+            "target": "20002"
+        },
+        {
+            "source": "9",
+            "target": "20002"
+        },
+        {
+            "source": "10",
+            "target": "20002"
+        },
+        {
+            "source": "11",
+            "target": "20002"
+        },
+        {
+            "source": "20002",
+            "target": "10002"
+        },
+        {
+            "source": "3",
+            "target": "20003"
+        },
+        {
+            "source": "4",
+            "target": "20003"
+        },
+        {
+            "source": "10001",
+            "target": "20003"
+        },
+        {
+            "source": "10002",
+            "target": "20003"
+        },
+        {
+            "source": "20003",
+            "target": "2"
+        },
+        {
+            "source": "12",
+            "target": "20004"
+        },
+        {
+            "source": "20004",
+            "target": "13"
+        },
+        {
+            "source": "15",
+            "target": "14"
+        },
+        {
+            "source": "25",
+            "target": "20005"
+        },
+        {
+            "source": "26",
+            "target": "20005"
+        },
+        {
+            "source": "27",
+            "target": "20005"
+        },
+        {
+            "source": "20005",
+            "target": "10003"
+        },
+        {
+            "source": "28",
+            "target": "20006"
+        },
+        {
+            "source": "29",
+            "target": "20006"
+        },
+        {
+            "source": "31",
+            "target": "20006"
+        },
+        {
+            "source": "20006",
+            "target": "10004"
+        },
+        {
+            "source": "16",
+            "target": "20007"
+        },
+        {
+            "source": "19",
+            "target": "20007"
+        },
+        {
+            "source": "22",
+            "target": "20007"
+        },
+        {
+            "source": "10003",
+            "target": "20007"
+        },
+        {
+            "source": "10004",
+            "target": "20007"
+        },
+        {
+            "source": "20007",
+            "target": "15"
+        },
+        {
+            "source": "17",
+            "target": "16"
+        },
+        {
+            "source": "18",
+            "target": "17"
+        },
+        {
+            "source": "20",
+            "target": "20008"
+        },
+        {
+            "source": "21",
+            "target": "20008"
+        },
+        {
+            "source": "20008",
+            "target": "19"
+        },
+        {
+            "source": "23",
+            "target": "20009"
+        },
+        {
+            "source": "24",
+            "target": "20009"
+        },
+        {
+            "source": "20009",
+            "target": "22"
+        },
+        {
+            "source": "30",
+            "target": "29"
+        },
+        {
+            "source": "33",
+            "target": "32"
+        },
+        {
+            "source": "43",
+            "target": "20010"
+        },
+        {
+            "source": "44",
+            "target": "20010"
+        },
+        {
+            "source": "45",
+            "target": "20010"
+        },
+        {
+            "source": "20010",
+            "target": "10005"
+        },
+        {
+            "source": "46",
+            "target": "20011"
+        },
+        {
+            "source": "47",
+            "target": "20011"
+        },
+        {
+            "source": "49",
+            "target": "20011"
+        },
+        {
+            "source": "50",
+            "target": "20011"
+        },
+        {
+            "source": "51",
+            "target": "20011"
+        },
+        {
+            "source": "52",
+            "target": "20011"
+        },
+        {
+            "source": "20011",
+            "target": "10006"
+        },
+        {
+            "source": "34",
+            "target": "20012"
+        },
+        {
+            "source": "37",
+            "target": "20012"
+        },
+        {
+            "source": "40",
+            "target": "20012"
+        },
+        {
+            "source": "10005",
+            "target": "20012"
+        },
+        {
+            "source": "10006",
+            "target": "20012"
+        },
+        {
+            "source": "20012",
+            "target": "33"
+        },
+        {
+            "source": "35",
+            "target": "34"
+        },
+        {
+            "source": "36",
+            "target": "35"
+        },
+        {
+            "source": "38",
+            "target": "20013"
+        },
+        {
+            "source": "39",
+            "target": "20013"
+        },
+        {
+            "source": "20013",
+            "target": "37"
+        },
+        {
+            "source": "41",
+            "target": "20014"
+        },
+        {
+            "source": "42",
+            "target": "20014"
+        },
+        {
+            "source": "20014",
+            "target": "40"
+        },
+        {
+            "source": "48",
+            "target": "47"
+        },
+        {
+            "source": "54",
+            "target": "20015"
+        },
+        {
+            "source": "55",
+            "target": "20015"
+        },
+        {
+            "source": "20015",
+            "target": "53"
+        },
+        {
+            "source": "59",
+            "target": "10007"
+        },
+        {
+            "source": "69",
+            "target": "10008"
+        },
+        {
+            "source": "56",
+            "target": "20016"
+        },
+        {
+            "source": "10007",
+            "target": "20016"
+        },
+        {
+            "source": "61",
+            "target": "20016"
+        },
+        {
+            "source": "64",
+            "target": "20016"
+        },
+        {
+            "source": "10008",
+            "target": "20016"
+        },
+        {
+            "source": "20016",
+            "target": "54"
+        },
+        {
+            "source": "59",
+            "target": "10007"
+        },
+        {
+            "source": "69",
+            "target": "10008"
+        },
+        {
+            "source": "56",
+            "target": "20017"
+        },
+        {
+            "source": "10007",
+            "target": "20017"
+        },
+        {
+            "source": "61",
+            "target": "20017"
+        },
+        {
+            "source": "64",
+            "target": "20017"
+        },
+        {
+            "source": "10008",
+            "target": "20017"
+        },
+        {
+            "source": "20017",
+            "target": "55"
+        },
+        {
+            "source": "57",
+            "target": "20018"
+        },
+        {
+            "source": "58",
+            "target": "20018"
+        },
+        {
+            "source": "20018",
+            "target": "56"
+        },
+        {
+            "source": "60",
+            "target": "59"
+        },
+        {
+            "source": "62",
+            "target": "61"
+        },
+        {
+            "source": "63",
+            "target": "62"
+        },
+        {
+            "source": "65",
+            "target": "20019"
+        },
+        {
+            "source": "67",
+            "target": "20019"
+        },
+        {
+            "source": "20019",
+            "target": "64"
+        },
+        {
+            "source": "66",
+            "target": "65"
+        },
+        {
+            "source": "68",
+            "target": "67"
+        },
+        {
+            "source": "71",
+            "target": "70"
+        },
+        {
+            "source": "76",
+            "target": "10009"
+        },
+        {
+            "source": "80",
+            "target": "20020"
+        },
+        {
+            "source": "81",
+            "target": "20020"
+        },
+        {
+            "source": "20020",
+            "target": "10010"
+        },
+        {
+            "source": "82",
+            "target": "20021"
+        },
+        {
+            "source": "83",
+            "target": "20021"
+        },
+        {
+            "source": "20021",
+            "target": "10011"
+        },
+        {
+            "source": "73",
+            "target": "20022"
+        },
+        {
+            "source": "10009",
+            "target": "20022"
+        },
+        {
+            "source": "77",
+            "target": "20022"
+        },
+        {
+            "source": "10010",
+            "target": "20022"
+        },
+        {
+            "source": "10011",
+            "target": "20022"
+        },
+        {
+            "source": "20022",
+            "target": "10012"
+        },
+        {
+            "source": "72",
+            "target": "20023"
+        },
+        {
+            "source": "10012",
+            "target": "20023"
+        },
+        {
+            "source": "20023",
+            "target": "71"
+        },
+        {
+            "source": "74",
+            "target": "20024"
+        },
+        {
+            "source": "75",
+            "target": "20024"
+        },
+        {
+            "source": "20024",
+            "target": "73"
+        },
+        {
+            "source": "78",
+            "target": "20025"
+        },
+        {
+            "source": "79",
+            "target": "20025"
+        },
+        {
+            "source": "20025",
+            "target": "77"
+        },
+        {
+            "source": "84",
+            "target": "83"
+        },
+        {
+            "source": "86",
+            "target": "85"
+        },
+        {
+            "source": "89",
+            "target": "20026"
+        },
+        {
+            "source": "90",
+            "target": "20026"
+        },
+        {
+            "source": "20026",
+            "target": "10013"
+        },
+        {
+            "source": "93",
+            "target": "20027"
+        },
+        {
+            "source": "94",
+            "target": "20027"
+        },
+        {
+            "source": "20027",
+            "target": "10014"
+        },
+        {
+            "source": "87",
+            "target": "20028"
+        },
+        {
+            "source": "10013",
+            "target": "20028"
+        },
+        {
+            "source": "10014",
+            "target": "20028"
+        },
+        {
+            "source": "96",
+            "target": "20028"
+        },
+        {
+            "source": "98",
+            "target": "20028"
+        },
+        {
+            "source": "20028",
+            "target": "86"
+        },
+        {
+            "source": "88",
+            "target": "87"
+        },
+        {
+            "source": "91",
+            "target": "89"
+        },
+        {
+            "source": "92",
+            "target": "90"
+        },
+        {
+            "source": "95",
+            "target": "94"
+        },
+        {
+            "source": "97",
+            "target": "96"
+        },
+        {
+            "source": "99",
+            "target": "98"
+        },
+        {
+            "source": "100",
+            "target": "20029"
+        },
+        {
+            "source": "101",
+            "target": "20029"
+        },
+        {
+            "source": "20029",
+            "target": "99"
+        },
+        {
+            "source": "112",
+            "target": "20030"
+        },
+        {
+            "source": "114",
+            "target": "20030"
+        },
+        {
+            "source": "115",
+            "target": "20030"
+        },
+        {
+            "source": "20030",
+            "target": "10015"
+        },
+        {
+            "source": "103",
+            "target": "20031"
+        },
+        {
+            "source": "107",
+            "target": "20031"
+        },
+        {
+            "source": "10015",
+            "target": "20031"
+        },
+        {
+            "source": "117",
+            "target": "20031"
+        },
+        {
+            "source": "20031",
+            "target": "102"
+        },
+        {
+            "source": "104",
+            "target": "20032"
+        },
+        {
+            "source": "105",
+            "target": "20032"
+        },
+        {
+            "source": "106",
+            "target": "20032"
+        },
+        {
+            "source": "20032",
+            "target": "103"
+        },
+        {
+            "source": "108",
+            "target": "20033"
+        },
+        {
+            "source": "110",
+            "target": "20033"
+        },
+        {
+            "source": "20033",
+            "target": "107"
+        },
+        {
+            "source": "109",
+            "target": "108"
+        },
+        {
+            "source": "111",
+            "target": "110"
+        },
+        {
+            "source": "113",
+            "target": "112"
+        },
+        {
+            "source": "116",
+            "target": "115"
+        },
+        {
+            "source": "118",
+            "target": "20034"
+        },
+        {
+            "source": "119",
+            "target": "20034"
+        },
+        {
+            "source": "20034",
+            "target": "117"
+        },
+        {
+            "source": "120",
+            "target": "118"
+        },
+        {
+            "source": "120",
+            "target": "119"
+        },
+        {
+            "source": "129",
+            "target": "20035"
+        },
+        {
+            "source": "131",
+            "target": "20035"
+        },
+        {
+            "source": "20035",
+            "target": "10016"
+        },
+        {
+            "source": "134",
+            "target": "20036"
+        },
+        {
+            "source": "135",
+            "target": "20036"
+        },
+        {
+            "source": "136",
+            "target": "20036"
+        },
+        {
+            "source": "20036",
+            "target": "10017"
+        },
+        {
+            "source": "141",
+            "target": "20037"
+        },
+        {
+            "source": "142",
+            "target": "20037"
+        },
+        {
+            "source": "143",
+            "target": "20037"
+        },
+        {
+            "source": "144",
+            "target": "20037"
+        },
+        {
+            "source": "20037",
+            "target": "10018"
+        },
+        {
+            "source": "122",
+            "target": "20038"
+        },
+        {
+            "source": "125",
+            "target": "20038"
+        },
+        {
+            "source": "10016",
+            "target": "20038"
+        },
+        {
+            "source": "10017",
+            "target": "20038"
+        },
+        {
+            "source": "10018",
+            "target": "20038"
+        },
+        {
+            "source": "147",
+            "target": "20038"
+        },
+        {
+            "source": "20038",
+            "target": "121"
+        },
+        {
+            "source": "123",
+            "target": "20039"
+        },
+        {
+            "source": "124",
+            "target": "20039"
+        },
+        {
+            "source": "20039",
+            "target": "122"
+        },
+        {
+            "source": "126",
+            "target": "20040"
+        },
+        {
+            "source": "127",
+            "target": "20040"
+        },
+        {
+            "source": "20040",
+            "target": "125"
+        },
+        {
+            "source": "128",
+            "target": "127"
+        },
+        {
+            "source": "130",
+            "target": "129"
+        },
+        {
+            "source": "132",
+            "target": "131"
+        },
+        {
+            "source": "133",
+            "target": "132"
+        },
+        {
+            "source": "137",
+            "target": "20041"
+        },
+        {
+            "source": "138",
+            "target": "20041"
+        },
+        {
+            "source": "139",
+            "target": "20041"
+        },
+        {
+            "source": "140",
+            "target": "20041"
+        },
+        {
+            "source": "20041",
+            "target": "136"
+        },
+        {
+            "source": "145",
+            "target": "144"
+        },
+        {
+            "source": "146",
+            "target": "145"
+        },
+        {
+            "source": "148",
+            "target": "147"
+        },
+        {
+            "source": "149",
+            "target": "148"
+        }
+    ]
+}
