@@ -24,11 +24,14 @@ Action Function Registry
     - **context 接收当前上下文中的所有其他变量（供函数内部访问）
 """
 import logging
+import importlib
+import pkgutil
 from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 _REGISTRY: Dict[str, Callable] = {}
+_AUTOLOADED = False
 
 
 def register(name: str):
@@ -37,6 +40,46 @@ def register(name: str):
         _REGISTRY[name] = fn
         return fn
     return decorator
+
+
+def has_action(name: str) -> bool:
+    """判断 action 是否已注册。"""
+    return name in _REGISTRY
+
+
+def list_actions() -> Dict[str, Callable]:
+    """返回 action 注册表副本（只读用途）。"""
+    return dict(_REGISTRY)
+
+
+def _resolve_params(
+    params: Optional[Dict[str, Any]],
+    context: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    解析 rules.details.params：
+    - 值为空字符串/None：从 context 同名键取值
+    - 值为 "{var_name}"：从 context[var_name] 取值
+    - 其他：按字面量常量传入
+    """
+    if not params:
+        return {}
+
+    resolved: Dict[str, Any] = {}
+    for key, raw_value in params.items():
+        if raw_value is None or raw_value == "":
+            resolved[key] = context.get(key)
+            continue
+
+        if isinstance(raw_value, str):
+            token = raw_value.strip()
+            if token.startswith("{") and token.endswith("}") and len(token) > 2:
+                var_name = token[1:-1].strip()
+                resolved[key] = context.get(var_name)
+                continue
+
+        resolved[key] = raw_value
+    return resolved
 
 
 def call_action(
@@ -60,11 +103,9 @@ def call_action(
         logger.warning("[Action] '%s' 未注册，跳过（可提供实现后注册）", name)
         return {}
 
-    # 从 context 中按 params 声明的 key 取值，作为 kwargs 传入
-    kwargs = dict(context)  # 把整个 context 都传进去，函数按需用 **context 接收
-    if params:
-        for key in params:
-            kwargs.setdefault(key, context.get(key))
+    # params 优先作为显式入参，context 作为额外上下文透传
+    kwargs = dict(context)
+    kwargs.update(_resolve_params(params, context))
 
     try:
         result = fn(**kwargs)
@@ -74,5 +115,21 @@ def call_action(
         return {}
 
 
-# ── 加载内置函数 ────────────────────────────────────────────────────────────
-from . import builtin  # noqa: E402, F401
+def _autoload_action_modules() -> None:
+    """
+    自动加载 actions 包内的所有模块（除 __init__）以完成 @register 注册。
+    后续新增 action 文件无需修改本文件。
+    """
+    global _AUTOLOADED
+    if _AUTOLOADED:
+        return
+
+    for module_info in pkgutil.iter_modules(__path__):  # type: ignore[name-defined]
+        module_name = module_info.name
+        if module_name.startswith("_"):
+            continue
+        importlib.import_module(f"{__name__}.{module_name}")
+    _AUTOLOADED = True
+
+
+_autoload_action_modules()

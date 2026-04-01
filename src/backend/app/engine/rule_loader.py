@@ -8,6 +8,8 @@ import json
 import os
 import logging
 from typing import Dict, List, Any, Optional
+from app.engine.actions import has_action
+from app.engine.rule_validator import validate_rules_config
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,7 @@ _RULES_PATH_MAIN = os.path.join(_CONFIG_DIR, "rules.json")
 _RULES_PATH_FALLBACK = os.path.join(_PROJECT_ROOT, "rejection_rules.json")
 _RULES_PATH = _RULES_PATH_MAIN if os.path.exists(_RULES_PATH_MAIN) else _RULES_PATH_FALLBACK
 _METRICS_PATH = os.path.join(_CONFIG_DIR, "metrics.json")
+_RULES_STRICT = os.environ.get("RULES_STRICT", "1") != "0"
 
 
 class RuleLoader:
@@ -80,6 +83,13 @@ class RuleLoader:
         self.rules_version = data.get("version", "unknown")
         self.diagnosis_scenes = data.get("diagnosis_scenes", [])
         self.steps = data.get("steps", [])
+
+        validation_errors = validate_rules_config(data, action_exists=has_action)
+        if validation_errors:
+            msg = "rules.json 校验失败:\n- " + "\n- ".join(validation_errors)
+            if _RULES_STRICT:
+                raise ValueError(msg)
+            logger.error(msg)
 
         # 构建 step_id → step 的映射（step id 可能是 int 或 str）
         self.steps_map = {}

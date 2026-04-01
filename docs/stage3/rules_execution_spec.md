@@ -53,7 +53,10 @@
    后端通过 action registry 按名称调用函数（见 `engine/actions/`）。
 
 3. **`params` 是函数入参声明**  
-   `params` 的 key 表示该动作关注的输入变量名，值通常作为占位；引擎从当前上下文按 key 取值并传入函数。
+   `params` 的 key 表示函数参数名，值按以下规则解析：  
+   - `""` 或 `null`：从上下文读取同名变量  
+   - `"{var_name}"`：从上下文读取指定变量  
+   - 其他值：按常量字面量传入（如 `1`、`"normal_count"`）
 
 4. **`results` 是函数出参声明**  
    动作函数返回 `dict`，其 key 应与 `results` 中声明字段一致；返回值会写回执行上下文，供后续 `details` 或 `next.condition` 使用。
@@ -92,7 +95,23 @@
 
 - 新 action 统一放在 `src/backend/app/engine/actions/` 目录
 - 使用 `@register("函数名")` 注册
-- 函数返回 `dict`，由引擎合并到上下文
+- `actions` 包会自动加载目录下模块，新增函数文件无需再改注册入口
+- 函数返回 `dict`，由引擎按 `details.results` 声明字段写回上下文（未声明则全量回写）
+
+---
+
+## 5.1 启动期静态校验
+
+`RuleLoader` 在加载 `rules.json` 时会执行静态校验（默认严格模式）：
+
+- step id 唯一性
+- scene 的 `start_node` 必须存在
+- `next.target` 必须指向存在的 step
+- `action` 必须已注册
+- `condition` 表达式必须可解析
+- `operator` 必须在支持列表中且配置完整
+
+校验失败时会阻止服务启动，避免错误规则在运行时触发不可控行为。
 
 ---
 
