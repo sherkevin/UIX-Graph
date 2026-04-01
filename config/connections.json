@@ -1,0 +1,53 @@
+{
+    "local": {
+        "mysql": {
+            "host": "localhost",
+            "port": 3307,
+            "username": "root",
+            "password": "root",
+            "dbname": "datacenter"
+        },
+        "clickhouse": {
+            "host": "localhost",
+            "port": 8123,
+            "username": "default",
+            "password": "",
+            "dbname": "default"
+        },
+        "frontend_api_url": ""
+    },
+    "test": {
+        "mysql": {
+            "host": "172.16.70.171",
+            "port": 3306,
+            "username": "root",
+            "password": "root",
+            "dbname": "datacenter"
+        },
+        "clickhouse": {
+            "host": "172.16.70.103",
+            "port": 8123,
+            "username": "",
+            "password": "",
+            "dbname": "src"
+        },
+        "frontend_api_url": ""
+    },
+    "prod": {
+        "mysql": {
+            "host": "mysql.datacenter.smee.com.cn",
+            "port": 30888,
+            "username": "root",
+            "password": "CHANGE_ME_BEFORE_DEPLOY",
+            "dbname": "datacenter"
+        },
+        "clickhouse": {
+            "host": "clickhouse.datacenter.smee.com.cn",
+            "port": 8123,
+            "username": "",
+            "password": "",
+            "dbname": "las"
+        },
+        "frontend_api_url": ""
+    }
+}

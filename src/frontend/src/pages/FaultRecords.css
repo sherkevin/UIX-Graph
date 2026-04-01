@@ -1,0 +1,15 @@
+/* 筛选区域样式 - 参考图2风格 */
+.filter-section {
+  background: #fff;
+  padding: 16px 24px;
+  margin-bottom: 16px;
+  border-radius: 4px;
+}
+
+.filter-label {
+  display: inline-block;
+  margin-right: 8px;
+  font-weight: 500;
+  color: #333;
+  min-width: 80px;
+}

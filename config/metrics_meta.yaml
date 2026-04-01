@@ -1,0 +1,79 @@
+# metrics.json 的补充字段说明与底层库表映射参考
+
+"Coarse Alignment Failed":
+  notes:
+    - "这里选 mysql 或 clickhouse (对应 db_type)"
+    - "这里填 库.表 (对应 table_name)"
+    - "这里填具体的 SQL 列名 (对应 column_name)"
+    - "this.dbSchema L0_wafer_result 表 reject_reason 列"
+
+"Mwx out of range,CGG6_check_parameter_ranges":
+  notes:
+    - "clickhouse las.LOG_EH_UNION_VIEW表 detail 列"
+
+"mark_scan":
+  status: "deprecated or commented out"
+  notes:
+    - "clickhouse.src.RPT_WAA_SET_OFL.列mark_id ws_pos_x ws_pos_y"
+
+"mark_data":
+  status: "deprecated or commented out"
+  notes:
+    - "clickhouse.src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA 列mark_id mark_pos_x mark_pos_y"
+
+"ws_pos_x":
+  notes:
+    - "clickhouse.src.RPT_WAA_SET_OFL.列mark_id ws_pos_x ws_pos_y"
+
+"ws_pos_y":
+  notes:
+    - "clickhouse.src.RPT_WAA_SET_OFL.列mark_id ws_pos_x ws_pos_y"
+
+"mark_pos_x":
+  notes:
+    - "clickhouse.src.RPT_WAA_SET_OFL.列mark_id ws_pos_x ws_pos_y"
+
+"mark_pos_y":
+  notes:
+    - "clickhouse.src.RPT_WAA_SET_OFL.列mark_id ws_pos_x ws_pos_y"
+
+"Msx":
+  notes:
+    - "clickhouse.RPT_WAA_SA_RESULT_OFL.列Msx"
+
+"Msy":
+  notes:
+    - "clickhouse.RPT_WAA_SA_RESULT_OFL.列Msy"
+
+"e_ws_x":
+  notes:
+    - "clickhouse.RPT_WAA_SA_RESULT_OFL.列e_ws_x"
+
+"e_ws_y":
+  notes:
+    - "clickhouse.RPT_WAA_SA_RESUe_ws_x.列e_ws_y"
+
+"Sx":
+  notes:
+    - "mysql.datacenter.mc_config_commits_history.data列.chuck_message[1]"
+
+"Sy":
+  notes:
+    - "mysql.datacenter.mc_config_commits_history.data列.chuck_message[1]"
+
+"动态上片偏差":
+  notes:
+    - "datacenter me_rpt_lisp_test_result"
+    - "L0_wafer_result_c2"
+
+"Tx":
+  notes:
+    - "datacenter.mysql.lo_batch_equipment_performance.列wafer_translation_X.筛选chuck1/2"
+
+"Ty":
+  notes:
+    - "datacenter.lo_batch_equipment_performance.列wafer_translation_Y.筛选chuck1/2"
+
+"Rw":
+  notes:
+    - "datacenter.lo_batch_equipment_performance.列wafer.rotation.筛选chuck1/2"

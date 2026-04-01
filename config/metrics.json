@@ -1,0 +1,216 @@
+{
+  "Coarse Alignment Failed": {
+    "description": "COWA拒片的识别字段",
+    "data_type": null,
+    "unit": null,
+    "db_type": "mysql",
+    "table_name": "datacenter.L0_wafer_result",
+    "column_name": "reject_reason",
+    "duration": "1000"
+  },
+  "Mwx out of range,CGG6_check_parameter_ranges": {
+    "description": "倍率超限的识别字段",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "las.LOG_EH_UNION_VIEW",
+    "column_name": "detail",
+    "extraction_rule": "regex:Mwx out of range,CGG6_check_parameter_ranges",
+    "duration": "1000"
+  },
+  "Mwx_0": {
+    "description": "倍率实测值",
+    "data_type": null,
+    "unit": "ppm",
+    "db_type": "clickhouse",
+    "table_name": "las.LOG_EH_UNION_VIEW",
+    "column_name": "detail",
+    "extraction_rule": "regex:Mwx\\s*\\(\\s*([\\d\\.]+)\\s*\\)",
+    "duration": "1000"
+  },
+  "ws_pos_x": {
+    "description": "cowa标记对准位置 (mark_scan) ws_pos_x",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_SET_OFL",
+    "column_name": "ws_pos_x",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "ws_pos_y": {
+    "description": "cowa标记对准位置 (mark_scan) ws_pos_y",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_SET_OFL",
+    "column_name": "ws_pos_y",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "mark_pos_x": {
+    "description": "cowa标记名义位置 (mark_data) mark_pos_x",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+    "column_name": "mark_pos_x",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "mark_pos_y": {
+    "description": "cowa标记名义位置 (mark_data) mark_pos_y",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+    "column_name": "mark_pos_y",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "Msx": {
+    "description": "台对准建模结果Msx",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+    "column_name": "Msx",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "Msy": {
+    "description": "台对准建模结果Msy",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+    "column_name": "Msy",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "e_ws_x": {
+    "description": "台对准建模结果e_ws_x",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+    "column_name": "e_ws_x",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "e_ws_y": {
+    "description": "台对准建模结果e_ws_y",
+    "data_type": null,
+    "unit": null,
+    "db_type": "clickhouse",
+    "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+    "column_name": "e_ws_y",
+    "time_column": "time",
+    "equipment_column": "equipment",
+    "duration": "1000"
+  },
+  "Sx": {
+    "description": "静态上片偏差x",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "mysql",
+    "table_name": "datacenter.mc_config_commits_history",
+    "column_name": "data",
+    "extraction_rule": "json:Sx",
+    "time_column": "committed_at",
+    "equipment_column": "equipment",
+    "duration": "1000",
+    "_note": "extraction_rule 支持 json:<key> 或 regex:<pattern>；若列名不同在此修改 time_column / equipment_column，无需改代码"
+  },
+  "Sy": {
+    "description": "静态上片偏差y",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "mysql",
+    "table_name": "datacenter.mc_config_commits_history",
+    "column_name": "data",
+    "extraction_rule": "json:Sy",
+    "time_column": "committed_at",
+    "equipment_column": "equipment",
+    "duration": "1000",
+    "_note": "同 Sx，按实际表结构调整 extraction_rule / time_column / equipment_column"
+  },
+  "动态上片偏差": {},
+  "Tx": {
+    "description": "上片偏差Tx",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "mysql",
+    "table_name": "datacenter.lo_batch_equipment_performance",
+    "column_name": "wafer_translation_x",
+    "filter_condition": "chuck_id={chuck_id} AND lot_start_time >= {time_filter}",
+    "duration": "1000"
+  },
+  "Ty": {
+    "description": "上片偏差Ty",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "mysql",
+    "table_name": "datacenter.lo_batch_equipment_performance",
+    "column_name": "wafer_translation_y",
+    "filter_condition": "chuck_id={chuck_id} AND lot_start_time >= {time_filter}",
+    "duration": "1000"
+  },
+  "Rw": {
+    "description": "上片旋转值Rw",
+    "data_type": null,
+    "unit": "urad",
+    "db_type": "mysql",
+    "table_name": "datacenter.lo_batch_equipment_performance",
+    "column_name": "wafer_rotation",
+    "filter_condition": "chuck_id={chuck_id} AND lot_start_time >= {time_filter}",
+    "duration": "1000"
+  },
+  "n_88um": {
+    "description": "88微米建模次数",
+    "data_type": "int",
+    "unit": "次",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  },
+  "output_Mw": {
+    "description": "COWA建模输出倍率Mw",
+    "data_type": null,
+    "unit": "ppm",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  },
+  "output_Tx": {
+    "description": "COWA建模输出上片偏差Tx",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  },
+  "output_Ty": {
+    "description": "COWA建模输出上片偏差Ty",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  },
+  "output_Rw": {
+    "description": "COWA建模输出上片旋转Rw",
+    "data_type": null,
+    "unit": "urad",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  }
+}

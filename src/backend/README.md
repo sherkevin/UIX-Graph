@@ -1,96 +1,187 @@
 <!--
  * @Author: shervin sherkevin@163.com
  * @Date: 2026-01-21 16:51:53
- * @Description: 
- * @FilePath: \UIX\backend\README.md
- * @LastEditTime: 2026-01-22 10:24:45
- * @LastEditors: shervin sherkevin@163.com
- * 
- * Copyright (c) 2026 by ${git_name_email}, All Rights Reserved. 
+ * @Description: 后端 API 文档
 -->
+
 # 后端 API 文档
+
+## 目录结构
+
+```
+src/backend/
+├── app/
+│   ├── handler/          # Handler 层（原 api/）- HTTP 路由 & 参数解析
+│   │   ├── reject_errors.py   ★ 拒片故障管理（接口 1/2/3）
+│   │   ├── diagnosis.py       诊断推理
+│   │   ├── entity.py          实体详情
+│   │   ├── full_graph.py      全图谱
+│   │   ├── knowledge.py       知识录入
+│   │   ├── ontology.py        本体管理
+│   │   ├── propagation.py     故障传播
+│   │   └── visualization.py   可视化
+│   │
+│   ├── service/          # Service 层 - 业务逻辑
+│   │   └── reject_error_service.py  ★ 拒片故障业务逻辑
+│   │
+│   ├── ods/              # ODS 层 - 数据源封装
+│   │   ├── datacenter_ods.py  ★ MySQL datacenter 数据源
+│   │   └── clickhouse_ods.py  ClickHouse 数据源
+│   │
+│   ├── models/           # Model 层 - ORM 表定义
+│   │   ├── reject_errors_db.py  ★ 拒片相关表（源表 + 缓存表）
+│   │   └── database.py          SQLite 旧版表（历史遗留）
+│   │
+│   ├── schemas/          # Schema 层 - Pydantic 请求/响应模型
+│   │   ├── reject_errors.py  ★ 拒片接口 Schema
+│   │   ├── diagnosis.py      诊断 Schema
+│   │   └── ontology.py       本体 Schema
+│   │
+│   ├── core/             # Core 层 - 诊断引擎 & 图谱算法
+│   │   ├── diagnosis_engine.py
+│   │   ├── diagnosis_engine_prd1.py
+│   │   ├── full_graph_builder.py
+│   │   ├── graph_builder.py
+│   │   ├── operators.py
+│   │   ├── path_finder.py
+│   │   └── test_data.py
+│   │
+│   ├── utils/            # Utils 层 - 工具函数
+│   │   └── time_utils.py   时间戳 ↔ datetime 转换
+│   │
+│   └── main.py           # FastAPI 应用入口 & 路由注册
+│
+├── tests/                # 测试目录
+│   ├── test_reject_errors.py  ★ 接口 1 & 2 完整测试套件
+│   └── test_diagnosis_prd1.py   诊断引擎测试
+│
+├── requirements.txt      # 依赖清单
+└── README.md             # 本文档
+```
+
+> ★ 标注为拒片故障管理模块（Stage 3）的核心文件。
+
+---
 
 ## 快速开始
 
-### 安装依赖
+### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 初始化数据库和Mock数据
+### 2. 启动 Docker MySQL（本地开发）
+
+> 本机 3306 端口若已被占用，使用 3307：
 
 ```bash
-cd backend
-python -m app.init_data
+docker run -d --name uix-mysql \
+  -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_DATABASE=datacenter \
+  -p 3307:3306 \
+  mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 ```
 
-### 启动服务
+初始化表结构与 Mock 数据：
 
 ```bash
-uvicorn app.main:app --reload
+docker cp scripts/init_docker_db.sql uix-mysql:/tmp/init_docker_db.sql
+docker exec uix-mysql bash -c "mysql -u root -proot datacenter < /tmp/init_docker_db.sql"
 ```
 
-服务将在 http://localhost:8000 启动
+### 3. 配置数据库连接
+
+编辑 `config/connections.json`，确认 `local.mysql` 配置与你的 Docker 端口一致：
+
+```json
+{
+  "local": {
+    "mysql": {
+      "host": "localhost",
+      "port": 3307,
+      "username": "root",
+      "password": "root",
+      "dbname": "datacenter"
+    }
+  }
+}
+```
+
+### 4. 启动服务
+
+```bash
+cd src/backend
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+服务将在 http://localhost:8000 启动，Swagger 文档：http://localhost:8000/docs
+
+---
+
+## 运行测试
+
+### 拒片故障管理 - 接口 1 & 2 测试
+
+```bash
+cd src/backend
+python tests/test_reject_errors.py
+```
+
+测试覆盖场景：
+
+| 测试函数 | 接口 | 场景 |
+|---------|------|------|
+| `test_metadata_basic` | 接口 1 | 基础查询，校验 Chuck/Lot/Wafer 层级结构 |
+| `test_metadata_multiple_equipment` | 接口 1 | 多机台查询（SSB8001/SSC8001/SSB8005）|
+| `test_metadata_invalid_equipment` | 接口 1 | 非法机台名称应抛出 ValueError |
+| `test_metadata_time_filter` | 接口 1 | 时间范围筛选后数据量 ≤ 全量 |
+| `test_search_basic` | 接口 2 | 基础全量查询，校验字段完整性 |
+| `test_search_filter_chuck` | 接口 2 | 按 Chuck ID 筛选 |
+| `test_search_filter_lot` | 接口 2 | 按 Lot ID 筛选 |
+| `test_search_filter_wafer` | 接口 2 | 按 Wafer ID 筛选 |
+| `test_search_filter_combined` | 接口 2 | Chuck + Lot 组合筛选 |
+| `test_search_empty_array_intercept` | 接口 2 | `chucks/lots/wafers=[]` 直接返回空，不查 DB |
+| `test_search_pagination` | 接口 2 | 分页正确，两页无重叠 |
+| `test_search_deep_page_guard` | 接口 2 | pageNo 超出最大页数返回空数组 |
+| `test_search_sort_desc` | 接口 2 | time desc 排序正确 |
+| `test_search_sort_asc` | 接口 2 | time asc 排序正确 |
+| `test_search_invalid_equipment` | 接口 2 | 非法机台抛出 ValueError |
+| `test_search_invalid_wafer_range` | 接口 2 | wafer_id 超出 1-25 范围抛出 ValueError |
+| `test_search_null_filters_means_all` | 接口 2 | null 筛选条件等价于全选 |
+
+### 诊断引擎测试
+
+```bash
+cd src/backend
+python tests/test_diagnosis_prd1.py
+```
+
+---
 
 ## API 端点
 
+### 拒片故障管理 (`/api/v1/reject-errors`)
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| `GET` | `/api/v1/reject-errors/metadata` | 接口 1：获取 Chuck/Lot/Wafer 筛选元数据 |
+| `POST` | `/api/v1/reject-errors/search` | 接口 2：查询拒片故障记录（分页 + 筛选） |
+| `GET` | `/api/v1/reject-errors/{id}/metrics` | 接口 3：获取故障详情及指标数据 |
+
 ### 本体管理 (`/api/ontology`)
 
-- `GET /api/ontology/phenomena` - 列出所有故障现象
-- `POST /api/ontology/phenomena` - 创建故障现象
-- `GET /api/ontology/subsystems` - 列出所有分系统
-- `POST /api/ontology/subsystems` - 创建分系统
-- `GET /api/ontology/components` - 列出所有部件
-- `POST /api/ontology/components` - 创建部件
-- `GET /api/ontology/parameters` - 列出所有参数
-- `POST /api/ontology/parameters` - 创建参数
-- `GET /api/ontology/rootcauses` - 列出所有根因
-- `POST /api/ontology/rootcauses` - 创建根因
+- `GET/POST /api/ontology/phenomena` - 故障现象
+- `GET/POST /api/ontology/subsystems` - 分系统
+- `GET/POST /api/ontology/components` - 部件
+- `GET/POST /api/ontology/parameters` - 参数
+- `GET/POST /api/ontology/rootcauses` - 根因
 
-### 知识录入 (`/api/knowledge`)
+### 其他模块
 
-- `GET /api/knowledge/records` - 列出所有故障记录
-- `POST /api/knowledge/records` - 创建故障记录
-- `GET /api/knowledge/records/{case_id}` - 获取单个故障记录
-- `PUT /api/knowledge/records/{case_id}` - 更新故障记录
-- `DELETE /api/knowledge/records/{case_id}` - 删除故障记录
-
-### 诊断推理 (`/api/diagnosis`)
-
-- `POST /api/diagnosis/analyze` - 分析故障记录
-- `GET /api/diagnosis/analyze/{case_id}` - 根据case_id分析
-- `GET /api/diagnosis/rules` - 列出所有诊断规则
-
-### 可视化 (`/api/visualization`)
-
-- `GET /api/visualization/graph/{case_id}` - 获取单个案例的知识图谱
-- `GET /api/visualization/graph` - 获取所有案例的合并知识图谱
-### 故障传播 (`/api`)
-
-- `GET /api/propagation/{case_id}` - 获取故障传播路径
-  - 参数: `start_node` (可选) - 起始节点ID
-- `GET /api/entity/{entity_id}` - 获取实体详情
-
-## 数据模型
-
-详见 `app/schemas/ontology.py`
-
-## 诊断规则
-
-系统已实现以下诊断规则：
-
-1. **旋转超限规则**
-   - 条件：`rotation_mean > 300 urad` 或 `rotation_3sigma > 350`
-   - 根因：上片旋转机械超限
-   - 分类：机械精度
-
-2. **真空吸附异常规则**
-   - 条件：`vacuum_level == "Low"` 且 `rotation_mean > 100`
-   - 根因：WS 硬件物理损坏/泄露
-   - 分类：硬件损耗
-
-3. **对准重复性异常规则**
-   - 条件：`rotation_mean > 300`
-   - 根因：上片旋转机械超限
-   - 分类：机械精度
+- `GET/POST /api/knowledge/records` - 知识录入
+- `POST /api/diagnosis/analyze` - 诊断推理
+- `GET /api/visualization/graph` - 知识图谱
+- `GET /api/propagation/{case_id}` - 故障传播路径
+- `GET /api/entity/{entity_id}` - 实体详情
+- `GET /api/graph/full-graph` - 全量图谱
