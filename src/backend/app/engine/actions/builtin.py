@@ -284,10 +284,31 @@ def build_8um_model(**ctx) -> dict:
 
 @register("build_model")
 def build_model(**ctx) -> dict:
-    model_type = str(ctx.get("model_type", "")).lower()
-    if "8um" in model_type:
-        return _build_model(8.0, **ctx)
-    return _build_model(88.0, **ctx)
+    """
+    通用建模 action：
+    - 优先使用上游传入的 model_type
+    - 未传时根据 Mwx_0 自动判定
+    """
+    model_type = str(ctx.get("model_type", "")).lower().strip()
+
+    if not model_type:
+        determined = determine_model_type(**ctx).get("model_type", "unknown")
+        model_type = str(determined).lower().strip()
+
+    if model_type == "8um":
+        out = _build_model(8.0, **ctx)
+        out["model_type"] = "8um"
+        return out
+
+    if model_type == "88um":
+        out = _build_model(88.0, **ctx)
+        out["model_type"] = "88um"
+        return out
+
+    # 未知类型时，按 88um 兜底并标记 unknown，避免中断诊断链路
+    out = _build_model(88.0, **ctx)
+    out["model_type"] = "unknown"
+    return out
 
 
 # ── 模型类型判断 ────────────────────────────────────────────────────────────

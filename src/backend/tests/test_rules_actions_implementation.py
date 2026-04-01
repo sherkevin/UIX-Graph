@@ -72,9 +72,53 @@ def test_build_8um_model_outputs():
     assert 1 <= out["n_88um"] <= 8
 
 
+def test_build_model_uses_explicit_model_type():
+    ctx = {
+        "model_type": "8um",
+        "ws_pos_x": [0.056, -0.064],
+        "ws_pos_y": [0.021, -0.018],
+        "mark_pos_x": [0.055, -0.063],
+        "mark_pos_y": [0.020, -0.017],
+        "Msx": 1.00000106,
+        "Msy": 0.9999989718,
+        "e_ws_x": -4.087065391e-07,
+        "e_ws_y": -1.316297496e-06,
+        "Sx": 6.91458953166459e-04,
+        "Sy": -5.93531442506207e-04,
+        "D_x": -1.5e-05,
+        "D_y": 1.6e-05,
+    }
+    out = call_action("build_model", None, ctx)
+    assert out["model_type"] == "8um"
+    assert "output_Mw" in out
+
+
+def test_build_model_auto_determines_type_from_mwx0():
+    ctx = {
+        "Mwx_0": 1.0002,  # 对应 88um
+        "ws_pos_x": [0.056, -0.064],
+        "ws_pos_y": [0.021, -0.018],
+        "mark_pos_x": [0.055, -0.063],
+        "mark_pos_y": [0.020, -0.017],
+        "Msx": 1.00000106,
+        "Msy": 0.9999989718,
+        "e_ws_x": -4.087065391e-07,
+        "e_ws_y": -1.316297496e-06,
+        "Sx": 6.91458953166459e-04,
+        "Sy": -5.93531442506207e-04,
+        "D_x": -1.5e-05,
+        "D_y": 1.6e-05,
+    }
+    out = call_action("build_model", None, ctx)
+    assert out["model_type"] == "88um"
+    assert "output_Mw" in out
+
+
 if __name__ == "__main__":
     test_determine_model_type_88um()
     test_determine_model_type_8um()
     test_build_88um_model_outputs()
     test_build_8um_model_outputs()
+    test_build_model_uses_explicit_model_type()
+    test_build_model_auto_determines_type_from_mwx0()
     print("OK: test_rules_actions_implementation")
