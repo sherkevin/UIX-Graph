@@ -136,7 +136,15 @@ class DiagnosisEngine:
         # 3. 遍历决策树
         start_node = str(scene.get("start_node", "1"))
         root_cause, system, trace, abnormal_metrics = self._walk_tree(
-            start_node, metric_values
+            start_node,
+            metric_values,
+            base_context={
+                "equipment": source_record.get("equipment"),
+                "chuck_id": source_record.get("chuck_id"),
+                "lot_id": source_record.get("lot_id"),
+                "wafer_id": source_record.get("wafer_id"),
+                "reference_time": ref,
+            },
         )
 
         result.root_cause = root_cause
@@ -172,6 +180,7 @@ class DiagnosisEngine:
         self,
         start_node: str,
         metric_values: Dict[str, Optional[float]],
+        base_context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[str], Optional[str], List[str], List[str]]:
         """
         遍历 rules.json 的 steps 决策树
@@ -188,8 +197,9 @@ class DiagnosisEngine:
         current_node = start_node
         max_steps = 50  # 防止死循环
 
-        # context = metric_values 的副本 + actions/branch-set 动态追加的变量
-        context: Dict[str, Any] = dict(metric_values)
+        # context = 源记录上下文 + metric_values + actions/branch-set 动态追加变量
+        context: Dict[str, Any] = dict(base_context or {})
+        context.update(metric_values)
 
         for _ in range(max_steps):
             step = self.rule_loader.get_step(current_node)
