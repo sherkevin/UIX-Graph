@@ -24,6 +24,7 @@
 | 来源 | 内容 |
 |------|------|
 | [docs/stage3/prd3.md](stage3/prd3.md) | 拒片模块 API 契约：接口 1 元数据、接口 2 搜索、接口 3 详情+指标；时间戳规范、分页、`rootCause`/`system` 与缓存关系。 |
+| [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md) | `rules.json` 执行规范：`details/action/params/results/next` 的严格语义与后端实现约束。 |
 | [docs/data_source.md](data_source.md) | 各接口字段到 MySQL 表（以 `datacenter.lo_batch_equipment_performance` 为主）的映射；接口 3 指标与 `metrics.json` 的对应关系。 |
 | [docs/stage3/database_schema.md](stage3/database_schema.md) | 相关表 DDL 与字段约定。 |
 | [docs/stage3/feature_todo.md](stage3/feature_todo.md) | **未来改进**：读写解耦、MQ + 异步预计算、分布式锁、REST/时间格式统一、胖服务端分页与状态判定、OpenAPI 契约化等。 |

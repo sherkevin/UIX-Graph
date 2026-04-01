@@ -15,6 +15,7 @@
 """
 import logging
 import re
+import ast
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
@@ -266,13 +267,44 @@ class DiagnosisEngine:
                 continue
             params = item.get("params") or {}
             outputs = call_action(action_name, params, context)
-            if outputs:
-                context.update(outputs)
+            normalized_outputs = self._normalize_action_outputs(step, item, outputs)
+            if normalized_outputs:
+                context.update(normalized_outputs)
                 logger.debug(
                     "步骤 %s action '%s' outputs: %s",
-                    step.get("id"), action_name, outputs,
+                    step.get("id"), action_name, normalized_outputs,
                 )
         return context
+
+    @staticmethod
+    def _normalize_action_outputs(
+        step: Dict[str, Any],
+        detail_item: Dict[str, Any],
+        outputs: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        按 details.results 声明规范 action 输出字段。
+
+        - 若未声明 results，则保留 action 全量返回字段。
+        - 若声明了 results(dict)，只接收声明内字段，避免脏字段污染上下文。
+        """
+        if not outputs:
+            return {}
+
+        declared = detail_item.get("results")
+        if not isinstance(declared, dict) or not declared:
+            return outputs
+
+        normalized = {k: outputs[k] for k in declared.keys() if k in outputs}
+        missing = [k for k in declared.keys() if k not in outputs]
+        if missing:
+            logger.warning(
+                "步骤 %s action '%s' 缺少声明输出字段: %s",
+                step.get("id"),
+                detail_item.get("action"),
+                ",".join(missing),
+            )
+        return normalized
 
     @staticmethod
     def _extract_condition_var(condition: str) -> Optional[str]:
@@ -311,6 +343,7 @@ class DiagnosisEngine:
         metric_id = step.get("metric_id")
         else_branch = None
         else_branch_obj = None
+        matched_branches: List[Tuple[Any, Dict[str, Any], Optional[str], str, Any, Any]] = []
 
         for branch in branches:
             condition = branch.get("condition", "")
@@ -328,20 +361,164 @@ class DiagnosisEngine:
             var_name = self._extract_condition_var(condition) or metric_id
             value = context.get(var_name) if var_name else None
 
-            if value is None:
-                continue
+            if operator:
+                if value is None:
+                    continue
+                matched = self._eval_condition(value, operator, limit)
+            else:
+                matched, parsed_var, parsed_operator, parsed_limit, parsed_value = (
+                    self._eval_condition_by_text(condition, context, metric_id)
+                )
+                if parsed_var:
+                    var_name = parsed_var
+                if parsed_operator:
+                    operator = parsed_operator
+                    limit = parsed_limit
+                if parsed_value is not None:
+                    value = parsed_value
 
-            matched = self._eval_condition(value, operator, limit)
             if matched:
-                if var_name and self._is_abnormal_branch(operator, limit, value):
-                    abnormal_metrics.append(var_name)
-                return target, branch
+                matched_branches.append((target, branch, var_name, operator, limit, value))
+
+        # next 分支是独立条件：应只命中 1 条
+        if len(matched_branches) == 1:
+            target, branch, var_name, operator, limit, value = matched_branches[0]
+            if var_name and self._is_abnormal_branch(operator, limit, value):
+                abnormal_metrics.append(var_name)
+            return target, branch
+
+        # 若命中多条，说明规则配置冲突（不依赖 next 顺序），中断并回退到 else（若存在）
+        if len(matched_branches) > 1:
+            matched_targets = [str(item[0]) for item in matched_branches]
+            logger.error(
+                "步骤 %s 命中多个 next 分支(条件冲突): targets=%s",
+                step.get("id"),
+                ",".join(matched_targets),
+            )
+            if else_branch is not None:
+                return else_branch, else_branch_obj
+            return None, None
 
         # 所有条件都不满足，走 else
         if else_branch is not None:
             return else_branch, else_branch_obj
 
         return None, None
+
+    def _eval_condition_by_text(
+        self,
+        condition: str,
+        context: Dict[str, Any],
+        fallback_metric_id: Optional[str] = None,
+    ) -> Tuple[bool, Optional[str], str, Any, Any]:
+        """
+        直接解析 condition 文本（无 operator/limit 时）。
+
+        支持：
+        - 区间表达式: -300<{mean_Rw}<300
+        - 比较表达式: {model_type} == '88um' / normal_count==3 / n_88um≤8
+        - 空串条件: 视为无条件命中
+        """
+        expr = (condition or "").strip()
+        if not expr:
+            return True, fallback_metric_id, "", None, None
+
+        normalized = expr.replace("≤", "<=").replace("≥", ">=")
+
+        # 1) 区间表达式: low < {var} < high
+        range_match = re.match(
+            r"^\s*(-?\d+(?:\.\d+)?)\s*<\s*\{?([A-Za-z_]\w*)\}?\s*<\s*(-?\d+(?:\.\d+)?)\s*$",
+            normalized,
+        )
+        if range_match:
+            low = float(range_match.group(1))
+            var_name = range_match.group(2)
+            high = float(range_match.group(3))
+            value = context.get(var_name)
+            if value is None:
+                return False, var_name, "between", [low, high], None
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError):
+                return False, var_name, "between", [low, high], value
+            return low < numeric_value < high, var_name, "between", [low, high], numeric_value
+
+        # 2) 单变量比较表达式
+        compare_match = re.match(
+            r"^\s*\{?([A-Za-z_]\w*)\}?\s*(==|=|!=|<=|>=|<|>)\s*(.+)\s*$",
+            normalized,
+        )
+        if compare_match:
+            var_name = compare_match.group(1)
+            operator = compare_match.group(2)
+            rhs_raw = compare_match.group(3).strip()
+            left_value = context.get(var_name)
+            if left_value is None:
+                return False, var_name, operator, rhs_raw, None
+
+            right_value = self._parse_condition_literal(rhs_raw)
+            return (
+                self._eval_comparison(left_value, operator, right_value),
+                var_name,
+                operator,
+                right_value,
+                left_value,
+            )
+
+        logger.warning("无法解析 condition 表达式: %s", condition)
+        return False, fallback_metric_id, "", None, None
+
+    @staticmethod
+    def _parse_condition_literal(token: str) -> Any:
+        """解析条件字面量，支持数字、布尔、引号字符串。"""
+        raw = token.strip()
+        lowered = raw.lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+
+        if (raw.startswith("'") and raw.endswith("'")) or (raw.startswith('"') and raw.endswith('"')):
+            try:
+                return ast.literal_eval(raw)
+            except (ValueError, SyntaxError):
+                return raw[1:-1]
+
+        try:
+            if "." in raw:
+                return float(raw)
+            return int(raw)
+        except ValueError:
+            return raw
+
+    @staticmethod
+    def _eval_comparison(left: Any, operator: str, right: Any) -> bool:
+        """评估比较表达式，优先按数值比较，失败后回退为字符串比较。"""
+        normalized_op = "==" if operator == "=" else operator
+        try:
+            left_num = float(left)
+            right_num = float(right)
+            if normalized_op == "==":
+                return abs(left_num - right_num) < 1e-9
+            if normalized_op == "!=":
+                return abs(left_num - right_num) >= 1e-9
+            if normalized_op == "<":
+                return left_num < right_num
+            if normalized_op == "<=":
+                return left_num <= right_num
+            if normalized_op == ">":
+                return left_num > right_num
+            if normalized_op == ">=":
+                return left_num >= right_num
+            return False
+        except (TypeError, ValueError):
+            left_str = str(left)
+            right_str = str(right)
+            if normalized_op == "==":
+                return left_str == right_str
+            if normalized_op == "!=":
+                return left_str != right_str
+            return False
 
     def _select_parallel_node(
         self,
