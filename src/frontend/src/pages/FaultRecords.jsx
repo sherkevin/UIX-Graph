@@ -23,6 +23,13 @@ const mixedSort = (a, b) => {
   return String(a).localeCompare(String(b), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' })
 }
 
+const formatMetricValue = (value) => {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '-'
+  if (Number.isInteger(n)) return String(n)
+  return parseFloat(n.toPrecision(6)).toString()
+}
+
 const FaultRecords = () => {
   const [records, setRecords] = useState([])
   /**
@@ -454,7 +461,7 @@ const FaultRecords = () => {
       title: '指标值',
       key: 'value',
       width: 160,
-      render: (_, row) => `${Number(row.value).toFixed(3)} ${row.unit || ''}`.trim(),
+      render: (_, row) => `${formatMetricValue(row.value)} ${row.unit || ''}`.trim(),
     },
     {
       title: '阈值条件',
@@ -462,6 +469,7 @@ const FaultRecords = () => {
       width: 180,
       render: (_, row) => {
         const threshold = row.threshold || {}
+        if (threshold.display) return threshold.display
         const op = threshold.operator || '-'
         // operator="-" 表示该指标在规则中无阈值定义，直接显示 "--"
         if (op === '-') return '--'

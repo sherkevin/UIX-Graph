@@ -329,8 +329,9 @@ class RejectErrorService:
                 source_record = DatacenterODS.get_failure_record_by_id(failure_id, db)
                 if not source_record:
                     return None, empty_meta
-                occurred_ms = datetime_to_timestamp(source_record["wafer_product_start_time"])
-                bypass_cache = request_time_ms != occurred_ms
+                # 前端详情页始终携带 requestTime。这里统一绕过缓存，避免 rules.json
+                # 或阈值判定逻辑更新后仍复用旧 metrics_data，导致详情页展示过期结果。
+                bypass_cache = True
 
             if not bypass_cache:
                 cached = db.query(RejectedDetailedRecord).filter(
@@ -453,9 +454,11 @@ class RejectErrorService:
                 "value": m.get("value", 0),
                 "unit": m.get("unit", ""),
                 "status": m.get("status", "NORMAL"),
+                "type": m.get("type", "diagnostic"),
                 "threshold": {
                     "operator": m.get("threshold", {}).get("operator", ""),
                     "limit": m.get("threshold", {}).get("limit", 0),
+                    "display": m.get("threshold", {}).get("display"),
                 },
             })
 

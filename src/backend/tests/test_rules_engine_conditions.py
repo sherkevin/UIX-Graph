@@ -88,6 +88,35 @@ def test_expression_string_equality_not_match():
     assert str(target) == "99"
 
 
+def test_mwx0_threshold_uses_rule_branches_not_fake_between():
+    engine = DiagnosisEngine()
+    threshold = engine._find_threshold("Mwx_0")
+    assert threshold is not None
+    assert threshold["operator"] == "any_of"
+    assert threshold["limit"] == [
+        {"operator": ">", "limit": 1.0001},
+        {"operator": "<", "limit": 0.9999},
+        {"operator": "between", "limit": [1.00002, 1.0001]},
+        {"operator": "between", "limit": [0.9999, 0.99998]},
+    ]
+
+
+def test_mwx0_status_respects_sparse_valid_ranges():
+    engine = DiagnosisEngine()
+    threshold = engine._find_threshold("Mwx_0")
+    assert threshold is not None
+    assert engine._is_within_normal_range(1.0, threshold["operator"], threshold["limit"]) is False
+    assert engine._is_within_normal_range(1.00005, threshold["operator"], threshold["limit"]) is True
+    assert engine._is_within_normal_range(1.0002, threshold["operator"], threshold["limit"]) is True
+
+
+def test_between_threshold_uses_open_interval():
+    engine = DiagnosisEngine()
+    assert engine._is_within_normal_range(0.0, "between", [-20, 20]) is True
+    assert engine._is_within_normal_range(-20.0, "between", [-20, 20]) is False
+    assert engine._is_within_normal_range(20.0, "between", [-20, 20]) is False
+
+
 if __name__ == "__main__":
     test_expression_string_equality_branch()
     test_expression_numeric_equality_branch()
@@ -95,4 +124,7 @@ if __name__ == "__main__":
     test_multiple_branch_match_falls_back_to_else()
     test_no_match_without_else_returns_none()
     test_expression_string_equality_not_match()
+    test_mwx0_threshold_uses_rule_branches_not_fake_between()
+    test_mwx0_status_respects_sparse_valid_ranges()
+    test_between_threshold_uses_open_interval()
     print("OK: test_rules_engine_conditions")

@@ -84,7 +84,8 @@ class SearchResponse(BaseModel):
 class ThresholdInfo(BaseModel):
     """阈值信息"""
     operator: str = Field(..., description="比较操作符，如 between / > / < 等")
-    limit: Union[float, List[float]] = Field(..., description="阈值限制：between 时为 [lower, upper]，其他为单值")
+    limit: Any = Field(..., description="阈值限制：单值、区间或复合条件")
+    display: Optional[str] = Field(None, description="前端优先展示的规则原始条件文本")
 
 
 class MetricInfo(BaseModel):

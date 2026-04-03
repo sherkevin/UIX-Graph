@@ -215,9 +215,9 @@ def test_detail_metric_pagination():
         print("    ⚠️  指标总数 ≤ 2，无法验证多页，已跳过")
 
 
-def test_detail_cache_bypass_with_same_time():
-    """接口 3 - requestTime 与发生时间相同：走缓存"""
-    section("接口3 - requestTime 与发生时间相同时走缓存")
+def test_detail_bypass_cache_with_same_time():
+    """接口 3 - requestTime 与发生时间相同：也应绕过缓存，避免返回过期规则结果"""
+    section("接口3 - requestTime 与发生时间相同时绕过缓存")
     fid = _get_first_coarse_align_failure_id()
 
     records, _ = RejectErrorService.search_reject_errors(
@@ -230,7 +230,7 @@ def test_detail_cache_bypass_with_same_time():
 
     occurred_ms = target["time"]
 
-    # 以相同的毫秒时间请求，应走缓存路径
+    # 以相同的毫秒时间请求，也应重算而不是直接命中缓存
     detail, meta = RejectErrorService.get_failure_details(
         failure_id=fid, request_time_ms=occurred_ms
     )
@@ -260,7 +260,7 @@ def main():
     test_detail_cache_hit()
     test_detail_bypass_cache_with_different_request_time()
     test_detail_metric_pagination()
-    test_detail_cache_bypass_with_same_time()
+    test_detail_bypass_cache_with_same_time()
 
     total = PASS_COUNT + FAIL_COUNT
     print("\n" + "█" * 60)

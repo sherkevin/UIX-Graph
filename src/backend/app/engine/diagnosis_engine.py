@@ -626,35 +626,55 @@ class DiagnosisEngine:
 
             branches = step.get("next", [])
 
-            # 优先：step 中若同时存在 > 和 < 两个边界（如 Mwx_0），
-            # 取它们的 [lo, hi] 作为正常范围，而不是 between（between 在此是分支路径，非正常范围）
-            upper_limit = None  # 来自 > 条件的上边界
-            lower_limit = None  # 来自 < 条件的下边界
-            for branch in branches:
-                op = branch.get("operator", "")
-                limit = branch.get("limit")
-                if op == ">" and limit is not None:
-                    upper_limit = float(limit)
-                elif op == "<" and limit is not None:
-                    lower_limit = float(limit)
-            if upper_limit is not None and lower_limit is not None:
-                # 同时有上下界 → 正常范围是 [lower, upper]
-                return {"operator": "between", "limit": [lower_limit, upper_limit]}
-
-            # 次优：单独 between 分支（如 output_Mw between [-20, 20]）
-            for branch in branches:
-                op = branch.get("operator", "")
-                limit = branch.get("limit")
-                if op == "between" and isinstance(limit, list):
-                    return {"operator": "between", "limit": limit}
-
-            # 末选：第一个有 operator 的分支（≤、≥ 等，如 n_88um ≤ 8）
+            valid_branches = []
             for branch in branches:
                 op = branch.get("operator", "")
                 limit = branch.get("limit")
                 condition = branch.get("condition", "")
                 if op and limit is not None and condition != "else":
-                    return {"operator": op, "limit": limit}
+                    valid_branches.append(branch)
+
+            if not valid_branches:
+                continue
+
+            between_branches = [b for b in valid_branches if b.get("operator", "") == "between"]
+            comparison_branches = [
+                b for b in valid_branches if b.get("operator", "") in {">", "<", ">=", "<=", "≤"}
+            ]
+
+            # Mwx_0 这类“多个有效区间/边界共同组成正常条件”的步骤，不能错误折叠成单个 between。
+            if len(between_branches) > 1 or (between_branches and comparison_branches):
+                conditions = [
+                    {"operator": b.get("operator", ""), "limit": b.get("limit")}
+                    for b in valid_branches
+                ]
+                display = " or ".join(
+                    str(b.get("condition", "")).strip() for b in valid_branches if b.get("condition")
+                )
+                return {"operator": "any_of", "limit": conditions, "display": display}
+
+            # 次优：单独 between 分支（如 output_Mw between [-20, 20]）
+            for branch in valid_branches:
+                op = branch.get("operator", "")
+                limit = branch.get("limit")
+                if op == "between" and isinstance(limit, list):
+                    return {
+                        "operator": "between",
+                        "limit": limit,
+                        "display": str(branch.get("condition", "")).strip() or None,
+                    }
+
+            # 末选：第一个有 operator 的分支（≤、≥ 等，如 n_88um ≤ 8）
+            for branch in valid_branches:
+                op = branch.get("operator", "")
+                limit = branch.get("limit")
+                condition = branch.get("condition", "")
+                if op and limit is not None and condition != "else":
+                    return {
+                        "operator": op,
+                        "limit": limit,
+                        "display": str(condition).strip() or None,
+                    }
 
         return None
 
@@ -673,9 +693,20 @@ class DiagnosisEngine:
         >= limit         → value >= limit 为 NORMAL
         """
         try:
+            if operator == "any_of":
+                if isinstance(limit, list):
+                    return any(
+                        self._is_within_normal_range(
+                            value,
+                            str(item.get("operator", "")),
+                            item.get("limit"),
+                        )
+                        for item in limit
+                        if isinstance(item, dict)
+                    )
             if operator == "between":
                 if isinstance(limit, list) and len(limit) == 2:
-                    return float(limit[0]) <= value <= float(limit[1])
+                    return float(limit[0]) < value < float(limit[1])
             elif operator == "≤" or operator == "<=":
                 return value <= float(limit)
             elif operator == "<":
