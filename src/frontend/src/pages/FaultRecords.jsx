@@ -109,6 +109,16 @@ const FaultRecords = () => {
     return adapted
   }
 
+  const normalizeRecord = (row) => {
+    const waferIndex = row?.waferIndex ?? row?.waferId ?? row?.wafer_id ?? null
+    return {
+      ...row,
+      chuckId: row?.chuckId ?? row?.chuck_id ?? row?.chuck ?? null,
+      lotId: row?.lotId ?? row?.lot_id ?? row?.lot ?? null,
+      waferIndex,
+    }
+  }
+
   // ── 根据已选 Chuck 过滤可见的 Lot/Wafer ──────────────────────────────────
   const linkedLotWaferMap = useMemo(() => {
     if (!selectedChucks.length) return metadata.lotWaferMap || {}
@@ -179,7 +189,7 @@ const FaultRecords = () => {
       }
       const response = await rejectErrorsAPI.search(payload)
       if (fetchId !== latestFetchId.current) return  // 已被更新请求覆盖，丢弃
-      const rows = response?.data?.data || []
+      const rows = (response?.data?.data || []).map(normalizeRecord)
       const meta = response?.data?.meta || {}
       setRecords(rows)
       setPagination({
