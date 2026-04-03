@@ -84,8 +84,9 @@ class RejectErrorService:
         """
         获取筛选元数据（Chuck → Lot → Wafer 层级结构）
 
-        根据机台 + 时间范围筛选可选的 Chuck/Lot/Wafer 组合。
-        不同机台 + 时间下的下拉选项是动态的。
+        根据机台 + 时间范围筛选可选的 Chuck/Lot/Wafer 组合；
+        仅包含在对应范围内出现过拒片故障（非 NONE_REJECTED）的记录，
+        与 search 接口的故障集合一致。
 
         Args:
             equipment: 机台名称

@@ -160,7 +160,10 @@ class DatacenterODS:
         db: Optional[Session] = None
     ) -> List[Tuple[int, int, int]]:
         """
-        查询 Chuck-Lot-Wafer 层级关系
+        查询 Chuck-Lot-Wafer 层级关系（仅含存在拒片故障的记录）
+
+        与接口 2 搜索一致：排除 reject_reason 为 NONE_REJECTED 的行，
+        下拉选项只展示当前时间窗内实际出现过故障的 Chuck/Lot/Wafer。
 
         Args:
             equipment: 机台名称
@@ -178,6 +181,9 @@ class DatacenterODS:
 
         try:
             logger.info("[ODS] query_chuck_lot_wafer | equipment=%s start=%s end=%s", equipment, start_time, end_time)
+            reason_map = _get_reason_map(db)
+            none_rejected_ids = [rid for rid, val in reason_map.items() if val == "NONE_REJECTED"]
+
             query = db.query(
                 LoBatchEquipmentPerformance.chuck_id,
                 LoBatchEquipmentPerformance.lot_id,
@@ -185,6 +191,10 @@ class DatacenterODS:
             ).filter(
                 LoBatchEquipmentPerformance.equipment == equipment
             )
+            if none_rejected_ids:
+                query = query.filter(
+                    LoBatchEquipmentPerformance.reject_reason.notin_(none_rejected_ids)
+                )
 
             # 时间范围筛选：与 search 保持一致，均用 wafer_product_start_time
             if start_time is not None:
