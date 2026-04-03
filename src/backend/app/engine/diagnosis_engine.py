@@ -87,7 +87,7 @@ class DiagnosisEngine:
 
         Args:
             source_record: 源表记录字典，必须包含：
-                - id, equipment, chuck_id, lot_id, wafer_id
+                - id, equipment, chuck_id, lot_id, wafer_index
                 - wafer_product_start_time (datetime)
                 - reject_reason (int)
                 - wafer_transaction_X, wafer_transaction_y, wafer_rotation (可选)
@@ -142,7 +142,7 @@ class DiagnosisEngine:
                 "equipment": source_record.get("equipment"),
                 "chuck_id": source_record.get("chuck_id"),
                 "lot_id": source_record.get("lot_id"),
-                "wafer_id": source_record.get("wafer_id"),
+                "wafer_index": source_record.get("wafer_index"),
                 "reference_time": ref,
             },
         )

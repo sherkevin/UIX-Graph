@@ -105,7 +105,7 @@ class LoBatchEquipmentPerformance(Base):
     equipment = Column(String(50), nullable=False, comment="机台名称")
     chuck_id = Column(String(100), nullable=False, comment="Chuck ID（兼容整数与字符串）")
     lot_id = Column(String(100), nullable=False, comment="Lot ID（兼容整数与字符串）")
-    wafer_id = Column(String(100), nullable=False, comment="Wafer ID（兼容整数与字符串）")
+    wafer_index = Column(String(100), nullable=False, comment="Wafer Index（兼容整数与字符串）")
     lot_start_time = Column(DateTime(6), nullable=True, comment="Lot 开始时间")
     lot_end_time = Column(DateTime(6), nullable=True, comment="Lot 结束时间")
     wafer_product_start_time = Column(DateTime(6), nullable=False, comment="Wafer 生产开始时间")
@@ -119,7 +119,7 @@ class LoBatchEquipmentPerformance(Base):
     # 索引
     __table_args__ = (
         Index("IDX_equipment", "equipment"),
-        Index("IDX_chuck_lot_wafer", "chuck_id", "lot_id", "wafer_id"),
+        Index("IDX_chuck_lot_wafer", "chuck_id", "lot_id", "wafer_index"),
         Index("IDX_wafer_product_start_time", "wafer_product_start_time"),
         Index("IDX_lot_start_end_time", "lot_start_time", "lot_end_time"),
         Index("IDX_reject_reason", "reject_reason"),
@@ -172,7 +172,7 @@ class DatacenterODS:
             db: 数据库会话（可选，如果为 None 则创建新会话）
 
         Returns:
-            [(chuck_id, lot_id, wafer_id), ...]
+            [(chuck_id, lot_id, wafer_index), ...]
         """
         should_close = False
         if db is None:
@@ -187,7 +187,7 @@ class DatacenterODS:
             query = db.query(
                 LoBatchEquipmentPerformance.chuck_id,
                 LoBatchEquipmentPerformance.lot_id,
-                LoBatchEquipmentPerformance.wafer_id
+                LoBatchEquipmentPerformance.wafer_index
             ).filter(
                 LoBatchEquipmentPerformance.equipment == equipment
             )
@@ -337,7 +337,7 @@ class DatacenterODS:
             if lots is not None and len(lots) > 0:
                 count_query = count_query.filter(LoBatchEquipmentPerformance.lot_id.in_(lots))
             if wafers is not None and len(wafers) > 0:
-                count_query = count_query.filter(LoBatchEquipmentPerformance.wafer_id.in_(wafers))
+                count_query = count_query.filter(LoBatchEquipmentPerformance.wafer_index.in_(wafers))
             if start_time is not None:
                 count_query = count_query.filter(LoBatchEquipmentPerformance.wafer_product_start_time >= start_time)
             if end_time is not None:
@@ -352,7 +352,7 @@ class DatacenterODS:
                 LoBatchEquipmentPerformance.equipment,
                 LoBatchEquipmentPerformance.chuck_id,
                 LoBatchEquipmentPerformance.lot_id,
-                LoBatchEquipmentPerformance.wafer_id,
+                LoBatchEquipmentPerformance.wafer_index,
                 LoBatchEquipmentPerformance.wafer_product_start_time,
                 LoBatchEquipmentPerformance.reject_reason,
             ).filter(
@@ -368,7 +368,7 @@ class DatacenterODS:
             if lots is not None and len(lots) > 0:
                 data_query = data_query.filter(LoBatchEquipmentPerformance.lot_id.in_(lots))
             if wafers is not None and len(wafers) > 0:
-                data_query = data_query.filter(LoBatchEquipmentPerformance.wafer_id.in_(wafers))
+                data_query = data_query.filter(LoBatchEquipmentPerformance.wafer_index.in_(wafers))
             if start_time is not None:
                 data_query = data_query.filter(LoBatchEquipmentPerformance.wafer_product_start_time >= start_time)
             if end_time is not None:
@@ -394,7 +394,7 @@ class DatacenterODS:
                     "equipment": r.equipment,
                     "chuck_id": r.chuck_id,
                     "lot_id": r.lot_id,
-                    "wafer_id": r.wafer_id,
+                    "wafer_index": r.wafer_index,
                     "wafer_product_start_time": r.wafer_product_start_time,
                     "reject_reason": r.reject_reason,
                     "reject_reason_value": reason_map.get(r.reject_reason, str(r.reject_reason) if r.reject_reason else None)
@@ -434,7 +434,7 @@ class DatacenterODS:
                 LoBatchEquipmentPerformance.equipment,
                 LoBatchEquipmentPerformance.chuck_id,
                 LoBatchEquipmentPerformance.lot_id,
-                LoBatchEquipmentPerformance.wafer_id,
+                LoBatchEquipmentPerformance.wafer_index,
                 LoBatchEquipmentPerformance.wafer_product_start_time,
                 LoBatchEquipmentPerformance.reject_reason,
                 RejectReasonState.reject_reason_value,
@@ -457,7 +457,7 @@ class DatacenterODS:
                 "equipment": record.equipment,
                 "chuck_id": record.chuck_id,
                 "lot_id": record.lot_id,
-                "wafer_id": record.wafer_id,
+                "wafer_index": record.wafer_index,
                 "wafer_product_start_time": record.wafer_product_start_time,
                 "reject_reason": record.reject_reason,
                 "reject_reason_value": record.reject_reason_value,

@@ -113,12 +113,12 @@ class RejectErrorService:
 
         # 组织数据：Chuck → Lot → Wafers
         chuck_data = {}
-        for chuck_id, lot_id, wafer_id in records:
+        for chuck_id, lot_id, wafer_index in records:
             if chuck_id not in chuck_data:
                 chuck_data[chuck_id] = {"lots": {}}
             if lot_id not in chuck_data[chuck_id]["lots"]:
                 chuck_data[chuck_id]["lots"][lot_id] = set()
-            chuck_data[chuck_id]["lots"][lot_id].add(wafer_id)
+            chuck_data[chuck_id]["lots"][lot_id].add(wafer_index)
 
         def _sort_key(v):
             """兼容整数/字符串的排序键：整数优先按数值，字符串按字母"""
@@ -243,7 +243,7 @@ class RejectErrorService:
                 "failureId": fid,
                 "chuckId": record["chuck_id"],
                 "lotId": record["lot_id"],
-                "waferIndex": record["wafer_id"],
+                "waferIndex": record["wafer_index"],
                 "rejectReason": record["reject_reason_value"] or f"UNKNOWN_{record['reject_reason']}",
                 "rejectReasonId": record["reject_reason"],
                 "rootCause": cached.root_cause if cached else None,
@@ -388,7 +388,7 @@ class RejectErrorService:
                     "equipment": source_record["equipment"],
                     "chuckId": source_record["chuck_id"],
                     "lotId": source_record["lot_id"],
-                    "waferIndex": source_record["wafer_id"],
+                    "waferIndex": source_record["wafer_index"],
                     "errorField": diagnosis.error_field or None,
                     "rejectReason": source_record["reject_reason_value"] or f"UNKNOWN_{reject_reason_id}",
                     "rejectReasonId": reject_reason_id,
@@ -404,7 +404,7 @@ class RejectErrorService:
                     "equipment": source_record["equipment"],
                     "chuckId": source_record["chuck_id"],
                     "lotId": source_record["lot_id"],
-                    "waferIndex": source_record["wafer_id"],
+                    "waferIndex": source_record["wafer_index"],
                     "errorField": None,
                     "rejectReason": source_record["reject_reason_value"] or f"UNKNOWN_{reject_reason_id}",
                     "rejectReasonId": reject_reason_id,
@@ -528,7 +528,7 @@ class RejectErrorService:
                 equipment=source_record["equipment"],
                 chuck_id=source_record["chuck_id"],
                 lot_id=source_record["lot_id"],
-                wafer_id=source_record["wafer_id"],
+                wafer_id=source_record["wafer_index"],
                 occurred_at=source_record["wafer_product_start_time"],
                 reject_reason=reason_value,
                 reject_reason_id=source_record["reject_reason"],

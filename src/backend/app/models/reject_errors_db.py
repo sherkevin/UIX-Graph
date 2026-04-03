@@ -68,7 +68,7 @@ class LoBatchEquipmentPerformance(Base):
     equipment = Column(String(50), nullable=False, comment="机台名称")
     chuck_id = Column(String(100), nullable=False, comment="Chuck ID（兼容整数与字符串）")
     lot_id = Column(String(100), nullable=False, comment="Lot ID（兼容整数与字符串）")
-    wafer_id = Column(String(100), nullable=False, comment="Wafer ID（兼容整数与字符串）")
+    wafer_index = Column(String(100), nullable=False, comment="Wafer Index（兼容整数与字符串）")
     lot_start_time = Column(DateTime(6), nullable=True, comment="Lot 开始时间")
     lot_end_time = Column(DateTime(6), nullable=True, comment="Lot 结束时间")
     wafer_product_start_time = Column(DateTime(6), nullable=False, comment="Wafer 生产开始时间")
@@ -82,7 +82,7 @@ class LoBatchEquipmentPerformance(Base):
     # 索引
     __table_args__ = (
         Index("IDX_equipment", "equipment"),
-        Index("IDX_chuck_lot_wafer", "chuck_id", "lot_id", "wafer_id"),
+        Index("IDX_chuck_lot_wafer", "chuck_id", "lot_id", "wafer_index"),
         Index("IDX_wafer_product_start_time", "wafer_product_start_time"),
         Index("IDX_lot_start_end_time", "lot_start_time", "lot_end_time"),
         Index("IDX_reject_reason", "reject_reason"),
@@ -95,7 +95,7 @@ class LoBatchEquipmentPerformance(Base):
             "equipment": self.equipment,
             "chuck_id": self.chuck_id,
             "lot_id": self.lot_id,
-            "wafer_id": self.wafer_id,
+            "wafer_index": self.wafer_index,
             "lot_start_time": self.lot_start_time,
             "lot_end_time": self.lot_end_time,
             "wafer_product_start_time": self.wafer_product_start_time,
