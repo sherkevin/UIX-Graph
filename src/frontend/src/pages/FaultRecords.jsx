@@ -13,9 +13,6 @@ const METRIC_PAGE_SIZE = 20
 // 后端统一返回 13 位毫秒时间戳，使用 dayjs(ms) 而非 dayjs.unix(s)
 const formatTimestamp = (ts) => (ts ? dayjs(ts).format('YYYY-MM-DD HH:mm:ss') : '-')
 
-// 机台名匿名化：删除英文字母，只保留数字（接入内网真实机台名后移除此函数）
-const maskMachine = (name) => (name ? name.replace(/[a-zA-Z]/g, '') : name)
-
 const mixedSort = (a, b) => {
   const aNum = Number(a)
   const bNum = Number(b)
@@ -496,7 +493,7 @@ const FaultRecords = () => {
               placeholder="选择机台"
             >
               {metadata.availableMachines.map((machine) => (
-                <Option key={machine} value={machine}>{maskMachine(machine)}</Option>
+                <Option key={machine} value={machine}>{machine}</Option>
               ))}
             </Select>
           </Col>
