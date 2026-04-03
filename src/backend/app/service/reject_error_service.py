@@ -33,7 +33,6 @@ class RejectErrorService:
     # 机台枚举白名单
     EQUIPMENT_WHITELIST = [
         "SSB8000", "SSB8001", "SSB8002", "SSB8005",
-        "SSA800W0", "SSA800W1", "SSA800W2",
         "SSC8001", "SSC8002", "SSC8003", "SSC8004", "SSC8005", "SSC8006"
     ]
 
