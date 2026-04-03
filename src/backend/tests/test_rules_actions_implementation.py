@@ -8,6 +8,32 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from app.engine.actions import call_action
+from app.engine.actions.builtin import _run_model_once
+
+
+def test_cowa_matlab_fixture_matches_pinv():
+    """
+    与用户提供的 MATLAB COWA 四参数脚本数值对齐（pinv(a1)*b1 及 Tx/Ty/Mw/Rw）。
+    """
+    out = _run_model_once(
+        mark_scan=[
+            (-4.950007090089312e-2, 1.102275511079749e-1),
+            (5.052108622864396e-2, -1.097551035821438e-1),
+        ],
+        mark_data=[(-5.04e-2, 1.104e-1), (4.96e-2, -1.096e-1)],
+        msx=1.000003160397744,
+        msy=1.000004841099549,
+        e_wsx=3.041574231200786e-7,
+        e_wsy=1.701734537375717e-6,
+        s_x=0.000935146384271204,
+        s_y=-0.000339839162971417,
+        d_x=-3.32067e-6,
+        d_y=-8.61429e-6,
+    )
+    assert abs(out["output_Tx"] - (-21.58691089559314)) < 1e-6
+    assert abs(out["output_Ty"] - 183.02995713073116) < 1e-6
+    assert abs(out["output_Mw"] - (-24.560852937586414)) < 1e-6
+    assert abs(out["output_Rw"] - 108.76964304623539) < 1e-6
 
 
 def test_determine_model_type_88um():
@@ -115,6 +141,7 @@ def test_build_model_auto_determines_type_from_mwx0():
 
 
 if __name__ == "__main__":
+    test_cowa_matlab_fixture_matches_pinv()
     test_determine_model_type_88um()
     test_determine_model_type_8um()
     test_build_88um_model_outputs()

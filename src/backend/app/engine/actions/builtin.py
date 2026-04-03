@@ -4,6 +4,9 @@
 import json
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
+
 from . import register
 
 
@@ -102,51 +105,41 @@ def _query_monthly_mean(column_name: str, current_value: Optional[float], **ctx)
         return _to_float(current_value, 0.0)
 
 
-def _transpose(m: List[List[float]]) -> List[List[float]]:
-    return [list(col) for col in zip(*m)]
+def _solve_b_wa_4param_pinv(
+    mark_scan: List[Tuple[float, float]],
+    mark_data: List[Tuple[float, float]],
+    msx: float,
+    msy: float,
+    e_wsx: float,
+    e_wsy: float,
+) -> Tuple[float, float, float, float]:
+    """
+    COWA 双点标记 wafer 四参数线性解，与 MATLAB 一致::
 
+        % 化简：M*cos(R)=1+dM, M*sin(R)=R
+        a1 = [1 0 mark_data(i,1) -mark_data(i,2); 0 1 mark_data(i,2) mark_data(i,1); ...]
+        b1 = [mark_scan(i,1)*Msx - e_wsx - mark_data(i,1); ...]
+        B_wa_4par = pinv(a1) * b1
 
-def _matmul(a: List[List[float]], b: List[List[float]]) -> List[List[float]]:
-    return [
-        [sum(a[i][k] * b[k][j] for k in range(len(b))) for j in range(len(b[0]))]
-        for i in range(len(a))
-    ]
-
-
-def _matvec(a: List[List[float]], v: List[float]) -> List[float]:
-    return [sum(a[i][k] * v[k] for k in range(len(v))) for i in range(len(a))]
-
-
-def _solve_linear_system(a: List[List[float]], b: List[float]) -> List[float]:
-    """高斯消元解 Ax=b，A 为方阵。"""
-    n = len(a)
-    aug = [row[:] + [b[i]] for i, row in enumerate(a)]
-
-    for i in range(n):
-        pivot = max(range(i, n), key=lambda r: abs(aug[r][i]))
-        if abs(aug[pivot][i]) < 1e-12:
-            raise ValueError("singular matrix")
-        aug[i], aug[pivot] = aug[pivot], aug[i]
-
-        factor = aug[i][i]
-        for j in range(i, n + 1):
-            aug[i][j] /= factor
-
-        for r in range(n):
-            if r == i:
-                continue
-            f = aug[r][i]
-            for c in range(i, n + 1):
-                aug[r][c] -= f * aug[i][c]
-
-    return [aug[i][n] for i in range(n)]
-
-
-def _least_squares(a: List[List[float]], b: List[float]) -> List[float]:
-    at = _transpose(a)
-    ata = _matmul(at, a)
-    atb = _matvec(at, b)
-    return _solve_linear_system(ata, atb)
+    返回 (BB_Cwx1, BB_Cwy1, BB_Mw1, BB_Rw1)，与 MATLAB B_wa_4par(1:4) 同序、同量纲（米 / 弧度）。
+    使用 ``numpy.linalg.pinv`` 对应 MATLAB ``pinv``。
+    """
+    rows: List[List[float]] = []
+    rhs: List[float] = []
+    for i in range(min(len(mark_scan), len(mark_data))):
+        md_x, md_y = mark_data[i]
+        ms_x, ms_y = mark_scan[i]
+        rows.append([1.0, 0.0, md_x, -md_y])
+        rhs.append(ms_x * msx - e_wsx - md_x)
+        rows.append([0.0, 1.0, md_y, md_x])
+        rhs.append(ms_y * msy - e_wsy - md_y)
+    if not rows:
+        return 0.0, 0.0, 0.0, 0.0
+    a_mat = np.asarray(rows, dtype=np.float64)
+    b_vec = np.asarray(rhs, dtype=np.float64).reshape(-1, 1)
+    x = np.linalg.pinv(a_mat) @ b_vec
+    cwx, cwy, mw, rw = float(x[0, 0]), float(x[1, 0]), float(x[2, 0]), float(x[3, 0])
+    return cwx, cwy, mw, rw
 
 
 def _run_model_once(
@@ -161,17 +154,10 @@ def _run_model_once(
     d_x: float,
     d_y: float,
 ) -> Dict[str, float]:
-    a1: List[List[float]] = []
-    b1: List[float] = []
-    for i in range(min(len(mark_scan), len(mark_data))):
-        md_x, md_y = mark_data[i]
-        ms_x, ms_y = mark_scan[i]
-        a1.append([1.0, 0.0, md_x, -md_y])
-        b1.append(ms_x * msx - e_wsx - md_x)
-        a1.append([0.0, 1.0, md_y, md_x])
-        b1.append(ms_y * msy - e_wsy - md_y)
-
-    cwx, cwy, mw, rw = _least_squares(a1, b1)
+    cwx, cwy, mw, rw = _solve_b_wa_4param_pinv(
+        mark_scan, mark_data, msx, msy, e_wsx, e_wsy
+    )
+    # Tx/Ty/Mw/Rw 与 MATLAB 一致：*(1e6) 得到 nm 与 ppm/µrad 量级展示
     tx = (cwx - s_x - d_x) * 1e6
     ty = (cwy - s_y - d_y) * 1e6
     mw_ppm = mw * 1e6
@@ -203,10 +189,10 @@ def _build_model(amplitude_um: float, **ctx) -> Dict[str, Any]:
 
     msx = _to_float(ctx.get("Msx"), 1.0)
     msy = _to_float(ctx.get("Msy"), 1.0)
-    e_wsx = _to_float(ctx.get("e_ws_x"), 0.0)
-    e_wsy = _to_float(ctx.get("e_ws_y"), 0.0)
-    s_x = _to_float(ctx.get("Sx"), 0.0)
-    s_y = _to_float(ctx.get("Sy"), 0.0)
+    e_wsx = _to_float(ctx.get("e_ws_x"), _to_float(ctx.get("e_wsx"), 0.0))
+    e_wsy = _to_float(ctx.get("e_ws_y"), _to_float(ctx.get("e_wsy"), 0.0))
+    s_x = _to_float(ctx.get("Sx"), _to_float(ctx.get("S_x"), 0.0))
+    s_y = _to_float(ctx.get("Sy"), _to_float(ctx.get("S_y"), 0.0))
     d_x = _to_float(ctx.get("D_x"), 0.0)
     d_y = _to_float(ctx.get("D_y"), 0.0)
 
