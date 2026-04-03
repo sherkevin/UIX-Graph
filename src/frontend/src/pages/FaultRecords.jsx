@@ -13,6 +13,9 @@ const METRIC_PAGE_SIZE = 20
 // 后端统一返回 13 位毫秒时间戳，使用 dayjs(ms) 而非 dayjs.unix(s)
 const formatTimestamp = (ts) => (ts ? dayjs(ts).format('YYYY-MM-DD HH:mm:ss') : '-')
 
+// 机台名匿名化：删除英文字母，只保留数字（接入内网真实机台名后移除此函数）
+const maskMachine = (name) => (name ? name.replace(/[a-zA-Z]/g, '') : name)
+
 const mixedSort = (a, b) => {
   const aNum = Number(a)
   const bNum = Number(b)
@@ -349,8 +352,9 @@ const FaultRecords = () => {
             : row
         )))
       }
-      // Bug #9 fix: totalMetrics 来自 meta.total
-      setMetricTotal(meta.total || 0)
+      // 指标总数只计 diagnostic 类型（不含建模参数）
+      const diagCount = (data.metrics || []).filter(m => m.type !== 'model_param').length
+      setMetricTotal(diagCount)
     } catch (error) {
       message.error(`获取详情失败：${extractErrorMessage(error)}`)
       setDetailVisible(false)
@@ -408,21 +412,6 @@ const FaultRecords = () => {
       sorter: true,
       sortOrder: sortConfig.sortedBy === 'reason' ? (sortConfig.orderedBy === 'asc' ? 'ascend' : 'descend') : null,
       render: (reason) => reason || '-',
-    },
-    {
-      title: '分系统',
-      dataIndex: 'system',
-      key: 'system',
-      width: 90,
-      render: (v) => v || '-',
-    },
-    {
-      title: '故障根因',
-      dataIndex: 'rootCause',        // Bug #6 fix: errorReason → rootCause
-      key: 'rootCause',
-      width: 190,
-      ellipsis: true,
-      render: (v) => v || '-',
     },
     {
       title: '操作',
@@ -507,7 +496,7 @@ const FaultRecords = () => {
               placeholder="选择机台"
             >
               {metadata.availableMachines.map((machine) => (
-                <Option key={machine} value={machine}>{machine}</Option>
+                <Option key={machine} value={machine}>{maskMachine(machine)}</Option>
               ))}
             </Select>
           </Col>
