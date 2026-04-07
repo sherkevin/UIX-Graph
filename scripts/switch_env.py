@@ -70,7 +70,7 @@ def write_backend_env(env: str, mysql_config: dict = None):
         frontend_url = (mysql_config or {}).get("frontend_api_url", "")
         cors_origins = frontend_url if frontend_url else ""
 
-    metric_mode = "mock_allowed" if env in ("local", "test") else "mock_allowed"
+    metric_mode = "mock_allowed" if env == "local" else "real"
     content = f"""# 自动生成，勿手动修改。使用 scripts/switch_env.py 切换环境。
 APP_ENV={env}
 CORS_ORIGINS={cors_origins}

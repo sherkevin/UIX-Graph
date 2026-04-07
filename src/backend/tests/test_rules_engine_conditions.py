@@ -117,6 +117,61 @@ def test_between_threshold_uses_open_interval():
     assert engine._is_within_normal_range(20.0, "between", [-20, 20]) is False
 
 
+def test_parallel_targets_execute_independently_and_accumulate_normal_count():
+    engine = DiagnosisEngine()
+    root_cause, system, trace, abnormal_metrics, final_context = engine._walk_tree(
+        "21",
+        {
+            "output_Mw": 5.0,
+            "output_Tx": 1.0,
+            "output_Ty": 1.0,
+            "output_Rw": 10.0,
+        },
+        base_context={"normal_count": 0},
+    )
+    assert root_cause == "人工处理"
+    assert final_context.get("normal_count") == 3
+    assert "22" in trace and "23" in trace and "24" in trace
+
+
+def test_parallel_targets_can_reach_tx_root_cause_branch():
+    engine = DiagnosisEngine()
+    root_cause, system, trace, abnormal_metrics, final_context = engine._walk_tree(
+        "21",
+        {
+            "output_Mw": 5.0,
+            "output_Tx": 25.0,
+            "output_Ty": 1.0,
+            "output_Rw": 10.0,
+            "Tx": 25.0,
+            "mean_Tx": 0.5,
+        },
+        base_context={"normal_count": 0},
+    )
+    assert root_cause in {"上片工艺适应性问题", "上片偏差异常"}
+    assert "30" in trace
+    assert ("40" in trace) or ("41" in trace)
+
+
+def test_metrics_list_uses_final_context_outputs_and_means():
+    engine = DiagnosisEngine()
+    metrics = engine._build_metrics_list(
+        ["Mwx_0", "n_88um", "output_Mw", "output_Tx", "mean_Tx"],
+        {
+            "Mwx_0": 1.00005,
+            "n_88um": 3.0,
+            "output_Mw": 5.0,
+            "output_Tx": 25.0,
+            "mean_Tx": 0.5,
+        },
+    )
+    by_name = {m["name"]: m for m in metrics}
+    assert "output_Tx" in by_name
+    assert "mean_Tx" in by_name
+    assert by_name["output_Tx"]["status"] == "ABNORMAL"
+    assert by_name["mean_Tx"]["status"] == "NORMAL"
+
+
 if __name__ == "__main__":
     test_expression_string_equality_branch()
     test_expression_numeric_equality_branch()
@@ -127,4 +182,7 @@ if __name__ == "__main__":
     test_mwx0_threshold_uses_rule_branches_not_fake_between()
     test_mwx0_status_respects_sparse_valid_ranges()
     test_between_threshold_uses_open_interval()
+    test_parallel_targets_execute_independently_and_accumulate_normal_count()
+    test_parallel_targets_can_reach_tx_root_cause_branch()
+    test_metrics_list_uses_final_context_outputs_and_means()
     print("OK: test_rules_engine_conditions")

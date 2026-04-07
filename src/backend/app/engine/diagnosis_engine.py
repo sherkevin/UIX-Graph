@@ -135,7 +135,7 @@ class DiagnosisEngine:
 
         # 3. 遍历决策树
         start_node = str(scene.get("start_node", "1"))
-        root_cause, system, trace, abnormal_metrics = self._walk_tree(
+        root_cause, system, trace, abnormal_metrics, final_context = self._walk_tree(
             start_node,
             metric_values,
             base_context={
@@ -161,7 +161,7 @@ class DiagnosisEngine:
             )
 
         # 4. 构建 metrics 列表（每个涉及的指标及其状态）
-        result.metrics = self._build_metrics_list(metric_ids, metric_values)
+        result.metrics = self._build_metrics_list(metric_ids, final_context)
 
         # 5. 构建 errorField（触发异常判断的指标）
         error_fields = [m["name"] for m in result.metrics if m["status"] == "ABNORMAL"]
@@ -181,7 +181,7 @@ class DiagnosisEngine:
         start_node: str,
         metric_values: Dict[str, Optional[float]],
         base_context: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[Optional[str], Optional[str], List[str], List[str]]:
+    ) -> Tuple[Optional[str], Optional[str], List[str], List[str], Dict[str, Any]]:
         """
         遍历 rules.json 的 steps 决策树
 
@@ -190,16 +190,23 @@ class DiagnosisEngine:
             metric_values: 各指标的实际值
 
         Returns:
-            (root_cause, system, trace_path, abnormal_metric_ids)
+            (root_cause, system, trace_path, abnormal_metric_ids, final_context)
         """
-        trace = []
-        abnormal_metrics = []
-        current_node = start_node
-        max_steps = 50  # 防止死循环
-
         # context = 源记录上下文 + metric_values + actions/branch-set 动态追加变量
         context: Dict[str, Any] = dict(base_context or {})
         context.update(metric_values)
+        return self._walk_subtree(start_node, context, [], [], max_steps=50)
+
+    def _walk_subtree(
+        self,
+        start_node: str,
+        context: Dict[str, Any],
+        trace: List[str],
+        abnormal_metrics: List[str],
+        max_steps: int = 50,
+    ) -> Tuple[Optional[str], Optional[str], List[str], List[str], Dict[str, Any]]:
+        """执行单条子路径；若 target 为列表，则按独立分支顺序依次执行并共享 context。"""
+        current_node = start_node
 
         for _ in range(max_steps):
             step = self.rule_loader.get_step(current_node)
@@ -220,6 +227,7 @@ class DiagnosisEngine:
                     step_result.get("system"),
                     trace,
                     abnormal_metrics,
+                    context,
                 )
 
             # 如果 next 为空，视为终止节点
@@ -228,7 +236,7 @@ class DiagnosisEngine:
                 logger.info("步骤 %s 无后续分支，诊断终止", current_node)
                 desc = step.get("description", "")
                 if "人工处理" in desc:
-                    return ("需要人工处理", None, trace, abnormal_metrics)
+                    return ("需要人工处理", None, trace, abnormal_metrics, context)
                 break
 
             # 评估分支条件，返回 (next_node, chosen_branch)
@@ -245,15 +253,23 @@ class DiagnosisEngine:
                 context.update(chosen_branch["set"])
                 logger.debug("步骤 %s set context: %s", current_node, chosen_branch["set"])
 
-            # 如果 target 是列表（并行检查），选择异常指标优先的子节点
             if isinstance(next_node, list):
-                selected = self._select_parallel_node(next_node, context)
-                current_node = str(selected)
-                logger.info("并行节点 %s → 选中 %s", next_node, current_node)
+                logger.info("并行节点 %s → 依次执行独立子分支", next_node)
+                for child in next_node:
+                    root_cause, system, trace, abnormal_metrics, context = self._walk_subtree(
+                        str(child),
+                        context,
+                        trace,
+                        abnormal_metrics,
+                        max_steps=max_steps,
+                    )
+                    if root_cause is not None or system is not None:
+                        return root_cause, system, trace, abnormal_metrics, context
+                return (None, None, trace, abnormal_metrics, context)
             else:
                 current_node = str(next_node)
 
-        return (None, None, trace, abnormal_metrics)
+        return (None, None, trace, abnormal_metrics, context)
 
     def _execute_details(
         self,
@@ -528,7 +544,7 @@ class DiagnosisEngine:
         """
         构建接口3返回的 metrics 数组
 
-        对每个指标，从 rules.json 查找阈值条件，
+        对每个指标，从最终执行上下文中读取值，并结合 rules.json 查找阈值条件，
         评估 status (NORMAL/ABNORMAL)。
 
         排除规则：
@@ -621,16 +637,23 @@ class DiagnosisEngine:
         lookup_id = self._METRIC_ALIAS_MAP.get(metric_id, metric_id)
 
         for step in self.rule_loader.steps:
-            if step.get("metric_id") != lookup_id:
-                continue
-
+            step_metric_id = step.get("metric_id")
             branches = step.get("next", [])
+            branch_refs_lookup = any(
+                self._extract_condition_var(str(branch.get("condition", ""))) == lookup_id
+                for branch in branches
+            )
+            if step_metric_id != lookup_id and not branch_refs_lookup:
+                continue
 
             valid_branches = []
             for branch in branches:
                 op = branch.get("operator", "")
                 limit = branch.get("limit")
                 condition = branch.get("condition", "")
+                branch_var = self._extract_condition_var(str(condition))
+                if branch_refs_lookup and branch_var != lookup_id:
+                    continue
                 if op and limit is not None and condition != "else":
                     valid_branches.append(branch)
 

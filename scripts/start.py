@@ -521,10 +521,11 @@ class LauncherApp:
     def _write_env_direct(self, env: str):
         """fallback：直接写最小 .env"""
         try:
+            metric_mode = "mock_allowed" if env == "local" else "real"
             content = (
                 f"APP_ENV={env}\n"
                 f"CORS_ORIGINS=http://localhost:3000,http://localhost:8000\n"
-                f"METRIC_SOURCE_MODE=mock_allowed\n"
+                f"METRIC_SOURCE_MODE={metric_mode}\n"
                 f"LOG_LEVEL=INFO\n"
             )
             ENV_FILE.write_text(content, encoding="utf-8")

@@ -173,6 +173,30 @@
     "filter_condition": "chuck_id={chuck_id} AND lot_start_time >= {time_filter}",
     "duration": "1000"
   },
+  "mean_Tx": {
+    "description": "一个月内上片偏差Tx均值",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  },
+  "mean_Ty": {
+    "description": "一个月内上片偏差Ty均值",
+    "data_type": null,
+    "unit": "um",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  },
+  "mean_Rw": {
+    "description": "一个月内上片旋转Rw均值",
+    "data_type": null,
+    "unit": "urad",
+    "db_type": "intermediate",
+    "table_name": null,
+    "column_name": null
+  },
   "n_88um": {
     "description": "88微米建模次数",
     "data_type": "int",
