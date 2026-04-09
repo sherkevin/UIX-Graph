@@ -673,22 +673,22 @@ class MetricFetcher:
                     include_linking_filters=True,
                     placeholder_style="clickhouse",
                 )
-            value = ClickHouseODS.query_metric_in_window(
-                table_name=meta["table_name"],
-                column_name=meta["column_name"],
-                equipment=self.equipment,
-                time_start=time_start,
-                time_end=time_end,
-                reference_time=self.reference_time,
-                extraction_rule=meta.get("extraction_rule"),
-                time_column=meta.get("time_column", "time"),
-                equipment_column=meta.get("equipment_column", "equipment"),
+                value = ClickHouseODS.query_metric_in_window(
+                    table_name=meta["table_name"],
+                    column_name=meta["column_name"],
+                    equipment=self.equipment,
+                    time_start=time_start,
+                    time_end=time_end,
+                    reference_time=self.reference_time,
+                    extraction_rule=meta.get("extraction_rule"),
+                    time_column=meta.get("time_column", "time"),
+                    equipment_column=meta.get("equipment_column", "equipment"),
                     extra_filters=fallback_filters,
                     extra_filter_params=fallback_filter_params,
                 )
                 used_fallback = linking["mode"] == "exact_keys"
 
-        value = self._apply_data_type(metric_id, value, meta)
+            value = self._apply_data_type(metric_id, value, meta)
             self.source_log[metric_id] = (
                 "real_clickhouse_fallback" if value is not None and used_fallback
                 else "real_clickhouse" if value is not None
