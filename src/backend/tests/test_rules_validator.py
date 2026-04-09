@@ -77,7 +77,7 @@ def test_validator_detects_invalid_trigger_condition():
         "diagnosis_scenes": [{
             "id": 1,
             "metric_id": ["A", "B"],
-            "trigger_condition": ["A == true AND ???"],
+            "trigger_condition": ["{A} == true AND ???"],
             "start_node": "1",
         }],
         "steps": [{"id": 1, "details": [], "next": []}],
@@ -91,7 +91,7 @@ def test_validator_detects_trigger_metric_not_declared():
         "diagnosis_scenes": [{
             "id": 1,
             "metric_id": ["A"],
-            "trigger_condition": ["A == true AND B == true"],
+            "trigger_condition": ["{A} == true AND {B} == true"],
             "start_node": "1",
         }],
         "steps": [{"id": 1, "details": [], "next": []}],

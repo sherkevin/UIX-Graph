@@ -26,6 +26,7 @@ from app.engine.condition_evaluator import (
     evaluate_boolean_condition_text,
     evaluate_condition_definition,
     evaluate_condition_text,
+    parse_condition_signature,
 )
 
 logger = logging.getLogger(__name__)
@@ -413,8 +414,8 @@ class DiagnosisEngine:
             if isinstance(compare, dict) and compare.get("left"):
                 return str(compare.get("left"))
             return None
-        m = re.search(r'\{(\w+)\}', str(condition))
-        return m.group(1) if m else None
+        m = re.search(r"\{([^}]+)\}", str(condition))
+        return m.group(1).strip() if m else None
 
     def _evaluate_branches(
         self,
@@ -518,8 +519,6 @@ class DiagnosisEngine:
                 return value >= float(limit)
             elif operator == "<=":
                 return value <= float(limit)
-            elif operator == "≤":
-                return value <= float(limit)
             elif operator == "between":
                 if isinstance(limit, list) and len(limit) == 2:
                     return float(limit[0]) < value < float(limit[1])
@@ -544,7 +543,7 @@ class DiagnosisEngine:
         if operator == "between":
             return False
         # > 或 < 极限值通常是异常
-        if operator in (">", "<", ">=", "<=", "≤"):
+        if operator in (">", "<", ">=", "<="):
             return True
         return False
 
@@ -653,30 +652,66 @@ class DiagnosisEngine:
         for step in self.rule_loader.steps:
             step_metric_id = step.get("metric_id")
             branches = step.get("next", [])
-            branch_refs_lookup = any(
-                self._extract_condition_var(str(branch.get("condition", ""))) == lookup_id
-                for branch in branches
-            )
+            parsed_branches = []
+            for branch in branches:
+                condition = str(branch.get("condition", "")).strip()
+                if not condition or condition == "else":
+                    continue
+                signature = parse_condition_signature(condition)
+                if not signature:
+                    continue
+                sig_type = signature.get("type")
+                if sig_type == "range":
+                    parsed_branches.append(
+                        {
+                            "var": signature.get("var"),
+                            "operator": "between",
+                            "limit": signature.get("limit"),
+                            "condition": condition,
+                        }
+                    )
+                    continue
+                if sig_type == "comparison":
+                    rhs_var = signature.get("rhs_var")
+                    rhs_value = signature.get("rhs")
+                    if rhs_var is not None or rhs_value is None:
+                        continue
+                    parsed_branches.append(
+                        {
+                            "var": signature.get("var"),
+                            "operator": signature.get("operator"),
+                            "limit": rhs_value,
+                            "condition": condition,
+                        }
+                    )
+
+            branch_refs_lookup = any(str(item.get("var")) == lookup_id for item in parsed_branches)
             if step_metric_id != lookup_id and not branch_refs_lookup:
                 continue
 
             valid_branches = []
-            for branch in branches:
-                op = branch.get("operator", "")
+            for branch in parsed_branches:
+                op = str(branch.get("operator", "")).strip()
                 limit = branch.get("limit")
-                condition = branch.get("condition", "")
-                branch_var = self._extract_condition_var(str(condition))
+                condition = str(branch.get("condition", "")).strip()
+                branch_var = str(branch.get("var", "")).strip()
                 if branch_refs_lookup and branch_var != lookup_id:
                     continue
-                if op and limit is not None and condition != "else":
-                    valid_branches.append(branch)
+                if op and limit is not None:
+                    valid_branches.append(
+                        {
+                            "operator": op,
+                            "limit": limit,
+                            "condition": condition,
+                        }
+                    )
 
             if not valid_branches:
                 continue
 
             between_branches = [b for b in valid_branches if b.get("operator", "") == "between"]
             comparison_branches = [
-                b for b in valid_branches if b.get("operator", "") in {">", "<", ">=", "<=", "≤"}
+                b for b in valid_branches if b.get("operator", "") in {">", "<", ">=", "<=", "==", "!="}
             ]
 
             # Mwx_0 这类“多个有效区间/边界共同组成正常条件”的步骤，不能错误折叠成单个 between。
@@ -706,7 +741,7 @@ class DiagnosisEngine:
                 op = branch.get("operator", "")
                 limit = branch.get("limit")
                 condition = branch.get("condition", "")
-                if op and limit is not None and condition != "else":
+                if op and limit is not None:
                     return {
                         "operator": op,
                         "limit": limit,
@@ -744,7 +779,7 @@ class DiagnosisEngine:
             if operator == "between":
                 if isinstance(limit, list) and len(limit) == 2:
                     return float(limit[0]) < value < float(limit[1])
-            elif operator == "≤" or operator == "<=":
+            elif operator == "<=":
                 return value <= float(limit)
             elif operator == "<":
                 return value < float(limit)
