@@ -13,7 +13,7 @@
 本仓库 **SXEE-LITHO-RCA**（内部路径常标为 UIX）是一套 **光刻机拒片根因分析（Reject Cause Analysis）** 系统，主要能力包括：
 
 - **知识图谱 / 本体 / 诊断推理（早期能力）**：FastAPI 提供 ontology、diagnosis、visualization、propagation 等路由，面向通用故障知识建模与推理。
-- **Stage3 拒片故障管理（当前研发主线）**：在「机台 + 时间 + Chuck / Lot / Wafer」维度上查询 **拒片记录**，对特定拒片原因（当前实现为 **COARSE_ALIGN_FAILED，`reject_reason_id = 6`**）运行基于 **`config/rules.json`** 的决策树诊断，结合 **`config/metrics.json`** 从 MySQL / ClickHouse（后者本地多为 mock）拉取指标，将 **`rootCause`、`system`、指标明细** 写入缓存表 **`rejected_detailed_records`**，供列表接口展示与详情弹窗使用。
+- **Stage3 拒片故障管理（当前研发主线）**：在「机台 + 时间 + Chuck / Lot / Wafer」维度上查询 **拒片记录**，对特定拒片原因（当前实现为 **COARSE_ALIGN_FAILED，`reject_reason_id = 6`**）运行基于 **`config/reject_errors.diagnosis.json`** 的决策树诊断，结合其中内联的指标定义从 MySQL / ClickHouse（后者本地多为 mock）拉取指标，将 **`rootCause`、`system`、指标明细** 写入缓存表 **`rejected_detailed_records`**，供列表接口展示与详情弹窗使用。
 
 业务目标：帮助工程师快速定位拒片相关的数据上下文与规则化根因结论，并为后续异步预计算、真实 ClickHouse 连通等演进留接口。
 
@@ -24,8 +24,8 @@
 | 来源 | 内容 |
 |------|------|
 | [docs/stage3/prd3.md](stage3/prd3.md) | 拒片模块 API 契约：接口 1 元数据、接口 2 搜索、接口 3 详情+指标；时间戳规范、分页、`rootCause`/`system` 与缓存关系。 |
-| [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md) | `rules.json` 执行规范：`details/action/params/results/next` 的严格语义与后端实现约束。 |
-| [docs/data_source.md](data_source.md) | 各接口字段到 MySQL 表（以 `datacenter.lo_batch_equipment_performance` 为主）的映射；接口 3 指标与 `metrics.json` 的对应关系。 |
+| [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md) | `reject_errors.diagnosis.json` 执行规范：`details/action/params/results/next` 的严格语义与后端实现约束。 |
+| [docs/data_source.md](data_source.md) | 各接口字段到 MySQL 表（以 `datacenter.lo_batch_equipment_performance` 为主）的映射；接口 3 指标与 `reject_errors.diagnosis.json` 的对应关系。 |
 | [docs/stage3/database_schema.md](stage3/database_schema.md) | 相关表 DDL 与字段约定。 |
 | [docs/stage3/feature_todo.md](stage3/feature_todo.md) | **未来改进**：读写解耦、MQ + 异步预计算、分布式锁、REST/时间格式统一、胖服务端分页与状态判定、OpenAPI 契约化等。 |
 | [docs/stage3/frontend_backend_integration.md](stage3/frontend_backend_integration.md) | FaultRecords 页面与三接口的触发关系、联调说明。 |
@@ -38,14 +38,14 @@
 
 - **路由**: [src/backend/app/handler/reject_errors.py](../src/backend/app/handler/reject_errors.py) — `GET .../metadata`、`POST .../search`、`GET .../{id}/metrics`。
 - **业务层**: [src/backend/app/service/reject_error_service.py](../src/backend/app/service/reject_error_service.py) — 元数据/搜索/详情；空数组筛选短路；接口 3 诊断与缓存。
-- **诊断引擎**: [src/backend/app/engine/](../src/backend/app/engine/) — `rule_loader.py` 加载 `rules.json` + `metrics.json`；`metric_fetcher.py` 按指标配置取数；`diagnosis_engine.py` 遍历决策树并组装 `metrics`（含 `status`、阈值、ABNORMAL 置顶）。
+- **诊断引擎**: [src/backend/app/engine/](../src/backend/app/engine/) — `rule_loader.py` 通过 `diagnosis.json` 索引加载 `reject_errors.diagnosis.json`；`metric_fetcher.py` 按指标配置取数；`diagnosis_engine.py` 遍历决策树并组装 `metrics`（含 `status`、阈值、ABNORMAL 置顶）。
 - **数据访问**: [src/backend/app/ods/datacenter_ods.py](../src/backend/app/ods/datacenter_ods.py) 等。
 - **模型**: [src/backend/app/models/reject_errors_db.py](../src/backend/app/models/reject_errors_db.py) — 源表 + `rejected_detailed_records` 缓存表。
 
 ### 3.2 接口 3 扩展（本交接版本）
 
 - **请求时间 `requestTime`（可选）**：13 位毫秒时间戳。未传或与该条 **`wafer_product_start_time`** 一致时，**仍走原缓存逻辑**；仅当传入的 `requestTime` **与** 记录发生时间**不一致**时，**不读、不写** `rejected_detailed_records`，避免错误缓存。
-- **按指标时间窗**：对需按时间从库中查询的指标，使用 **`metrics.json` 中 `duration`（分钟）** 定义区间 **`[T - duration, T]`**，其中 **T** 为上述请求时间（未传则用记录上的发生时间）。
+- **按指标时间窗**：对需按时间从库中查询的指标，使用 **`reject_errors.diagnosis.json` 中 `metrics.*.duration`（分钟）** 定义区间 **`[T - duration, T]`**，其中 **T** 为上述请求时间（未传则用记录上的发生时间）。
 
 ### 3.3 前端
 
@@ -57,10 +57,12 @@
 - [src/backend/tests/test_reject_errors.py](../src/backend/tests/test_reject_errors.py) — 接口 1、2 的集成测试（**依赖 MySQL**，未起库会连接失败，属环境原因）。
 - [src/backend/tests/test_metric_fetcher_window.py](../src/backend/tests/test_metric_fetcher_window.py) — `MetricFetcher` 按 `duration` 计算 `[T-duration, T]` 的单元测试（**不依赖数据库**，适合 CI 常跑）。
 
+**外网本地 / 内网边界**：内网前后端可按内网既有 Docker / 发布链路运行，但数据库始终连接真实 MySQL、ClickHouse，与本仓库根目录的 [`docker-compose.yml`](../docker-compose.yml) 无关。外网开发机若连不上内网库，可用该 compose **仅启动 MySQL 与 ClickHouse** 作为同名库表替身，前后端仍在宿主机运行；步骤与 Chrome 验收清单见 [docs/deployment/docker_local_e2e.md](deployment/docker_local_e2e.md)。
+
 ### 3.5 配置与规则
 
-- [config/rules.json](../config/rules.json) — 诊断决策树（当前场景对应 COARSE_ALIGN_FAILED）。
-- [config/metrics.json](../config/metrics.json) — 指标 → 数据源映射；**`duration`（分钟）** 见下文第 7 节。
+- [config/diagnosis.json](../config/diagnosis.json) — 诊断 pipeline 索引文件。
+- [config/reject_errors.diagnosis.json](../config/reject_errors.diagnosis.json) — reject_errors 的 structured 诊断配置（场景、步骤、指标、时间窗）。
 - [config/connections.json](../config/connections.json) — 数据库连接（如 `local` 下 MySQL 端口）。
 
 ---
@@ -151,19 +153,19 @@ python tests/test_diagnosis_prd1.py
 | `src/backend/app/` | FastAPI 应用：`handler`、`service`、`engine`、`ods`、`models`、`schemas`。 |
 | `src/frontend/` | **约定主前端**（Vite + React）：FaultRecords、API 层。 |
 | `frontend/`（若存在） | 可能与 `src/frontend` 重复；**交接约定以 `src/frontend` 与根 README 为准**，避免两处并行修改分叉。 |
-| `config/` | `rules.json`、`metrics.json`、`connections.json`、`metrics_meta.yaml`。 |
+| `config/` | `diagnosis.json`、`reject_errors.diagnosis.json`、`ontology_api.diagnosis.json`、`connections.json`、`metrics_meta.yaml`。 |
 | `scripts/` | `init_docker_db.sql`、数据合并与流程脚本等。 |
 | `data/` | 图谱与 case 原始/合并数据（非 Stage3 运行时必需）。 |
 
 ---
 
-## 7. 接口 3：`requestTime` 与 `metrics.json` 的 `duration`
+## 7. 接口 3：`requestTime` 与诊断配置中的 `duration`
 
 ### 7.1 业务含义
 
 - **T**：分析基准时间。由调用方通过 **`GET .../reject-errors/{id}/metrics?requestTime=<13位毫秒>`** 传入；**不传**则 **T = 该条故障的 `wafer_product_start_time`**（与历史行为一致）。
 - **按指标历史窗口**：对需要从日志/时序表查询的指标，取 **`[T - duration, T]`** 内的数据参与后续链路推断（与 PRD/数据源文档一致）。**`duration` 单位为分钟**。
-- **默认值**：当前所有需要配置的历史窗指标在 [config/metrics.json](../config/metrics.json) 中统一为 **`"1000"`**（分钟），便于联调与占位；**`db_type: intermediate`** 及无表映射的中间量、占位项不配置 `duration`。
+- **默认值**：当前所有需要配置的历史窗指标在 [config/reject_errors.diagnosis.json](../config/reject_errors.diagnosis.json) 中统一为 **`"1000"`**（分钟），便于联调与占位；中间量、占位项不配置 `duration`。
 
 ### 7.2 缓存约定（再次强调）
 

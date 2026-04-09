@@ -5,13 +5,13 @@
 核心执行器：加载规则 → 获取指标值 → 遍历决策树 → 输出诊断结果。
 
 流程：
-1. 根据 reject_reason_id 匹配诊断场景 (diagnosis_scene)
-2. 从 metrics.json 配置的数据源获取各指标实际值
-3. 从 start_node 开始，按 rules.json steps 的条件分支逐步推进
+1. 根据 diagnosis_scenes.trigger_condition 匹配诊断场景
+2. 从 pipeline 配置中的 metrics 定义获取各指标实际值
+3. 从 start_node 开始，按 pipeline steps 的条件分支逐步推进
 4. 到达叶子节点后，读取 result.rootCause 和 result.system
 5. 汇总路径上所有指标的 {name, value, unit, status, threshold}
 
-当前仅支持 COARSE_ALIGN_FAILED (reject_reason_id=6) 的诊断。
+当前按 pipeline 配置中的 diagnosis_scenes.trigger_condition 动态匹配诊断场景。
 """
 import logging
 import re
@@ -21,7 +21,12 @@ from typing import Dict, Any, Optional, List, Tuple
 from app.engine.rule_loader import RuleLoader
 from app.engine.metric_fetcher import MetricFetcher, DEFAULT_FALLBACK_WINDOW_MINUTES
 from app.engine.actions import call_action
-from app.engine.condition_evaluator import evaluate_condition_text
+from app.engine.condition_evaluator import (
+    evaluate_boolean_condition_definition,
+    evaluate_boolean_condition_text,
+    evaluate_condition_definition,
+    evaluate_condition_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +41,12 @@ class DiagnosisResult:
         self.metrics: List[Dict[str, Any]] = []  # [{name, value, unit, status, threshold}]
         self.trace: List[str] = []          # 诊断路径 step_id 列表
         self.is_diagnosed: bool = False     # 是否成功完成诊断
+        self.category: Optional[str] = None
+        self.reasoning: List[str] = []
+        self.confidence: int = 0
+        self.scene_id: Optional[Any] = None
+        self.scene_module: Optional[str] = None
+        self.scene_description: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -45,6 +56,12 @@ class DiagnosisResult:
             "metrics": self.metrics,
             "trace": self.trace,
             "isDiagnosed": self.is_diagnosed,
+            "category": self.category,
+            "reasoning": self.reasoning,
+            "confidence": self.confidence,
+            "sceneId": self.scene_id,
+            "sceneModule": self.scene_module,
+            "sceneDescription": self.scene_description,
         }
 
 
@@ -52,35 +69,35 @@ class DiagnosisEngine:
     """
     诊断引擎
 
-    对一条拒片故障记录执行基于 rules.json 的决策树推理，
+    对一条拒片故障记录执行基于 pipeline 配置的决策树推理，
     输出 rootCause、system、errorField 和详细 metrics 列表。
     """
-
-    # 当前支持诊断的拒片原因 ID
-    SUPPORTED_REJECT_REASONS = {6}  # COARSE_ALIGN_FAILED
 
     def __init__(
         self,
         time_window_minutes: int = DEFAULT_FALLBACK_WINDOW_MINUTES,
+        pipeline_id: str = "reject_errors",
     ):
         """
         Args:
-            time_window_minutes: metrics.json 未配置 duration 时的回退窗口（分钟），默认 5
+            time_window_minutes: 指标未配置 duration 时的回退窗口（分钟），默认 5
         """
         self.time_window_minutes = time_window_minutes
-        self.rule_loader = RuleLoader()
+        self.pipeline_id = pipeline_id
+        self.rule_loader = RuleLoader(pipeline_id=pipeline_id)
         # 最近一次诊断用到的 MetricFetcher 实例，service 层读取 source_log 用
         self._last_fetcher: Optional[MetricFetcher] = None
 
     @classmethod
     def can_diagnose(cls, reject_reason_id: int) -> bool:
-        """判断某个拒片原因是否支持自动诊断"""
-        return reject_reason_id in cls.SUPPORTED_REJECT_REASONS
+        """只要存在配置场景，就允许进入场景触发判断。"""
+        return True
 
     def diagnose(
         self,
         source_record: Dict[str, Any],
         reference_time: Optional[datetime] = None,
+        params: Optional[Dict[str, Any]] = None,
     ) -> DiagnosisResult:
         """
         执行诊断
@@ -97,23 +114,6 @@ class DiagnosisEngine:
             DiagnosisResult 诊断结果
         """
         result = DiagnosisResult()
-        reject_reason_id = source_record.get("reject_reason")
-
-        # 1. 匹配诊断场景
-        scene = self.rule_loader.get_scene_by_reject_reason(reject_reason_id)
-        if scene is None:
-            logger.info("reject_reason_id=%s 无匹配诊断场景", reject_reason_id)
-            return result
-
-        logger.info(
-            "开始诊断: failure_id=%s, scene=%s (%s)",
-            source_record.get("id"),
-            scene.get("id"),
-            scene.get("phenomenon"),
-        )
-
-        # 2. 获取所有相关指标值
-        metric_ids = self.rule_loader.get_all_scene_metric_ids(scene)
         ref = reference_time
         if ref is None:
             ref = source_record.get("wafer_product_start_time")
@@ -125,8 +125,32 @@ class DiagnosisEngine:
             reference_time=ref,
             chuck_id=source_record.get("chuck_id"),
             fallback_duration_minutes=self.time_window_minutes,
+            pipeline_id=self.pipeline_id,
+            params=params,
+            source_record=source_record,
         )
         self._last_fetcher = fetcher
+
+        reject_reason_id = source_record.get("reject_reason")
+
+        # 1. 匹配诊断场景（由 trigger_condition 驱动）
+        scene = self._select_scene(source_record, fetcher)
+        if scene is None:
+            logger.info("reject_reason_id=%s 无匹配诊断场景", reject_reason_id)
+            return result
+        result.scene_id = scene.get("id")
+        result.scene_module = scene.get("module")
+        result.scene_description = scene.get("description")
+
+        logger.info(
+            "开始诊断: failure_id=%s, scene=%s (%s)",
+            source_record.get("id"),
+            scene.get("id"),
+            scene.get("phenomenon"),
+        )
+
+        # 2. 获取所有相关指标值
+        metric_ids = self.rule_loader.get_all_scene_metric_ids(scene)
 
         # 优先从源记录直接取值（Tx, Ty, Rw）
         metric_values = fetcher.fetch_from_source_record(source_record, metric_ids)
@@ -151,6 +175,11 @@ class DiagnosisEngine:
         result.system = system
         result.trace = trace
         result.is_diagnosed = root_cause is not None
+        leaf_result = final_context.get("__leaf_result__", {}) if isinstance(final_context, dict) else {}
+        if isinstance(leaf_result, dict):
+            result.category = leaf_result.get("category")
+            result.reasoning = list(leaf_result.get("reasoning") or [])
+            result.confidence = int(leaf_result.get("confidence") or (85 if result.is_diagnosed else 0))
 
         # 防御性兜底：如果有 rootCause 但 system 为空，赋默认值
         if result.root_cause and not result.system:
@@ -174,6 +203,40 @@ class DiagnosisEngine:
 
         return result
 
+    def _select_scene(
+        self,
+        source_record: Dict[str, Any],
+        fetcher: MetricFetcher,
+    ) -> Optional[Dict[str, Any]]:
+        """按 diagnosis_scenes.trigger_condition 顺序返回首个匹配场景。"""
+        for scene in self.rule_loader.diagnosis_scenes:
+            trigger_metric_ids = scene.get("metric_id") or []
+            if isinstance(trigger_metric_ids, str):
+                trigger_metric_ids = [trigger_metric_ids]
+            if scene.get("default") and not trigger_metric_ids and not scene.get("trigger_condition"):
+                return scene
+            trigger_values = fetcher.fetch_from_source_record(source_record, trigger_metric_ids)
+
+            trigger_conditions = scene.get("trigger_condition") or []
+            if isinstance(trigger_conditions, str):
+                trigger_conditions = [trigger_conditions]
+
+            if not trigger_conditions:
+                if trigger_metric_ids and all(trigger_values.get(mid) for mid in trigger_metric_ids):
+                    return scene
+                continue
+
+            for condition in trigger_conditions:
+                if evaluate_boolean_condition_definition(condition, trigger_values):
+                    logger.info(
+                        "匹配场景 scene=%s trigger_condition=%s values=%s",
+                        scene.get("id"),
+                        condition,
+                        trigger_values,
+                    )
+                    return scene
+        return None
+
     # ── 决策树遍历 ──────────────────────────────────────────────────────────
 
     def _walk_tree(
@@ -183,7 +246,7 @@ class DiagnosisEngine:
         base_context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[str], Optional[str], List[str], List[str], Dict[str, Any]]:
         """
-        遍历 rules.json 的 steps 决策树
+        遍历 pipeline 的 steps 决策树
 
         Args:
             start_node: 起始节点 ID
@@ -222,6 +285,7 @@ class DiagnosisEngine:
             # 检查是否为叶子节点（有 result，兼容新旧格式）
             step_result = self.rule_loader.get_step_result(step)
             if step_result:
+                context["__leaf_result__"] = step_result
                 return (
                     step_result.get("rootCause"),
                     step_result.get("system"),
@@ -254,17 +318,24 @@ class DiagnosisEngine:
                 logger.debug("步骤 %s set context: %s", current_node, chosen_branch["set"])
 
             if isinstance(next_node, list):
-                logger.info("并行节点 %s → 依次执行独立子分支", next_node)
+                logger.info("多目标节点 %s → 执行全部子分支并汇总结果", next_node)
+                chosen_result = None
                 for child in next_node:
-                    root_cause, system, trace, abnormal_metrics, context = self._walk_subtree(
+                    root_cause, system, child_trace, child_abnormal_metrics, context = self._walk_subtree(
                         str(child),
                         context,
-                        trace,
-                        abnormal_metrics,
+                        [],
+                        [],
                         max_steps=max_steps,
                     )
-                    if root_cause is not None or system is not None:
-                        return root_cause, system, trace, abnormal_metrics, context
+                    trace.extend(child_trace)
+                    for metric_name in child_abnormal_metrics:
+                        if metric_name not in abnormal_metrics:
+                            abnormal_metrics.append(metric_name)
+                    if (root_cause is not None or system is not None) and chosen_result is None:
+                        chosen_result = (root_cause, system)
+                if chosen_result is not None:
+                    return chosen_result[0], chosen_result[1], trace, abnormal_metrics, context
                 return (None, None, trace, abnormal_metrics, context)
             else:
                 current_node = str(next_node)
@@ -309,10 +380,9 @@ class DiagnosisEngine:
         outputs: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        按 details.results 声明规范 action 输出字段。
+        action 输出默认全部进入 context。
 
-        - 若未声明 results，则保留 action 全量返回字段。
-        - 若声明了 results(dict)，只接收声明内字段，避免脏字段污染上下文。
+        results 声明仅作为契约校验，而不是白名单过滤。
         """
         if not outputs:
             return {}
@@ -321,7 +391,6 @@ class DiagnosisEngine:
         if not isinstance(declared, dict) or not declared:
             return outputs
 
-        normalized = {k: outputs[k] for k in declared.keys() if k in outputs}
         missing = [k for k in declared.keys() if k not in outputs]
         if missing:
             logger.warning(
@@ -330,16 +399,21 @@ class DiagnosisEngine:
                 detail_item.get("action"),
                 ",".join(missing),
             )
-        return normalized
+        return outputs
 
     @staticmethod
-    def _extract_condition_var(condition: str) -> Optional[str]:
+    def _extract_condition_var(condition: Any) -> Optional[str]:
         """从 condition 字符串提取 {var_name} 中的变量名。
 
         例: '-2<{mean_Tx}<2' → 'mean_Tx'
              '{Mwx_0} > 1.0' → 'Mwx_0'
         """
-        m = re.search(r'\{(\w+)\}', condition)
+        if isinstance(condition, dict):
+            compare = condition.get("compare")
+            if isinstance(compare, dict) and compare.get("left"):
+                return str(compare.get("left"))
+            return None
+        m = re.search(r'\{(\w+)\}', str(condition))
         return m.group(1) if m else None
 
     def _evaluate_branches(
@@ -392,8 +466,8 @@ class DiagnosisEngine:
                     continue
                 matched = self._eval_condition(value, operator, limit)
             else:
-                matched, parsed_var, parsed_operator, parsed_limit, parsed_value = (
-                    evaluate_condition_text(condition, context, metric_id)
+                matched, parsed_var, parsed_operator, parsed_limit, parsed_value = evaluate_condition_definition(
+                    condition, context, metric_id
                 )
                 if parsed_var:
                     var_name = parsed_var
@@ -430,60 +504,6 @@ class DiagnosisEngine:
             return else_branch, else_branch_obj
 
         return None, None
-
-    def _select_parallel_node(
-        self,
-        targets: list,
-        context: Dict[str, Any],
-    ) -> Any:
-        """
-        从并行目标节点列表中选择应该追踪的节点
-
-        优先选择指标值异常（不在正常范围内）的子节点，
-        因为异常路径才会到达有 rootCause 的叶子节点。
-
-        Args:
-            targets: 并行目标节点 ID 列表（如 ["22", "23", "24"]）
-            context: 当前执行上下文
-
-        Returns:
-            选中的节点 ID
-        """
-        first_abnormal = None
-        first_normal = None
-
-        for target_id in targets:
-            step = self.rule_loader.get_step(str(target_id))
-            if step is None:
-                continue
-
-            metric_id = step.get("metric_id")
-            value = context.get(metric_id) if metric_id else None
-
-            if value is None:
-                continue
-
-            # 在该步骤的分支中查找 "between" 条件（正常范围）
-            is_normal = True
-            for branch in step.get("next", []):
-                op = branch.get("operator", "")
-                limit = branch.get("limit")
-                if op == "between" and isinstance(limit, list) and len(limit) == 2:
-                    if not (float(limit[0]) < value < float(limit[1])):
-                        is_normal = False
-                    break
-
-            if not is_normal and first_abnormal is None:
-                first_abnormal = target_id
-                logger.info(
-                    "并行节点 %s: 指标 %s=%s 异常（超出正常范围）",
-                    target_id, metric_id, value,
-                )
-            elif is_normal and first_normal is None:
-                first_normal = target_id
-
-        # 优先返回异常节点，其次正常节点，最后兜底第一个
-        return first_abnormal or first_normal or targets[0]
 
     def _eval_condition(
         self, value: float, operator: str, limit: Any
@@ -531,11 +551,6 @@ class DiagnosisEngine:
     # ── 构建指标列表 ────────────────────────────────────────────────────────
 
     # 场景触发条件识别字段：仅用于判断是否进入诊断场景，不作为诊断指标展示
-    _SCENE_TRIGGER_FIELDS = {
-        "Coarse Alignment Failed",
-        "Mwx out of range,CGG6_check_parameter_ranges",
-    }
-
     def _build_metrics_list(
         self,
         metric_ids: List[str],
@@ -544,13 +559,13 @@ class DiagnosisEngine:
         """
         构建接口3返回的 metrics 数组
 
-        对每个指标，从最终执行上下文中读取值，并结合 rules.json 查找阈值条件，
+        对每个指标，从最终执行上下文中读取值，并结合 pipeline steps 查找阈值条件，
         评估 status (NORMAL/ABNORMAL)。
 
         排除规则：
         1. 场景触发条件识别字段（_SCENE_TRIGGER_FIELDS）：仅用于触发诊断，不展示
         2. 无实际值的指标：值为 None 则跳过
-        3. 不在 metrics.json 中的指标：无元数据则跳过
+        3. 不在 pipeline metrics 中的指标：无元数据则跳过
 
         Args:
             metric_ids: 指标 ID 列表
@@ -561,14 +576,12 @@ class DiagnosisEngine:
         """
         metrics = []
 
-        # 只展示有实际值且在 metrics.json 中有定义的指标
+        # 只展示有实际值且在 pipeline metrics 中有定义的指标
         for mid in metric_ids:
-            # 排除触发条件识别字段
-            if mid in self._SCENE_TRIGGER_FIELDS:
-                continue
-
             meta = self.rule_loader.get_metric_meta(mid)
             if meta is None:
+                continue
+            if meta.get("role") == "trigger_only":
                 continue
 
             value = metric_values.get(mid)
@@ -577,7 +590,7 @@ class DiagnosisEngine:
 
             unit = meta.get("unit", "") or ""
 
-            # 查找阈值（从 rules.json 步骤中找）
+            # 查找阈值（从 pipeline steps 中找）
             threshold_info = self._find_threshold(mid)
 
             # 有阈值 → 诊断指标；无阈值 → 建模输入参数
@@ -593,10 +606,11 @@ class DiagnosisEngine:
 
             metrics.append({
                 "name": mid,
-                "value": round(value, 6),
+                "value": round(value, 6) if isinstance(value, (int, float)) else value,
                 "unit": unit,
                 "status": status,
                 "type": metric_type,
+                "approximate": bool(meta.get("approximate")),
                 "threshold": threshold_info or {"operator": "-", "limit": 0},
             })
 
@@ -609,23 +623,23 @@ class DiagnosisEngine:
 
         return metrics
 
-    # output_* 是 MetricFetcher 的内部别名，rules.json 中用的是原始名
+    # output_* 是 MetricFetcher 的内部别名，pipeline steps 中用的是原始名
     _METRIC_ALIAS_MAP = {
         "output_Tx": "Tx",
         "output_Ty": "Ty",
         "output_Rw": "Rw",
-        # output_Mw 不做别名映射，rules.json step 21 直接用 "output_Mw" 作为 metric_id
+        # output_Mw 不做别名映射，pipeline step 21 直接用 "output_Mw" 作为 metric_id
     }
 
     def _find_threshold(self, metric_id: str) -> Optional[Dict[str, Any]]:
         """
-        从 rules.json steps 中查找指标的阈值条件
+        从 pipeline steps 中查找指标的阈值条件
 
         查找优先级：
         1. 优先返回 between 条件（正常范围，如 -20 < Tx < 20）
         2. 其次返回第一个有 operator+limit 的分支（如 n_88um ≤ 8）
 
-        对于 output_Tx/Ty/Rw/Mw 等别名，自动映射到 rules.json 中的原始名。
+        对于 output_Tx/Ty/Rw/Mw 等别名，自动映射到 pipeline 中的原始名。
 
         Args:
             metric_id: 指标 ID

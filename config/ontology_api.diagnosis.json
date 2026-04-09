@@ -1,0 +1,137 @@
+{
+  "version": "3.0.0",
+  "metrics": {
+    "rotation_mean": {
+      "source_kind": "request_param",
+      "field": "rotation_mean",
+      "role": "diagnostic",
+      "unit": "urad"
+    },
+    "rotation_3sigma": {
+      "source_kind": "request_param",
+      "field": "rotation_3sigma",
+      "role": "diagnostic",
+      "unit": "urad"
+    },
+    "vacuum_level": {
+      "source_kind": "request_param",
+      "field": "vacuum_level",
+      "role": "diagnostic",
+      "unit": ""
+    }
+  },
+  "diagnosis_scenes": [
+    {
+      "id": "ontology-default",
+      "module": "ontology",
+      "phenomenon": "通用故障诊断",
+      "description": "用于 /api/diagnosis 的配置化诊断入口",
+      "default": true,
+      "start_node": "1"
+    }
+  ],
+  "steps": [
+    {
+      "id": "1",
+      "description": "检查旋转超限",
+      "next": [
+        {
+          "target": "101",
+          "condition": {
+            "any_of": [
+              {
+                "compare": {
+                  "left": "rotation_mean",
+                  "operator": ">",
+                  "right": 300
+                }
+              },
+              {
+                "compare": {
+                  "left": "rotation_3sigma",
+                  "operator": ">",
+                  "right": 350
+                }
+              }
+            ]
+          }
+        },
+        {
+          "target": "2",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "description": "检查真空吸附异常",
+      "next": [
+        {
+          "target": "102",
+          "condition": {
+            "all_of": [
+              {
+                "compare": {
+                  "left": "vacuum_level",
+                  "operator": "==",
+                  "right": "Low"
+                }
+              },
+              {
+                "compare": {
+                  "left": "rotation_mean",
+                  "operator": ">",
+                  "right": 100
+                }
+              }
+            ]
+          }
+        },
+        {
+          "target": "199",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": "101",
+      "result": {
+        "rootCause": "上片旋转机械超限",
+        "system": "机械精度",
+        "category": "机械精度",
+        "confidence": 85,
+        "reasoning": [
+          "检测到旋转参数超出阈值",
+          "rotation_mean > 300 urad 或 rotation_3sigma > 350",
+          "判定为上片旋转机械超限"
+        ]
+      }
+    },
+    {
+      "id": "102",
+      "result": {
+        "rootCause": "WS 硬件物理损坏/泄露",
+        "system": "硬件损耗",
+        "category": "硬件损耗",
+        "confidence": 85,
+        "reasoning": [
+          "检测到真空度低且旋转异常",
+          "vacuum_level = Low 且 rotation_mean > 100",
+          "判定为 WS 硬件物理损坏/泄露"
+        ]
+      }
+    },
+    {
+      "id": "199",
+      "result": {
+        "rootCause": "未知原因",
+        "system": "待分析",
+        "category": "待分析",
+        "confidence": 30,
+        "reasoning": [
+          "未找到匹配的诊断规则"
+        ]
+      }
+    }
+  ]
+}

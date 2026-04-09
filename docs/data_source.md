@@ -61,8 +61,8 @@
 | `ws_pos_y` | 标记对准位置Y | clickhouse | `src.RPT_WAA_SET_OFL` | `ws_pos_y` | ❌ 本地 mock |
 | `mark_pos_x` | 标记名义位置X | clickhouse | `src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA` | `mark_pos_x` | ❌ 本地 mock |
 | `mark_pos_y` | 标记名义位置Y | clickhouse | `src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA` | `mark_pos_y` | ❌ 本地 mock |
-| `Msx` | 台对准建模结果 | clickhouse | `src.RPT_WAA_SA_RESULT_OFL` | `Msx` | ❌ 本地 mock |
-| `Msy` | 台对准建模结果 | clickhouse | `src.RPT_WAA_SA_RESULT_OFL` | `Msy` | ❌ 本地 mock |
+| `Msx` | 台对准建模结果 | clickhouse | `src.RPT_WAA_SA_RESULT_OFL` | `ms_x` | ❌ 本地 mock |
+| `Msy` | 台对准建模结果 | clickhouse | `src.RPT_WAA_SA_RESULT_OFL` | `ms_y` | ❌ 本地 mock |
 | `Sx` | 静态上片偏差X | mysql | `mc_config_commits_history` | `data` | ❌ 本地 mock |
 | `Sy` | 静态上片偏差Y | mysql | `mc_config_commits_history` | `data` | ❌ 本地 mock |
 
@@ -71,7 +71,7 @@
 由于目前 LOG 日志与拒片记录没有 ID 一一对应关系，使用 **`equipment + 基准时间 T + 按指标 duration`** 定位：
 
 - **基准时间 T**：由接口 3 的 Query 参数 **`requestTime`**（13 位毫秒）传入；**未传**时 **T = `wafer_product_start_time`**。
-- **按指标窗口**：`metrics.json` 中每个指标可选字段 **`duration`（分钟）**；配置了则查询 **`[T - duration, T]`** 内的数据。当前仓库对需查库的指标统一占位为 **1000 分钟**（见 `config/metrics.json`），生产可按指标调优。
+- **按指标窗口**：`reject_errors.diagnosis.json` 中每个指标可选字段 **`duration`（分钟）**；配置了则查询 **`[T - duration, T]`** 内的数据。当前仓库对需查库的指标统一占位为 **1000 分钟**（见 `config/reject_errors.diagnosis.json`），生产可按指标调优。
 - **回退**：某指标在 `metrics.json` 中**无 `duration`** 时，后端使用诊断引擎的 **`time_window_minutes`**（服务层当前默认 5）作为该指标的时间窗长度。
 - **缓存**：仅当 **未传 `requestTime`** 或 **`requestTime` 等于** 该条 **`wafer_product_start_time` 的毫秒时间戳**时，读写 `rejected_detailed_records`；否则不读不写缓存。
 - **后续改进**: 当有精确 ID 映射后，替换或缩小时间窗口查询

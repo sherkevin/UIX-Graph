@@ -11,21 +11,87 @@ CREATE TABLE IF NOT EXISTS `reject_reason_state` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='拒片原因枚举值定义表';
 
 -- 2. 创建 lo_batch_equipment_performance 表
+-- 尽量对齐 docs/intranet/schema_reference.md 中已明确给出的内网字段；
+-- 文档中标注“序号 58–96 待补”的未知列暂无法无中生有补齐。
 CREATE TABLE IF NOT EXISTS `lo_batch_equipment_performance` (
-  `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '故障记录 ID',
+  `id` INT AUTO_INCREMENT PRIMARY KEY COMMENT '故障记录 ID',
   `equipment` VARCHAR(50) NOT NULL COMMENT '机台名称',
-  `chuck_id` INT NOT NULL COMMENT 'Chuck ID',
-  `lot_id` INT NOT NULL COMMENT 'Lot ID',
-  `wafer_id` INT NOT NULL COMMENT 'Wafer ID (1-25)',
   `lot_start_time` DATETIME(6) DEFAULT NULL COMMENT 'Lot 开始时间',
   `lot_end_time` DATETIME(6) DEFAULT NULL COMMENT 'Lot 结束时间',
+  `seq_id_lo_wafer_mamsd_result` INT DEFAULT NULL COMMENT '内网原表字段',
+  `recipe_id` VARCHAR(500) DEFAULT NULL COMMENT '工艺配方 ID',
+  `layer_id` VARCHAR(500) DEFAULT NULL COMMENT '层 ID',
+  `lot_id` INT NOT NULL COMMENT 'Lot ID',
+  `lot_name` VARCHAR(500) DEFAULT NULL COMMENT 'Lot 名称',
+  `substrate_lot_id` VARCHAR(500) DEFAULT NULL COMMENT 'Substrate lot ID',
+  `wafer_index` INT NOT NULL COMMENT 'Wafer 序号 (1-25)，对应 ORM wafer_index',
+  `wafer_id` VARCHAR(500) DEFAULT NULL COMMENT 'Wafer ID',
+  `chuck_id` INT NOT NULL COMMENT 'Chuck ID',
+  `wafer_translation_x` DECIMAL(18,9) DEFAULT NULL COMMENT 'COWA 建模输出 Tx',
+  `wafer_translation_y` DECIMAL(18,9) DEFAULT NULL COMMENT 'COWA 建模输出 Ty',
+  `wafer_expansion_x` DECIMAL(18,9) DEFAULT NULL COMMENT 'Wafer expansion x',
+  `wafer_expansion_y` DECIMAL(18,9) DEFAULT NULL COMMENT 'Wafer expansion y',
+  `wafer_rotation` DECIMAL(18,3) DEFAULT NULL COMMENT 'COWA 建模输出 Rw',
+  `wafer_non_orthogonal` DECIMAL(18,3) DEFAULT NULL COMMENT 'Wafer non orthogonal',
+  `std_wafer_translation_x` DECIMAL(18,9) DEFAULT NULL COMMENT 'Std wafer translation x',
+  `std_wafer_translation_y` DECIMAL(18,9) DEFAULT NULL COMMENT 'Std wafer translation y',
+  `std_wafer_rotation` DECIMAL(18,3) DEFAULT NULL COMMENT 'Std wafer rotation',
+  `max_ws_x_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_x_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_y_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_y_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_rz_ma` DECIMAL(18,9) DEFAULT NULL,
+  `max_ws_rz_msd` DECIMAL(18,9) DEFAULT NULL,
+  `max_ws_z_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_z_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_x_total_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_x_total_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_y_total_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_y_total_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_z_total_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_ws_z_total_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_x_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_x_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_y_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_y_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_rz_ma` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_rz_msd` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_diff_x_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_diff_x_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_diff_y_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_diff_y_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_diff_rz_ma` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_diff_rz_msd` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_z_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_z_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_rx_ma` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_rx_msd` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_ry_ma` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_ry_msd` DECIMAL(18,9) DEFAULT NULL,
+  `max_rs_x_total_ma` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_x_total_msd` DECIMAL(18,6) DEFAULT NULL,
+  `max_rs_y_total_ma` DECIMAL(18,6) DEFAULT NULL,
+  `lot_end_lens_temp` DECIMAL(18,6) DEFAULT NULL,
+  `lot_end_lens_pressure` DECIMAL(18,6) DEFAULT NULL,
+  `lot_start_lens_temp` DECIMAL(18,6) DEFAULT NULL,
+  `lot_start_lens_pressure` DECIMAL(18,6) DEFAULT NULL,
+  `dose_err_ilpe_min` DECIMAL(18,9) DEFAULT NULL,
+  `dose_err_ilpe_max` DECIMAL(18,9) DEFAULT NULL,
+  `dose_err_ilpe_mean` DECIMAL(18,9) DEFAULT NULL,
+  `dose_err_elpe_max` DECIMAL(18,9) DEFAULT NULL,
+  `dose_err_elpe_min` DECIMAL(18,9) DEFAULT NULL,
+  `dose_err_elpe_mean` DECIMAL(18,9) DEFAULT NULL,
+  `actual_energy` DECIMAL(18,9) DEFAULT NULL,
+  `focus_z` DECIMAL(18,9) DEFAULT NULL,
+  `image_size_x` DECIMAL(18,9) DEFAULT NULL,
+  `image_size_y` DECIMAL(18,9) DEFAULT NULL,
+  `creation_date` DATETIME DEFAULT NULL,
   `wafer_product_start_time` DATETIME(6) NOT NULL COMMENT 'Wafer 生产开始时间',
+  `wafer_state` BIGINT DEFAULT NULL,
   `reject_reason` BIGINT NOT NULL COMMENT '拒片原因 ID（外键）',
-  `wafer_translation_x` FLOAT DEFAULT NULL COMMENT 'COWA建模输出Tx（上片X方向偏差，单位um）',
-  `wafer_translation_y` FLOAT DEFAULT NULL COMMENT 'COWA建模输出Ty（上片Y方向偏差，单位um）',
-  `wafer_rotation` FLOAT DEFAULT NULL COMMENT 'COWA建模输出Rw（上片旋转值，单位urad）',
+  `insert_time` DATETIME DEFAULT NULL,
   INDEX `IDX_equipment` (`equipment`),
-  INDEX `IDX_chuck_lot_wafer` (`chuck_id`, `lot_id`, `wafer_id`),
+  INDEX `IDX_chuck_lot_wafer` (`chuck_id`, `lot_id`, `wafer_index`),
   INDEX `IDX_wafer_product_start_time` (`wafer_product_start_time`),
   INDEX `IDX_lot_start_end_time` (`lot_start_time`, `lot_end_time`),
   INDEX `IDX_reject_reason` (`reject_reason`)
@@ -78,7 +144,7 @@ INSERT IGNORE INTO `reject_reason_state` (`reject_reason_id`, `reject_reason_val
 
 -- SSB8000 机台数据
 INSERT INTO `lo_batch_equipment_performance`
-  (`equipment`, `chuck_id`, `lot_id`, `wafer_id`, `lot_start_time`, `lot_end_time`, `wafer_product_start_time`, `reject_reason`)
+  (`equipment`, `chuck_id`, `lot_id`, `wafer_index`, `lot_start_time`, `lot_end_time`, `wafer_product_start_time`, `reject_reason`)
 VALUES
 -- Chuck 1, Lot 101
 ('SSB8000', 1, 101, 1,  '2026-01-10 08:00:00.000000', '2026-01-10 10:00:00.000000', '2026-01-10 08:05:00.000000', 5001),
@@ -159,29 +225,46 @@ VALUES
 
 -- SSB8000: Chuck 1, Lot 101 - Tx 超限(25.5 > 20) → 上片工艺适应性问题/COWA分系统
 INSERT INTO `lo_batch_equipment_performance`
-  (`equipment`, `chuck_id`, `lot_id`, `wafer_id`, `lot_start_time`, `lot_end_time`, `wafer_product_start_time`, `reject_reason`, `wafer_translation_x`, `wafer_translation_y`, `wafer_rotation`)
+  (`equipment`, `chuck_id`, `lot_id`, `wafer_index`, `lot_start_time`, `lot_end_time`, `wafer_product_start_time`, `reject_reason`, `wafer_translation_x`, `wafer_translation_y`, `wafer_rotation`, `recipe_id`)
 VALUES
-('SSB8000', 1, 101, 7,  '2026-01-10 08:00:00.000000', '2026-01-10 10:00:00.000000', '2026-01-10 08:45:00.000000', 6, 25.5,  3.2,   150.0),
+('SSB8000', 1, 101, 7,  '2026-01-10 08:00:00.000000', '2026-01-10 10:00:00.000000', '2026-01-10 08:45:00.000000', 6, 25.5,  3.2,   150.0, 'RCP-DOCKER-001'),
 -- SSB8000: Chuck 1, Lot 101 - Rw 超限(450.3 > 300) → 上片工艺适应性问题/COWA分系统
-('SSB8000', 1, 101, 9,  '2026-01-10 08:00:00.000000', '2026-01-10 10:00:00.000000', '2026-01-10 09:10:00.000000', 6,  5.1, -2.8,   450.3),
+('SSB8000', 1, 101, 9,  '2026-01-10 08:00:00.000000', '2026-01-10 10:00:00.000000', '2026-01-10 09:10:00.000000', 6,  5.1, -2.8,   450.3, 'RCP-DOCKER-001'),
 -- SSB8000: Chuck 1, Lot 102 - 全部正常(Tx/Ty/Rw均在范围内，走normal路径)
-('SSB8000', 1, 102, 2,  '2026-01-11 09:00:00.000000', '2026-01-11 11:00:00.000000', '2026-01-11 09:30:00.000000', 6,  3.5,  1.2,   100.0),
+('SSB8000', 1, 102, 2,  '2026-01-11 09:00:00.000000', '2026-01-11 11:00:00.000000', '2026-01-11 09:30:00.000000', 6,  3.5,  1.2,   100.0, 'RCP-DOCKER-001'),
 -- SSB8000: Chuck 2, Lot 201 - Tx 超限(25.5 > 20) → 上片工艺适应性问题/COWA分系统
-('SSB8000', 2, 201, 5,  '2026-01-12 10:00:00.000000', '2026-01-12 12:00:00.000000', '2026-01-12 10:15:00.000000', 6, 25.5,  3.2,   150.0),
+('SSB8000', 2, 201, 5,  '2026-01-12 10:00:00.000000', '2026-01-12 12:00:00.000000', '2026-01-12 10:15:00.000000', 6, 25.5,  3.2,   150.0, 'RCP-DOCKER-002'),
 -- SSB8000: Chuck 2, Lot 202 - Ty 超限(-28.0 < -20) → 上片工艺适应性问题/COWA分系统
-('SSB8000', 2, 202, 7,  '2026-01-13 08:30:00.000000', '2026-01-13 10:30:00.000000', '2026-01-13 08:42:00.000000', 6,  3.5,-28.0,   120.0),
+('SSB8000', 2, 202, 7,  '2026-01-13 08:30:00.000000', '2026-01-13 10:30:00.000000', '2026-01-13 08:42:00.000000', 6,  3.5,-28.0,   120.0, 'RCP-DOCKER-002'),
 -- SSB8000: Chuck 3, Lot 301 - Rw 超限(350.0 > 300) → 上片工艺适应性问题/COWA分系统
-('SSB8000', 3, 301, 8,  '2026-01-14 11:00:00.000000', '2026-01-14 13:00:00.000000', '2026-01-14 11:28:00.000000', 6,  5.0, -3.0,   350.0),
+('SSB8000', 3, 301, 8,  '2026-01-14 11:00:00.000000', '2026-01-14 13:00:00.000000', '2026-01-14 11:28:00.000000', 6,  5.0, -3.0,   350.0, 'RCP-DOCKER-003'),
 -- SSB8001: Chuck 2, Lot 201 - Ty 超限(-28.7 < -20) → 上片工艺适应性问题/COWA分系统
-('SSB8001', 2, 201, 4,  '2026-02-15 09:00:00.000000', '2026-02-15 11:00:00.000000', '2026-02-15 09:25:00.000000', 6, -1.5,-28.7,    80.0),
+('SSB8001', 2, 201, 4,  '2026-02-15 09:00:00.000000', '2026-02-15 11:00:00.000000', '2026-02-15 09:25:00.000000', 6, -1.5,-28.7,    80.0, 'RCP-DOCKER-004'),
 -- SSB8001: Chuck 2, Lot 201 - Tx 超限(22.0 > 20) → 上片工艺适应性问题/COWA分系统
-('SSB8001', 2, 201, 8,  '2026-02-15 09:00:00.000000', '2026-02-15 11:00:00.000000', '2026-02-15 09:50:00.000000', 6, 22.0,  1.1,   -50.0),
+('SSB8001', 2, 201, 8,  '2026-02-15 09:00:00.000000', '2026-02-15 11:00:00.000000', '2026-02-15 09:50:00.000000', 6, 22.0,  1.1,   -50.0, 'RCP-DOCKER-004'),
 -- SSC8001: Chuck 1, Lot 101 - Tx/Ty 均在范围内但 Rw 接近边界
-('SSC8001', 1, 101, 3,  '2026-03-01 07:00:00.000000', '2026-03-01 09:00:00.000000', '2026-03-01 07:15:00.000000', 6, 18.5,-15.2,   280.0),
+('SSC8001', 1, 101, 3,  '2026-03-01 07:00:00.000000', '2026-03-01 09:00:00.000000', '2026-03-01 07:15:00.000000', 6, 18.5,-15.2,   280.0, 'RCP-DOCKER-005'),
 -- SSC8001: Chuck 1, Lot 101 - Tx 和 Rw 均超限
-('SSC8001', 1, 101, 11, '2026-03-01 07:00:00.000000', '2026-03-01 09:00:00.000000', '2026-03-01 07:45:00.000000', 6,-30.2, 25.8,  -400.5),
+('SSC8001', 1, 101, 11, '2026-03-01 07:00:00.000000', '2026-03-01 09:00:00.000000', '2026-03-01 07:45:00.000000', 6,-30.2, 25.8,  -400.5, 'RCP-DOCKER-005'),
 -- SSC8001: Chuck 2, Lot 201 - 全部接近边界但未超限
-('SSC8001', 2, 201, 5,  '2026-03-01 09:00:00.000000', '2026-03-01 11:00:00.000000', '2026-03-01 09:20:00.000000', 6, 19.9,-19.5,   299.0);
+('SSC8001', 2, 201, 5,  '2026-03-01 09:00:00.000000', '2026-03-01 11:00:00.000000', '2026-03-01 09:20:00.000000', 6, 19.9,-19.5,   299.0, 'RCP-DOCKER-006');
+
+-- ============================================================
+-- mc_config_commits_history（Sx/Sy 诊断取数；与内网 DDL 对齐）
+-- last_modify_date 落在 COARSE 样例 T 的 [T-1000min, T] 窗口内
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `mc_config_commits_history` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `table_name` VARCHAR(50) NOT NULL,
+  `last_modifier` VARCHAR(50) DEFAULT NULL,
+  `last_modify_date` VARCHAR(50) NOT NULL,
+  `commit` VARCHAR(50) DEFAULT NULL,
+  `env_id` VARCHAR(50) DEFAULT NULL,
+  `data` LONGTEXT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='MC 配置提交历史';
+
+INSERT INTO `mc_config_commits_history` (`table_name`, `last_modifier`, `last_modify_date`, `commit`, `env_id`, `data`) VALUES
+('chuck_static_offset', 'docker_seed', '2026-01-10 08:40:00', 'seed1', 'local', '{"Sx": 0.001234, "Sy": -0.005678}');
 
 SELECT 'Tables created and data inserted successfully!' AS status;
 SELECT COUNT(*) AS total_records FROM lo_batch_equipment_performance;

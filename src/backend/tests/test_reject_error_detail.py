@@ -201,18 +201,20 @@ def test_detail_metric_pagination():
         failure_id=fid, page_no=1, page_size=2
     )
     assert_true("第1页返回结果", detail_p1 is not None)
-    if detail_p1 and meta_p1["total"] > 2:
+    n_diag = meta_p1.get("metricDiagnosticTotal", meta_p1["total"])
+    if detail_p1 and n_diag > 2:
         detail_p2, meta_p2 = RejectErrorService.get_failure_details(
             failure_id=fid, page_no=2, page_size=2
         )
         assert_true("第2页返回结果", detail_p2 is not None)
         if detail_p2:
-            names_p1 = {m["name"] for m in detail_p1["metrics"]}
-            names_p2 = {m["name"] for m in detail_p2["metrics"]}
-            assert_eq("两页指标无重叠", names_p1 & names_p2, set())
+            names_p1 = {m["name"] for m in detail_p1["metrics"] if m.get("type") != "model_param"}
+            names_p2 = {m["name"] for m in detail_p2["metrics"] if m.get("type") != "model_param"}
+            assert_eq("两页诊断指标无重叠", names_p1 & names_p2, set())
             assert_eq("两页 meta.total 相同", meta_p1["total"], meta_p2["total"])
+            assert_eq("两页 metricDiagnosticTotal 相同", meta_p1["metricDiagnosticTotal"], meta_p2["metricDiagnosticTotal"])
     else:
-        print("    ⚠️  指标总数 ≤ 2，无法验证多页，已跳过")
+        print("    ⚠️  诊断指标数 ≤ 2，无法验证多页，已跳过")
 
 
 def test_detail_bypass_cache_with_same_time():

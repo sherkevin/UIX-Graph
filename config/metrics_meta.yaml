@@ -39,19 +39,19 @@
 
 "Msx":
   notes:
-    - "clickhouse.RPT_WAA_SA_RESULT_OFL.列Msx"
+    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列ms_x"
 
 "Msy":
   notes:
-    - "clickhouse.RPT_WAA_SA_RESULT_OFL.列Msy"
+    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列ms_y"
 
 "e_ws_x":
   notes:
-    - "clickhouse.RPT_WAA_SA_RESULT_OFL.列e_ws_x"
+    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列e_ws_x"
 
 "e_ws_y":
   notes:
-    - "clickhouse.RPT_WAA_SA_RESUe_ws_x.列e_ws_y"
+    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列e_ws_y"
 
 "Sx":
   notes:

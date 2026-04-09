@@ -111,10 +111,11 @@ class LoBatchEquipmentPerformance(Base):
     wafer_product_start_time = Column(DateTime(6), nullable=False, comment="Wafer 生产开始时间")
     reject_reason = Column(BigInteger, nullable=False, comment="拒片原因 ID（外键）")
 
-    # ── 指标列（metrics.json 中定义的 MySQL 侧指标） ──
+    # ── 指标列（诊断 pipeline 配置中定义的 MySQL 侧指标） ──
     wafer_translation_x = Column("wafer_translation_x", Float, nullable=True, comment="上片偏差 Tx (um)")
     wafer_translation_y = Column("wafer_translation_y", Float, nullable=True, comment="上片偏差 Ty (um)")
     wafer_rotation = Column("wafer_rotation", Float, nullable=True, comment="上片旋转 Rw (urad)")
+    recipe_id = Column("recipe_id", String(500), nullable=True, comment="工艺配方 ID（ClickHouse linking）")
 
     # 索引
     __table_args__ = (
@@ -442,6 +443,7 @@ class DatacenterODS:
                 LoBatchEquipmentPerformance.wafer_translation_x,
                 LoBatchEquipmentPerformance.wafer_translation_y,
                 LoBatchEquipmentPerformance.wafer_rotation,
+                LoBatchEquipmentPerformance.recipe_id,
             ).outerjoin(
                 RejectReasonState,
                 LoBatchEquipmentPerformance.reject_reason == RejectReasonState.reject_reason_id
@@ -465,6 +467,8 @@ class DatacenterODS:
                 "wafer_translation_x": record.wafer_translation_x,
                 "wafer_translation_y": record.wafer_translation_y,
                 "wafer_rotation": record.wafer_rotation,
+                "recipe_id": record.recipe_id,
+                "wafer_id": str(record.wafer_index) if record.wafer_index is not None else None,
             }
         finally:
             if should_close:

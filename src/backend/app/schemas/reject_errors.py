@@ -10,10 +10,16 @@ from datetime import datetime
 
 class Meta(BaseModel):
     """分页元数据"""
-    total: int = Field(..., description="数据总条数")
+    total: int = Field(..., description="数据总条数（接口 3 为诊断+建模参数合计）")
     pageNo: int = Field(..., description="当前页码")
     pageSize: int = Field(..., description="每页数量")
-    totalPages: int = Field(..., description="总页数")
+    totalPages: int = Field(..., description="总页数（接口 3 仅按诊断指标分页）")
+    metricDiagnosticTotal: Optional[int] = Field(
+        None, description="接口 3：有阈值/诊断类指标总数（不含 model_param）"
+    )
+    metricModelParamTotal: Optional[int] = Field(
+        None, description="接口 3：建模参数项数（每页响应中均附带完整列表）"
+    )
 
 
 class CommonResponse(BaseModel):

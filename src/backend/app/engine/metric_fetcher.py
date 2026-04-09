@@ -1,80 +1,57 @@
-"""
-指标值获取器 (Metric Fetcher)
-
-根据 metrics.json 中定义的数据源 (db_type, table_name, column_name)，
-使用 equipment + 时间窗口从对应的数据库表中获取指标实际值。
-
-设计要点：
-- 基准时间 T + metrics.json 各指标 duration（分钟）→ 查询 [T-duration, T]；无 duration 时用回退窗口
-- 数据源模式由环境变量 METRIC_SOURCE_MODE 控制：
-    real           - ClickHouse/MySQL 不通则返回 None，不降级 mock
-    mock_allowed   - 数据源不通时允许降级为 mock（默认联调模式）
-    mock_forbidden - 与 real 相同效果，额外在日志中标注"生产模式禁止 mock"
-- 每个 metric 独立查询，失败不影响其他 metric
-- 每次诊断调用都会记录 source_type（real_mysql/real_clickhouse/mock/intermediate/none）
-"""
+"""统一的指标取数器。"""
+import json
 import logging
 import os
 import random
+import re
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from sqlalchemy import text
+
+from app.diagnosis.config_store import DiagnosisConfigStore
 from app.engine.rule_loader import RuleLoader
 
 logger = logging.getLogger(__name__)
 
-# ── 可配置常量 ───────────────────────────────────────────────────────────────
-
-# metrics.json 未配置 duration 时使用的回退窗口（分钟）
 DEFAULT_FALLBACK_WINDOW_MINUTES = 5
 
-# 数据源模式：real / mock_allowed / mock_forbidden
-# 由环境变量 METRIC_SOURCE_MODE 控制，默认 mock_allowed（联调模式）
 METRIC_SOURCE_MODE = os.environ.get("METRIC_SOURCE_MODE", "mock_allowed").lower()
-
-# 合法模式集合
 _VALID_MODES = {"real", "mock_allowed", "mock_forbidden"}
 if METRIC_SOURCE_MODE not in _VALID_MODES:
     logger.warning("METRIC_SOURCE_MODE=%r 非法，回退到 mock_allowed", METRIC_SOURCE_MODE)
     METRIC_SOURCE_MODE = "mock_allowed"
 
-logger.info("MetricFetcher 数据源模式: %s", METRIC_SOURCE_MODE)
+
+def _safe_identifier(name: str) -> str:
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_\.]*", str(name)):
+        raise ValueError(f"非法 SQL 标识符: {name}")
+    return str(name)
 
 
 class MetricFetcher:
-    """
-    指标值获取器
-
-    根据 metrics.json 配置，从 MySQL / ClickHouse 获取指标实际值。
-    本地开发环境下 ClickHouse 不可用时自动降级为模拟值。
-
-    基准时间 T 使用 reference_time；每个指标若配置了 duration（分钟），
-    查询区间为 [T - duration, T]；否则使用 fallback_duration_minutes。
-    """
+    """根据 pipeline 中的 source_kind 解析指标值。"""
 
     def __init__(
         self,
         equipment: str,
         reference_time: datetime,
-        chuck_id: int = None,
+        chuck_id: Any = None,
         fallback_duration_minutes: int = DEFAULT_FALLBACK_WINDOW_MINUTES,
+        pipeline_id: str = "reject_errors",
+        params: Optional[Dict[str, Any]] = None,
+        source_record: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Args:
-            equipment: 机台名称
-            reference_time: 分析基准时间 T（通常为 wafer_product_start_time 或请求传入的 requestTime）
-            chuck_id: Chuck ID，用于某些需要 chuck_id 过滤的指标
-            fallback_duration_minutes: metrics.json 未配置 duration 时的回退窗口（分钟）
-        """
         self.equipment = equipment
         self.reference_time = reference_time
         self.chuck_id = chuck_id
         self.fallback_duration_minutes = fallback_duration_minutes
-
-        self.rule_loader = RuleLoader()
-
-        # 本次实例的指标来源记录：{ metric_id: source_type }
-        # source_type: real_mysql / real_clickhouse / mock / intermediate / none
+        self.pipeline_id = pipeline_id
+        self.params = params or {}
+        self.source_record = source_record or {}
+        self.rule_loader = RuleLoader(pipeline_id=pipeline_id)
+        self.store = DiagnosisConfigStore()
+        self.pipeline = self.store.get_pipeline(pipeline_id)
         self.source_log: Dict[str, str] = {}
 
     def _duration_minutes_for_meta(self, meta: Dict[str, Any]) -> int:
@@ -87,293 +64,615 @@ class MetricFetcher:
         return self.fallback_duration_minutes
 
     def window_for_metric(self, meta: Dict[str, Any]) -> Tuple[datetime, datetime]:
-        """返回该指标配置对应的时间窗 [start, end]，end 为基准时间 T。"""
         mins = self._duration_minutes_for_meta(meta)
         end = self.reference_time
         start = end - timedelta(minutes=mins)
         return start, end
 
-    def fetch_all(self, metric_ids: List[str]) -> Dict[str, Optional[float]]:
-        """
-        批量获取指标值
-
-        Args:
-            metric_ids: 需要获取的指标 ID 列表
-
-        Returns:
-            { metric_id: value (float or None) }
-        """
-        result = {}
-        for mid in metric_ids:
+    def fetch_all(self, metric_ids: List[str]) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        for metric_id in metric_ids:
             try:
-                result[mid] = self._fetch_one(mid)
-            except Exception as e:
-                logger.warning("获取指标 %s 失败: %s", mid, e)
-                self.source_log[mid] = "none"
-                result[mid] = None
+                result[metric_id] = self._fetch_one(metric_id)
+            except Exception as exc:
+                logger.warning("获取指标 %s 失败: %s", metric_id, exc)
+                self.source_log[metric_id] = "none"
+                result[metric_id] = None
         return result
 
-    def _fetch_one(self, metric_id: str) -> Optional[float]:
-        """
-        获取单个指标值
-
-        根据 metrics.json 中的 db_type 分发到对应的查询方法。
-        不在 metrics.json 中的指标视为中间计算值（模型输出/计数器），
-        使用 _mock_intermediate_value 提供合理的模拟值。
-        """
+    def _fetch_one(self, metric_id: str) -> Any:
         meta = self.rule_loader.get_metric_meta(metric_id)
         if meta is None:
-            # 不在 metrics.json 中 — 可能是模型输出或中间计数器
-            val = self._mock_intermediate_value(metric_id)
+            value = self._mock_intermediate_value(metric_id, {})
             self.source_log[metric_id] = "intermediate"
-            return val
+            return value
 
-        db_type = meta.get("db_type", "").lower()
+        if meta.get("enabled") is False:
+            logger.debug("指标 %s 已禁用 (enabled=false)，跳过取数", metric_id)
+            self.source_log[metric_id] = "disabled"
+            return None
 
-        if db_type == "mysql":
+        source_kind = str(meta.get("source_kind", "")).strip().lower()
+        source_kind = {
+            "mysql": "mysql_nearest_row",
+            "clickhouse": "clickhouse_window",
+        }.get(source_kind, source_kind)
+        if source_kind in {"failure_record_field", "request_param"}:
+            return None
+        if source_kind == "mysql_nearest_row":
             return self._fetch_from_mysql(metric_id, meta)
-        elif db_type == "clickhouse":
+        if source_kind == "clickhouse_window":
             return self._fetch_from_clickhouse(metric_id, meta)
-        elif db_type == "intermediate":
-            # 中间计算量（模型输出/计数器），无法从 DB 直接查，使用模拟值
-            logger.debug("指标 %s 为 intermediate 类型，使用模拟值", metric_id)
-            val = self._mock_intermediate_value(metric_id)
+        if source_kind == "intermediate":
+            value = self._mock_intermediate_value(metric_id, meta)
             self.source_log[metric_id] = "intermediate"
-            return val
+            return value
+        dynamic_handler = getattr(self, f"_fetch_from_{source_kind}", None)
+        if callable(dynamic_handler):
+            return dynamic_handler(metric_id, meta)
+        logger.warning("指标 %s 的 source_kind=%s 不支持", metric_id, source_kind)
+        self.source_log[metric_id] = "none"
+        return None
+
+    def _extract_scalar(self, raw: Any) -> Any:
+        if raw is None:
+            return None
+        if isinstance(raw, (bool, int, float)):
+            return raw
+        if isinstance(raw, str):
+            value = raw.strip()
+            lowered = value.lower()
+            if lowered == "true":
+                return True
+            if lowered == "false":
+                return False
+            try:
+                if "." in value:
+                    return float(value)
+                return int(value)
+            except ValueError:
+                return value
+        return raw
+
+    def _apply_transform(self, value: Any, transform: Dict[str, Any]) -> Any:
+        if value is None or not transform:
+            return value
+        transform_type = str(transform.get("type", "")).strip().lower()
+        if transform_type == "equals":
+            return value == transform.get("value")
+        if transform_type == "not_equals":
+            return value != transform.get("value")
+        if transform_type == "float":
+            return float(value)
+        if transform_type == "int":
+            return int(value)
+        if transform_type == "bool":
+            return bool(value)
+        if transform_type == "upper_equals":
+            return str(value).upper() == str(transform.get("value", "")).upper()
+        if transform_type == "lower_equals":
+            return str(value).lower() == str(transform.get("value", "")).lower()
+        if transform_type == "contains":
+            return str(transform.get("value", "")) in str(value)
+        if transform_type == "map":
+            mapping = transform.get("mapping", {}) or {}
+            return mapping.get(str(value), mapping.get(value, value))
+        logger.warning("未知 transform.type=%s，保留原值", transform_type)
+        return value
+
+    def _apply_data_type(self, metric_id: str, value: Any, meta: Dict[str, Any]) -> Any:
+        if value is None:
+            return None
+        raw_data_type = meta.get("data_type")
+        if raw_data_type is None:
+            return value
+        data_type = str(raw_data_type).strip().lower()
+        if not data_type:
+            return value
+        try:
+            if data_type in {"float", "double", "number"}:
+                return float(value)
+            if data_type in {"int", "integer"}:
+                return int(float(value))
+            if data_type in {"bool", "boolean"}:
+                if isinstance(value, str):
+                    lowered = value.strip().lower()
+                    if lowered in {"true", "1", "yes", "y"}:
+                        return True
+                    if lowered in {"false", "0", "no", "n"}:
+                        return False
+                return bool(value)
+            if data_type in {"str", "string", "text"}:
+                return str(value)
+        except (TypeError, ValueError) as exc:
+            logger.warning("指标 %s data_type=%s 转换失败: %s", metric_id, data_type, exc)
+            return value
+        logger.warning("指标 %s 未知 data_type=%s，保留原值", metric_id, data_type)
+        return value
+
+    def _extract_direct_metric(self, metric_id: str, source_record: Dict[str, Any]) -> Tuple[bool, Any]:
+        meta = self.rule_loader.get_metric_meta(metric_id)
+        if meta is None:
+            return False, None
+
+        source_kind = str(meta.get("source_kind", "")).strip().lower()
+        if source_kind not in {"failure_record_field", "request_param"}:
+            return False, None
+
+        field_name = str(meta.get("field", "")).strip()
+        raw = None
+        if source_kind == "failure_record_field":
+            raw = source_record.get(field_name)
         else:
-            logger.warning("指标 %s 的 db_type=%s 不支持", metric_id, db_type)
-            self.source_log[metric_id] = "none"
-            return None
+            raw = self.params.get(field_name)
+            if raw is None:
+                raw = source_record.get(field_name)
+            if raw is None and isinstance(source_record.get("params"), dict):
+                raw = source_record["params"].get(field_name)
 
-    # ── MySQL 取数 ──────────────────────────────────────────────────────────
+        value = self._extract_scalar(raw)
+        value = self._apply_transform(value, meta.get("transform", {}))
+        value = self._apply_data_type(metric_id, value, meta)
+        if value is None:
+            return True, None
+        self.source_log[metric_id] = "real_input"
+        return True, value
 
-    def _fetch_from_mysql(self, metric_id: str, meta: Dict[str, Any]) -> Optional[float]:
-        """
-        从 MySQL 获取指标值
+    def fetch_from_source_record(self, source_record: Dict[str, Any], metric_ids: List[str]) -> Dict[str, Any]:
+        self.source_record = source_record or {}
+        result: Dict[str, Any] = {}
+        remaining: List[str] = []
 
-        当前支持真实查询的 MySQL 指标（来自 lo_batch_equipment_performance）：
-        - Tx (wafer_translation_x)
-        - Ty (wafer_translation_y)
-        - Rw (wafer_rotation)
+        for metric_id in metric_ids:
+            handled, value = self._extract_direct_metric(metric_id, source_record)
+            if handled:
+                result[metric_id] = value
+                if value is None and metric_id not in self.source_log:
+                    self.source_log[metric_id] = "none"
+                continue
+            remaining.append(metric_id)
 
-        其他 MySQL 指标（如 mc_config_commits_history）当前使用 mock；
-        内网阶段按需实现真实查询。
-        """
-        table_name = meta.get("table_name", "")
-        column_name = meta.get("column_name", "")
+        if remaining:
+            result.update(self.fetch_all(remaining))
+        return result
 
-        if "lo_batch_equipment_performance" in table_name:
-            return self._fetch_from_performance_table(metric_id, column_name, meta)
+    @staticmethod
+    def _normalize_linking(meta: Dict[str, Any]) -> Dict[str, Any]:
+        linking = meta.get("linking") or {}
+        if not isinstance(linking, dict):
+            linking = {}
+        return {
+            "mode": str(linking.get("mode", "time_window_only")).strip().lower(),
+            "keys": list(linking.get("keys") or []),
+            "filters": list(linking.get("filters") or []),
+        }
 
-        if "mc_config_commits_history" in table_name:
-            return self._fetch_from_config_history(metric_id, column_name, meta)
+    @staticmethod
+    def _fallback_policy(meta: Dict[str, Any]) -> str:
+        fallback = meta.get("fallback") or {}
+        if not isinstance(fallback, dict):
+            return "none"
+        return str(fallback.get("policy", "none")).strip().lower()
 
-        # 其他 MySQL 表：当前不支持真实查询
-        if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
-            logger.warning(
-                "MySQL 指标 %s 来自未实现真实查询的表 %s（METRIC_SOURCE_MODE=%s），返回 None",
-                metric_id, table_name, METRIC_SOURCE_MODE,
+    def _resolve_context_value(self, name: str, time_filter: datetime, extra_context: Dict[str, Any]) -> Any:
+        mapping = {
+            "equipment": self.equipment,
+            "chuck_id": self.chuck_id,
+            "time_filter": time_filter,
+            "reference_time": self.reference_time,
+        }
+        if isinstance(self.source_record, dict):
+            mapping.update(self.source_record)
+        mapping.update(self.params)
+        mapping.update(extra_context)
+        return mapping.get(name)
+
+    def _resolve_filter_value(self, token: str, time_filter: datetime, extra_context: Dict[str, Any]) -> Any:
+        token = str(token).strip()
+        placeholder = re.fullmatch(r"\{(\w+)\}", token)
+        if placeholder:
+            return self._resolve_context_value(placeholder.group(1), time_filter, extra_context)
+        return self._extract_scalar(token)
+
+    def _build_linking_clauses(
+        self,
+        linking_items: List[Dict[str, Any]],
+        time_filter: datetime,
+        extra_context: Dict[str, Any],
+        index_seed: int = 0,
+        placeholder_style: str = "mysql",
+    ) -> Tuple[List[str], Dict[str, Any], int, bool]:
+        clauses: List[str] = []
+        params: Dict[str, Any] = {}
+        idx = index_seed
+        missing_required = False
+
+        for item in linking_items or []:
+            if not isinstance(item, dict):
+                continue
+            target = str(item.get("target", "")).strip()
+            if not target:
+                continue
+            operator = str(item.get("operator", "=")).strip()
+            if operator not in {"=", "==", "!=", ">", ">=", "<", "<="}:
+                raise ValueError(f"linking.operator 不支持: {operator}")
+            if "source" in item:
+                value = self._resolve_context_value(str(item.get("source", "")).strip(), time_filter, extra_context)
+            else:
+                value = item.get("value")
+            if value is None:
+                missing_required = True
+                continue
+            param_name = f"link_{idx}"
+            sql_operator = "=" if operator == "==" else operator
+            placeholder = f":{param_name}" if placeholder_style == "mysql" else f"%({param_name})s"
+            if placeholder_style == "clickhouse" and sql_operator in {"=", "!="}:
+                # ClickHouse 本地替身与内网参考在部分 linking 列上存在 String/Int 混用，
+                # 这里统一按字符串比较，避免类型不一致导致联调失败。
+                clauses.append(f"toString({_safe_identifier(target)}) {sql_operator} toString({placeholder})")
+            else:
+                clauses.append(f"{_safe_identifier(target)} {sql_operator} {placeholder}")
+            params[param_name] = value
+            idx += 1
+
+        return clauses, params, idx, missing_required
+
+    def _build_metric_filters(
+        self,
+        meta: Dict[str, Any],
+        time_filter: datetime,
+        include_exact_keys: bool,
+        include_linking_filters: bool,
+        placeholder_style: str = "mysql",
+    ) -> Tuple[List[str], Dict[str, Any], bool]:
+        linking = self._normalize_linking(meta)
+        clauses: List[str] = []
+        params: Dict[str, Any] = {}
+        idx = 0
+        missing_required = False
+
+        if include_exact_keys and linking["mode"] == "exact_keys":
+            key_clauses, key_params, idx, key_missing = self._build_linking_clauses(
+                linking["keys"], time_filter, {}, idx, placeholder_style
             )
-            self.source_log[metric_id] = "none"
-            return None
+            clauses.extend(key_clauses)
+            params.update(key_params)
+            missing_required = missing_required or key_missing
 
-        logger.info("MySQL 指标 %s 来自 %s，使用模拟值（mock_allowed）", metric_id, table_name)
-        val = self._mock_value(metric_id, meta)
-        self.source_log[metric_id] = "mock"
-        return val
+        if include_linking_filters:
+            filter_clauses, filter_params, idx, filter_missing = self._build_linking_clauses(
+                linking["filters"], time_filter, {}, idx, placeholder_style
+            )
+            clauses.extend(filter_clauses)
+            params.update(filter_params)
+            missing_required = missing_required or filter_missing
 
-    def _fetch_from_performance_table(
-        self, metric_id: str, column_name: str, meta: Dict[str, Any]
-    ) -> Optional[float]:
-        """
-        从 lo_batch_equipment_performance 查询指标值
+        return clauses, params, missing_required
 
-        使用 equipment + 该指标 duration 对应的时间窗口，取与 T 最接近的记录。
-        """
-        from app.ods.datacenter_ods import DatacenterODS, LoBatchEquipmentPerformance, SessionLocal
-        from sqlalchemy import func
+    @staticmethod
+    def _join_sql_clauses(clauses: List[str]) -> str:
+        if not clauses:
+            return ""
+        return " AND " + " AND ".join(clauses)
 
-        time_start, time_end = self.window_for_metric(meta)
+    def _query_mysql_scalar(
+        self,
+        table_name: str,
+        column_name: str,
+        time_column: str,
+        equipment_column: str,
+        time_start: datetime,
+        time_end: datetime,
+        where_sql: str,
+        where_params: Dict[str, Any],
+        omit_equipment_filter: bool = False,
+    ) -> Any:
+        from app.ods.datacenter_ods import SessionLocal
 
+        if omit_equipment_filter:
+            where_equipment = ""
+            base_params: Dict[str, Any] = {
+                "time_start": time_start,
+                "time_end": time_end,
+                "ref_time": self.reference_time,
+            }
+        else:
+            where_equipment = f"{equipment_column} = :equipment AND "
+            base_params = {
+                "equipment": self.equipment,
+                "time_start": time_start,
+                "time_end": time_end,
+                "ref_time": self.reference_time,
+            }
+
+        sql = text(
+            f"""
+            SELECT {column_name}
+            FROM {table_name}
+            WHERE {where_equipment}{time_column} >= :time_start
+              AND {time_column} <= :time_end
+              {where_sql}
+            ORDER BY ABS(TIMESTAMPDIFF(SECOND, {time_column}, :ref_time)) ASC
+            LIMIT 1
+            """
+        )
         db = SessionLocal()
         try:
-            # 动态获取列
-            col = getattr(LoBatchEquipmentPerformance, column_name, None)
-            if col is None:
-                logger.warning("列 %s 不存在于 lo_batch_equipment_performance", column_name)
-                self.source_log[metric_id] = "none"
+            row = db.execute(
+                sql,
+                {
+                    **base_params,
+                    **where_params,
+                },
+            ).fetchone()
+            if row is None:
                 return None
-
-            # 查询：equipment + 时间窗口，取最接近 reference_time (T) 的一条
-            record = (
-                db.query(col)
-                .filter(
-                    LoBatchEquipmentPerformance.equipment == self.equipment,
-                    LoBatchEquipmentPerformance.wafer_product_start_time >= time_start,
-                    LoBatchEquipmentPerformance.wafer_product_start_time <= time_end,
-                )
-                .order_by(
-                    func.abs(
-                        func.timestampdiff(
-                            func.text("SECOND"),
-                            LoBatchEquipmentPerformance.wafer_product_start_time,
-                            self.reference_time,
-                        )
-                    )
-                )
-                .first()
-            )
-
-            if record and record[0] is not None:
-                self.source_log[metric_id] = "real_mysql"
-                return float(record[0])
-
-            logger.info(
-                "指标 %s (%s) 在时间窗口 [%s, %s] 内无数据",
-                metric_id, column_name, time_start, time_end,
-            )
-            self.source_log[metric_id] = "none"
-            return None
-
-        except Exception as e:
-            logger.error("查询 %s 失败: %s", column_name, e)
-            self.source_log[metric_id] = "none"
-            return None
+            return row[0]
         finally:
             db.close()
 
-    # ── mc_config_commits_history 取数（Sx / Sy） ────────────────────────────
+    def _render_mysql_filters(self, filter_condition: Optional[str], time_filter: datetime, extra_context: Dict[str, Any]):
+        if not filter_condition:
+            return "", {}
+        sql_expr, params, parsed = self._render_mysql_filter_expr(
+            str(filter_condition),
+            time_filter,
+            extra_context,
+            index_seed=0,
+        )
+        if not parsed or not sql_expr:
+            return "", {}
+        return f" AND ({sql_expr})", params
 
-    def _fetch_from_config_history(
-        self, metric_id: str, column_name: str, meta: Dict[str, Any]
-    ) -> Optional[float]:
-        """
-        从 datacenter.mc_config_commits_history 查询静态上片偏差（Sx / Sy）。
+    def _render_mysql_filter_expr(
+        self,
+        expr: str,
+        time_filter: datetime,
+        extra_context: Dict[str, Any],
+        index_seed: int = 0,
+    ) -> Tuple[str, Dict[str, Any], int]:
+        text_expr = str(expr or "").strip()
+        if not text_expr:
+            return "", {}, index_seed
+        text_expr = self._strip_outer_parentheses(text_expr)
 
-        该表记录机台配置变更历史，data 列存储配置 JSON 或文本。
-        查询逻辑：equipment + 时间窗口内最近一条，用 extraction_rule 从 data 列提取数值。
+        or_parts = self._split_top_level_boolean(text_expr, "OR")
+        if len(or_parts) > 1:
+            sql_parts: List[str] = []
+            params: Dict[str, Any] = {}
+            idx = index_seed
+            for part in or_parts:
+                sub_sql, sub_params, idx = self._render_mysql_filter_expr(part, time_filter, extra_context, idx)
+                if sub_sql:
+                    sql_parts.append(f"({sub_sql})")
+                    params.update(sub_params)
+            return " OR ".join(sql_parts), params, idx
 
-        metrics.json 配置示例（Sx）：
-          "Sx": {
-            "db_type": "mysql",
-            "table_name": "datacenter.mc_config_commits_history",
-            "column_name": "data",
-            "extraction_rule": "json:Sx",          <- 从 JSON 取 key "Sx"
-            "duration": "1000"
-          }
+        and_parts = self._split_top_level_boolean(text_expr, "AND")
+        if len(and_parts) > 1:
+            sql_parts = []
+            params = {}
+            idx = index_seed
+            for part in and_parts:
+                sub_sql, sub_params, idx = self._render_mysql_filter_expr(part, time_filter, extra_context, idx)
+                if sub_sql:
+                    sql_parts.append(sub_sql)
+                    params.update(sub_params)
+            return " AND ".join(sql_parts), params, idx
 
-        extraction_rule 支持：
-          json:<key>   - 解析 JSON 后取 key 对应的数值
-          regex:<pat>  - 正则提取，第1捕获组为目标值
-          （不填）     - 直接转 float
-        """
-        import re as _re
-        import json as _json
+        match = re.fullmatch(r"([A-Za-z_]\w*)\s*(==|=|>=|<=|>|<)\s*(.+)", text_expr)
+        if not match:
+            logger.warning("filter_condition 片段无法解析，已忽略: %s", text_expr)
+            return "", {}, index_seed
+        column_name, operator, raw_value = match.groups()
+        param_name = f"filter_{index_seed}"
+        value = self._resolve_filter_value(raw_value, time_filter, extra_context)
+        if value is None:
+            return "", {}, index_seed + 1
+        clause = f"{_safe_identifier(column_name)} {operator} :{param_name}"
+        return clause, {param_name: value}, index_seed + 1
 
-        from app.ods.datacenter_ods import SessionLocal
-        from sqlalchemy import text
+    @staticmethod
+    def _strip_outer_parentheses(expr: str) -> str:
+        text_expr = expr.strip()
+        while text_expr.startswith("(") and text_expr.endswith(")"):
+            depth = 0
+            closed_at_end = True
+            for idx, ch in enumerate(text_expr):
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth == 0 and idx != len(text_expr) - 1:
+                        closed_at_end = False
+                        break
+            if depth != 0 or not closed_at_end:
+                break
+            text_expr = text_expr[1:-1].strip()
+        return text_expr
 
+    @staticmethod
+    def _split_top_level_boolean(expr: str, op: str) -> List[str]:
+        parts: List[str] = []
+        buf: List[str] = []
+        depth = 0
+        i = 0
+        op_text = f" {op} "
+        upper_expr = expr.upper()
+        while i < len(expr):
+            ch = expr[i]
+            if ch == "(":
+                depth += 1
+                buf.append(ch)
+                i += 1
+                continue
+            if ch == ")":
+                depth = max(0, depth - 1)
+                buf.append(ch)
+                i += 1
+                continue
+            if depth == 0 and upper_expr[i:i + len(op_text)] == op_text:
+                part = "".join(buf).strip()
+                if part:
+                    parts.append(part)
+                buf = []
+                i += len(op_text)
+                continue
+            buf.append(ch)
+            i += 1
+        last = "".join(buf).strip()
+        if last:
+            parts.append(last)
+        return parts
+
+    def _apply_extraction_rule(self, raw: Any, extraction_rule: str) -> Any:
+        if raw is None:
+            return None
+        rule = str(extraction_rule or "").strip()
+        if not rule:
+            return self._extract_scalar(raw)
+        if rule.startswith("json:"):
+            key = rule[5:].strip()
+            try:
+                data = json.loads(str(raw))
+            except json.JSONDecodeError:
+                return None
+            return self._extract_scalar(data.get(key))
+        if rule.startswith("regex:"):
+            pattern = rule[6:]
+            match = re.search(pattern, str(raw))
+            if not match:
+                return False
+            if match.groups():
+                return self._extract_scalar(match.group(1))
+            return True
+        return self._extract_scalar(raw)
+
+    def _fetch_from_mysql(self, metric_id: str, meta: Dict[str, Any]) -> Any:
+        table_name = _safe_identifier(meta.get("table_name", ""))
+        column_name = _safe_identifier(meta.get("column_name", ""))
+        time_column = _safe_identifier(meta.get("time_column", "wafer_product_start_time"))
+        equipment_column = _safe_identifier(meta.get("equipment_column", "equipment"))
+        omit_equipment = bool(meta.get("mysql_omit_equipment_filter"))
         time_start, time_end = self.window_for_metric(meta)
-        extraction_rule = meta.get("extraction_rule", "")
+        fallback_policy = self._fallback_policy(meta)
+        linking = self._normalize_linking(meta)
 
-        db = SessionLocal()
+        filter_sql, filter_params = self._render_mysql_filters(meta.get("filter_condition"), time_start, {})
+        linking_clauses, linking_params, missing_required = self._build_metric_filters(
+            meta,
+            time_start,
+            include_exact_keys=True,
+            include_linking_filters=True,
+            placeholder_style="mysql",
+        )
+
         try:
-            # mc_config_commits_history 表假定列：equipment, committed_at（时间）, data（内容）
-            # 若列名不同，可在 metrics.json 中增加 time_column / equipment_column 覆盖
-            time_col  = meta.get("time_column", "committed_at")
-            equip_col = meta.get("equipment_column", "equipment")
+            raw = None
+            used_fallback = False
 
-            sql = text(f"""
-                SELECT {column_name}
-                FROM mc_config_commits_history
-                WHERE {equip_col} = :equipment
-                  AND {time_col} >= :time_start
-                  AND {time_col} <= :time_end
-                ORDER BY ABS(TIMESTAMPDIFF(SECOND, {time_col}, :ref_time)) ASC
-                LIMIT 1
-            """)
-            row = db.execute(sql, {
-                "equipment":  self.equipment,
-                "time_start": time_start,
-                "time_end":   time_end,
-                "ref_time":   self.reference_time,
-            }).fetchone()
+            if linking["mode"] == "exact_keys" and not missing_required:
+                raw = self._query_mysql_scalar(
+                    table_name,
+                    column_name,
+                    time_column,
+                    equipment_column,
+                    time_start,
+                    time_end,
+                    filter_sql + self._join_sql_clauses(linking_clauses),
+                    {**filter_params, **linking_params},
+                    omit_equipment_filter=omit_equipment,
+                )
 
-            if row is None or row[0] is None:
-                logger.info("mc_config_commits_history: 指标 %s 在时间窗口内无数据", metric_id)
+            if raw is None:
+                allow_fallback = linking["mode"] != "exact_keys" or fallback_policy == "nearest_in_window"
+                if not allow_fallback:
+                    self.source_log[metric_id] = "none"
+                    return None
+                fallback_clauses, fallback_params, _ = self._build_metric_filters(
+                    meta,
+                    time_start,
+                    include_exact_keys=False,
+                    include_linking_filters=True,
+                    placeholder_style="mysql",
+                )
+                raw = self._query_mysql_scalar(
+                    table_name,
+                    column_name,
+                    time_column,
+                    equipment_column,
+                    time_start,
+                    time_end,
+                    filter_sql + self._join_sql_clauses(fallback_clauses),
+                    {**filter_params, **fallback_params},
+                    omit_equipment_filter=omit_equipment,
+                )
+                used_fallback = linking["mode"] == "exact_keys"
+
+            if raw is None:
                 self.source_log[metric_id] = "none"
                 return None
 
-            raw = str(row[0])
-
-            # extraction_rule 解析
-            if extraction_rule.startswith("json:"):
-                key = extraction_rule[5:].strip()
-                try:
-                    data_obj = _json.loads(raw)
-                    val = data_obj.get(key)
-                    if val is not None:
-                        self.source_log[metric_id] = "real_mysql"
-                        return float(val)
-                except (_json.JSONDecodeError, ValueError):
-                    pass
-                logger.warning("mc_config_commits_history: JSON 提取 key=%s 失败，raw=%r", key, raw[:100])
+            value = self._apply_extraction_rule(raw, meta.get("extraction_rule", ""))
+            value = self._apply_data_type(metric_id, value, meta)
+            if value is None:
                 self.source_log[metric_id] = "none"
                 return None
-
-            elif extraction_rule.startswith("regex:"):
-                pattern = extraction_rule[6:]
-                match = _re.search(pattern, raw)
-                if match:
-                    val_str = match.group(1) if match.groups() else match.group(0)
-                    self.source_log[metric_id] = "real_mysql"
-                    return float(val_str)
-                logger.warning("mc_config_commits_history: regex 提取失败，pattern=%s raw=%r", pattern, raw[:100])
-                self.source_log[metric_id] = "none"
-                return None
-
-            else:
-                # 无 extraction_rule，直接转 float
-                self.source_log[metric_id] = "real_mysql"
-                return float(raw)
-
-        except Exception as e:
-            logger.error("mc_config_commits_history 查询失败: metric=%s error=%s", metric_id, e)
+            self.source_log[metric_id] = "real_mysql_fallback" if used_fallback else "real_mysql"
+            return value
+        except Exception as exc:
+            logger.error("MySQL 查询失败: metric=%s table=%s error=%s", metric_id, table_name, exc)
             if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
                 self.source_log[metric_id] = "none"
                 return None
-            # mock_allowed 降级
-            val = self._mock_value(metric_id, meta)
+            value = self._mock_value(metric_id, meta)
             self.source_log[metric_id] = "mock"
-            return val
-        finally:
-            db.close()
+            return value
 
-    # ── ClickHouse 取数 ──────────────────────────────────────────────────────
-
-    def _fetch_from_clickhouse(self, metric_id: str, meta: Dict[str, Any]) -> Optional[float]:
-        """
-        从 ClickHouse 获取指标值。
-
-        当前（外网联调阶段）：
-          - METRIC_SOURCE_MODE=real 或 mock_forbidden：尝试真实查询；不通时返回 None（不 mock）
-          - METRIC_SOURCE_MODE=mock_allowed（默认）：不通时降级为 mock 值
-
-        内网部署时实现真实 ClickHouse 查询（见 TODO 注释）并设置 METRIC_SOURCE_MODE=real。
-
-        ClickHouse 查询示例（供内网实现参考）：
-          SELECT {column_name} FROM {table_name}
-          WHERE equipment = '{self.equipment}'
-            AND time >= '{time_start}' AND time <= '{time_end}'
-          ORDER BY ABS(dateDiff('second', time, toDateTime('{self.reference_time}')))
-          LIMIT 1
-        如有 extraction_rule（regex），需从 detail 字段提取值。
-        """
+    def _fetch_from_clickhouse(self, metric_id: str, meta: Dict[str, Any]) -> Any:
         time_start, time_end = self.window_for_metric(meta)
-
-        # 真实 ClickHouse 查询（连接参数来自 config/connections.json，迁移时只改配置）
+        fallback_policy = self._fallback_policy(meta)
+        linking = self._normalize_linking(meta)
         try:
             from app.ods.clickhouse_ods import ClickHouseODS
+
+            value = None
+            used_fallback = False
+            exact_filters, exact_filter_params, missing_required = self._build_metric_filters(
+                meta,
+                time_start,
+                include_exact_keys=True,
+                include_linking_filters=True,
+                placeholder_style="clickhouse",
+            )
+
+            if linking["mode"] == "exact_keys" and not missing_required:
+                value = ClickHouseODS.query_metric_in_window(
+                    table_name=meta["table_name"],
+                    column_name=meta["column_name"],
+                    equipment=self.equipment,
+                    time_start=time_start,
+                    time_end=time_end,
+                    reference_time=self.reference_time,
+                    extraction_rule=meta.get("extraction_rule"),
+                    time_column=meta.get("time_column", "time"),
+                    equipment_column=meta.get("equipment_column", "equipment"),
+                    extra_filters=exact_filters,
+                    extra_filter_params=exact_filter_params,
+                )
+
+            if value is None:
+                allow_fallback = linking["mode"] != "exact_keys" or fallback_policy == "nearest_in_window"
+                if not allow_fallback:
+                    self.source_log[metric_id] = "none"
+                    return None
+                fallback_filters, fallback_filter_params, _ = self._build_metric_filters(
+                    meta,
+                    time_start,
+                    include_exact_keys=False,
+                    include_linking_filters=True,
+                    placeholder_style="clickhouse",
+                )
             value = ClickHouseODS.query_metric_in_window(
                 table_name=meta["table_name"],
                 column_name=meta["column_name"],
@@ -384,151 +683,65 @@ class MetricFetcher:
                 extraction_rule=meta.get("extraction_rule"),
                 time_column=meta.get("time_column", "time"),
                 equipment_column=meta.get("equipment_column", "equipment"),
-            )
-            if value is not None:
-                self.source_log[metric_id] = "real_clickhouse"
-                return value
-            # ClickHouse 可连通但窗口内无数据
-            logger.info(
-                "ClickHouse 指标 %s 窗口内无数据: table=%s window=[%s, %s]",
-                metric_id, meta.get("table_name", ""), time_start, time_end,
-            )
-            self.source_log[metric_id] = "none"
-            return None
-
-        except Exception as ch_err:
-            # ClickHouse 不可达或查询出错
-            if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
-                logger.error(
-                    "ClickHouse 查询失败，METRIC_SOURCE_MODE=%s 禁止降级 mock: "
-                    "metric=%s table=%s error=%s",
-                    METRIC_SOURCE_MODE, metric_id, meta.get("table_name", ""), ch_err,
+                    extra_filters=fallback_filters,
+                    extra_filter_params=fallback_filter_params,
                 )
+                used_fallback = linking["mode"] == "exact_keys"
+
+        value = self._apply_data_type(metric_id, value, meta)
+            self.source_log[metric_id] = (
+                "real_clickhouse_fallback" if value is not None and used_fallback
+                else "real_clickhouse" if value is not None
+                else "none"
+            )
+            return value
+        except Exception as exc:
+            if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
+                logger.error("ClickHouse 查询失败: metric=%s error=%s", metric_id, exc)
                 self.source_log[metric_id] = "none"
                 return None
-
-            # mock_allowed：连不上 ClickHouse 时降级为模拟值
-            logger.warning(
-                "ClickHouse 不可达，降级为模拟值 (METRIC_SOURCE_MODE=mock_allowed): "
-                "metric=%s table=%s error=%s",
-                metric_id, meta.get("table_name", ""), ch_err,
-            )
-            val = self._mock_value(metric_id, meta)
+            value = self._mock_value(metric_id, meta)
             self.source_log[metric_id] = "mock"
-            return val
+            return value
 
-    # ── Mock 值生成 ──────────────────────────────────────────────────────────
+    def _mock_value(self, metric_id: str, meta: Dict[str, Any]) -> Any:
+        if "mock_value" in meta:
+            return meta["mock_value"]
+        if isinstance(meta.get("mock_range"), list) and len(meta["mock_range"]) == 2:
+            low, high = meta["mock_range"]
+            return round(random.uniform(float(low), float(high)), 6)
 
-    def _mock_value(self, metric_id: str, meta: Dict[str, Any]) -> float:
-        """
-        为不可用的数据源生成合理的模拟值
-
-        根据 metric_id 的语义生成有意义的数值范围。
-        """
-        mock_ranges = {
-            # COWA 倍率相关
-            "Mwx_0": (0.99985, 1.00015),       # 倍率值，接近 1
-            # 标记对准位置
+        legacy_ranges = {
+            "Mwx_0": (0.99985, 1.00015),
             "ws_pos_x": (-5.0, 5.0),
             "ws_pos_y": (-5.0, 5.0),
             "mark_pos_x": (-3.0, 3.0),
             "mark_pos_y": (-3.0, 3.0),
-            # 台对准建模结果
             "Msx": (0.9999, 1.0001),
             "Msy": (0.9999, 1.0001),
             "e_ws_x": (-2.0, 2.0),
             "e_ws_y": (-2.0, 2.0),
-            # 静态上片偏差
             "Sx": (-1.0, 1.0),
             "Sy": (-1.0, 1.0),
-            # 建模输出（这些是 rules.json 中 step 10/11 的 results）
             "D_x": (-0.5, 0.5),
             "D_y": (-0.5, 0.5),
         }
-
-        if metric_id in mock_ranges:
-            low, high = mock_ranges[metric_id]
+        if metric_id == "Mwx out of range,CGG6_check_parameter_ranges":
+            return True
+        if metric_id in legacy_ranges:
+            low, high = legacy_ranges[metric_id]
             return round(random.uniform(low, high), 6)
-
-        # 默认：返回一个小范围随机值
         return round(random.uniform(-10.0, 10.0), 4)
 
-    def _mock_intermediate_value(self, metric_id: str) -> float:
-        """
-        为中间计算值（不在 metrics.json 中的指标）生成模拟值
-
-        这些指标是 rules.json 决策树中的：
-        - 模型输出（output_Tx, output_Ty, output_Rw, output_Mw）
-        - 计数器（n_88um）
-        """
-        intermediate_values = {
-            # 建模次数 — 给一个 ≤8 的值，走正常分支
+    def _mock_intermediate_value(self, metric_id: str, meta: Dict[str, Any]) -> Any:
+        if "mock_value" in meta:
+            return meta["mock_value"]
+        values = {
             "n_88um": 3.0,
-            # COWA 建模输出 — 给正常范围内的值
-            "output_Mw": 5.0,        # between (-20, 20) → 正常
-            "output_Tx": None,       # 将用源记录 Tx 替代
-            "output_Ty": None,       # 将用源记录 Ty 替代
-            "output_Rw": None,       # 将用源记录 Rw 替代
-            # 汇总计数
+            "output_Mw": 5.0,
+            "output_Tx": None,
+            "output_Ty": None,
+            "output_Rw": None,
             "normal_count": 0.0,
         }
-
-        if metric_id in intermediate_values:
-            val = intermediate_values[metric_id]
-            if val is not None:
-                logger.info("中间指标 %s 使用模拟值: %s", metric_id, val)
-                return val
-
-        logger.info("中间指标 %s 无模拟值", metric_id)
-        return None
-
-    # ── 直接从源记录获取指标值 ────────────────────────────────────────────────
-
-    def fetch_from_source_record(
-        self, source_record: Dict[str, Any], metric_ids: List[str]
-    ) -> Dict[str, Optional[float]]:
-        """
-        从源记录字典中直接提取已有的指标值
-
-        对于 lo_batch_equipment_performance 表中直接存在的列
-        (wafer_translation_x, wafer_translation_y, wafer_rotation)，
-        直接从源记录字典中取值，避免额外 DB 查询。
-
-        同时，模型输出 (output_Tx, output_Ty, output_Rw) 使用源记录的
-        实际 Tx/Ty/Rw 值作为近似（因为本地无法运行实际建模函数）。
-
-        Args:
-            source_record: 源表记录字典
-            metric_ids: 指标 ID 列表
-
-        Returns:
-            { metric_id: value }
-        """
-        # 指标 ID → 源记录字段名 映射
-        METRIC_TO_COLUMN = {
-            "Tx": "wafer_translation_x",
-            "Ty": "wafer_translation_y",
-            "Rw": "wafer_rotation",
-            # 模型输出近似为源记录的实际值
-            "output_Tx": "wafer_translation_x",
-            "output_Ty": "wafer_translation_y",
-            "output_Rw": "wafer_rotation",
-        }
-
-        result = {}
-        remaining = []
-
-        for mid in metric_ids:
-            col = METRIC_TO_COLUMN.get(mid)
-            if col and col in source_record and source_record[col] is not None:
-                result[mid] = float(source_record[col])
-                self.source_log[mid] = "real_mysql"
-            else:
-                remaining.append(mid)
-
-        # 对剩余指标使用常规获取方式
-        if remaining:
-            fetched = self.fetch_all(remaining)
-            result.update(fetched)
-
-        return result
+        return values.get(metric_id)

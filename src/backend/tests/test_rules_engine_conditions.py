@@ -2,13 +2,15 @@
 rules 条件表达式求值回归测试（无需数据库）
 """
 import sys
+from datetime import datetime
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from app.engine.diagnosis_engine import DiagnosisEngine
-from app.engine.condition_evaluator import evaluate_condition_text
+from app.engine.condition_evaluator import evaluate_boolean_condition_text, evaluate_condition_text
+from app.engine.metric_fetcher import MetricFetcher
 
 
 def test_expression_string_equality_branch():
@@ -45,6 +47,39 @@ def test_expression_between_without_operator():
     assert operator == "between"
     assert limit == [-300.0, 300.0]
     assert value == 120.0
+
+
+def test_boolean_condition_with_and_or():
+    assert evaluate_boolean_condition_text(
+        "Coarse Alignment Failed == true AND Mwx out of range,CGG6_check_parameter_ranges == true",
+        {
+            "Coarse Alignment Failed": True,
+            "Mwx out of range,CGG6_check_parameter_ranges": True,
+        },
+    ) is True
+    assert evaluate_boolean_condition_text(
+        "A == true OR B == true",
+        {"A": False, "B": True},
+    ) is True
+    assert evaluate_boolean_condition_text(
+        "A == true AND B == true",
+        {"A": True, "B": False},
+    ) is False
+
+
+def test_boolean_condition_with_parentheses():
+    assert evaluate_boolean_condition_text(
+        "(A == true AND B == true) OR C == true",
+        {"A": True, "B": True, "C": False},
+    ) is True
+    assert evaluate_boolean_condition_text(
+        "A == true AND (B == true OR C == true)",
+        {"A": True, "B": False, "C": True},
+    ) is True
+    assert evaluate_boolean_condition_text(
+        "A == true AND (B == true OR C == true)",
+        {"A": False, "B": True, "C": True},
+    ) is False
 
 
 def test_multiple_branch_match_falls_back_to_else():
@@ -149,8 +184,17 @@ def test_parallel_targets_can_reach_tx_root_cause_branch():
         base_context={"normal_count": 0},
     )
     assert root_cause in {"上片工艺适应性问题", "上片偏差异常"}
+    assert "23" in trace and "24" in trace
     assert "30" in trace
     assert ("40" in trace) or ("41" in trace)
+
+
+def test_continue_model_unknown_falls_back_to_88um_path():
+    engine = DiagnosisEngine()
+    step = engine.rule_loader.get_step("continue_model")
+    assert step is not None
+    target, _ = engine._evaluate_branches(step, step.get("next", []), {"model_type": "unknown"}, [])
+    assert str(target) == "10"
 
 
 def test_metrics_list_uses_final_context_outputs_and_means():
@@ -170,12 +214,40 @@ def test_metrics_list_uses_final_context_outputs_and_means():
     assert "mean_Tx" in by_name
     assert by_name["output_Tx"]["status"] == "ABNORMAL"
     assert by_name["mean_Tx"]["status"] == "NORMAL"
+    assert by_name["output_Tx"]["approximate"] is True
+
+
+def test_select_scene_uses_trigger_conditions(monkeypatch):
+    engine = DiagnosisEngine()
+
+    def fake_fetch_from_source_record(self, source_record, metric_ids):
+        values = {
+            "Coarse Alignment Failed": True,
+        }
+        return {mid: values.get(mid) for mid in metric_ids}
+
+    monkeypatch.setattr(
+        "app.engine.metric_fetcher.MetricFetcher.fetch_from_source_record",
+        fake_fetch_from_source_record,
+    )
+    scene = engine._select_scene(
+        {"equipment": "SSB8000", "chuck_id": 1, "wafer_product_start_time": "2026-01-01T00:00:00"},
+        MetricFetcher(
+            equipment="SSB8000",
+            reference_time=datetime(2026, 1, 1),
+            chuck_id=1,
+        ),
+    )
+    assert scene is not None
+    assert scene["id"] == 1001
+    assert scene["metric_id"] == ["Coarse Alignment Failed"]
 
 
 if __name__ == "__main__":
     test_expression_string_equality_branch()
     test_expression_numeric_equality_branch()
     test_expression_between_without_operator()
+    test_boolean_condition_with_and_or()
     test_multiple_branch_match_falls_back_to_else()
     test_no_match_without_else_returns_none()
     test_expression_string_equality_not_match()
@@ -184,5 +256,6 @@ if __name__ == "__main__":
     test_between_threshold_uses_open_interval()
     test_parallel_targets_execute_independently_and_accumulate_normal_count()
     test_parallel_targets_can_reach_tx_root_cause_branch()
+    test_continue_model_unknown_falls_back_to_88um_path()
     test_metrics_list_uses_final_context_outputs_and_means()
     print("OK: test_rules_engine_conditions")

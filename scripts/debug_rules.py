@@ -1,7 +1,6 @@
 import json
-import os
 
-with open(r'D:\Codes\UIX\config\rules.json', 'r', encoding='utf-8') as f:
+with open(r'D:\Codes\UIX-Graph\config\reject_errors.diagnosis.json', 'r', encoding='utf-8') as f:
     data = json.load(f)
 
 print("=== STEPS ===")
@@ -32,7 +31,9 @@ for s in data.get('steps', []):
 print("\n=== STEP 10 ===")
 for s in data.get('steps', []):
     if str(s['id']) in ('10', '11'):
-        print(f"  step {s['id']}: params={list(s.get('params', {}).keys())}")
+        details = s.get('details', [])
+        params = (details[0].get('params', {}) if details else {})
+        print(f"  step {s['id']}: params={list(params.keys())}")
         for b in s.get('next', []):
             print(f"    next: target={b.get('target')}, results={list(b.get('results', {}).keys())}")
 
@@ -40,3 +41,9 @@ print("\n=== LEAF NODES (steps with result) ===")
 for s in data.get('steps', []):
     if s.get('result'):
         print(f"  step {s['id']}: result={s['result']}")
+        continue
+    for detail in s.get('details') or []:
+        if detail.get('result'):
+            print(f"  step {s['id']}: result={detail['result']}")
+        elif isinstance(detail.get('results'), dict) and detail['results'].get('rootCause'):
+            print(f"  step {s['id']}: result={detail['results']}")

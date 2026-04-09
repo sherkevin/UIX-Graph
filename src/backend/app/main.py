@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import traceback
+import json
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -34,6 +35,20 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def _load_frontend_api_url() -> str:
+    """读取当前 APP_ENV 下的 frontend_api_url（用于健康检查与部署排障）。"""
+    app_env = os.environ.get("APP_ENV", "local")
+    config_path = Path(__file__).resolve().parent.parent.parent.parent / "config" / "connections.json"
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        env_cfg = cfg.get(app_env) or cfg.get("local") or {}
+        return str(env_cfg.get("frontend_api_url") or "")
+    except Exception as exc:
+        logger.warning("读取 frontend_api_url 失败: %s", exc)
+        return ""
 
 app = FastAPI(
     title="SMEE-LITHO-RCA API",
@@ -125,4 +140,8 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "appEnv": os.environ.get("APP_ENV", "local"),
+        "frontendApiUrl": _load_frontend_api_url(),
+    }

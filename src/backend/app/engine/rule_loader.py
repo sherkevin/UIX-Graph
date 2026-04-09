@@ -1,145 +1,37 @@
-"""
-规则加载器 (Rule Loader)
-
-加载并解析 config/rules.json 和 config/metrics.json，
-提供结构化的规则树和指标元数据。
-"""
-import json
-import os
 import logging
 from typing import Dict, List, Any, Optional
-from app.engine.actions import has_action
-from app.engine.rule_validator import validate_rules_config
+from app.diagnosis.config_store import DiagnosisConfigStore
+from app.engine.condition_evaluator import _extract_vars_from_definition
 
 logger = logging.getLogger(__name__)
 
-# ── 配置文件路径 ────────────────────────────────────────────────────────────
-# 优先使用 UIX_ROOT（单文件 exe 解包目录），否则按源码相对路径回退。
-_UIX_ROOT = os.environ.get("UIX_ROOT")
-if _UIX_ROOT:
-    _PROJECT_ROOT = _UIX_ROOT
-    _CONFIG_DIR = os.path.join(_UIX_ROOT, "config")
-else:
-    # 从 src/backend/app/engine/ 向上 4 层到 UIX/
-    _PROJECT_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")
-    _CONFIG_DIR = os.path.join(_PROJECT_ROOT, "config")
-
-# 规则文件：优先使用 config/rules.json（主文件），回退到根目录 rejection_rules.json
-_RULES_PATH_MAIN = os.path.join(_CONFIG_DIR, "rules.json")
-_RULES_PATH_FALLBACK = os.path.join(_PROJECT_ROOT, "rejection_rules.json")
-_RULES_PATH = _RULES_PATH_MAIN if os.path.exists(_RULES_PATH_MAIN) else _RULES_PATH_FALLBACK
-_METRICS_PATH = os.path.join(_CONFIG_DIR, "metrics.json")
-_RULES_STRICT = os.environ.get("RULES_STRICT", "1") != "0"
-
-
 class RuleLoader:
     """
-    单例式规则加载器
+    统一诊断配置视图。
 
-    一次性加载 rules.json 和 metrics.json，
-    提供对 diagnosis_scenes、steps、metric 元数据的访问。
+    基于 DiagnosisConfigStore 暴露当前 pipeline 的场景、步骤和指标元数据，
+    兼容历史调用方的读取方式。
     """
 
-    _instance: Optional["RuleLoader"] = None
-    _loaded: bool = False
-
-    # ---- 公共数据 ----
-    rules_version: str = ""
-    diagnosis_scenes: List[Dict[str, Any]] = []
-    steps: List[Dict[str, Any]] = []
-    steps_map: Dict[str, Dict[str, Any]] = {}   # step_id (str) → step dict
-    metrics_meta: Dict[str, Dict[str, Any]] = {}  # metric_id → metrics.json 节点
-
-    def __new__(cls) -> "RuleLoader":
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self) -> None:
-        if not self._loaded:
-            self._load()
-            RuleLoader._loaded = True
-
-    # ── 加载 ────────────────────────────────────────────────────────────────
-    def _load(self) -> None:
-        self._load_rules()
-        self._load_metrics()
+    def __init__(self, pipeline_id: str = "reject_errors") -> None:
+        self.pipeline_id = pipeline_id
+        self.store = DiagnosisConfigStore()
+        bundle = self.store.get_pipeline(pipeline_id)
+        self.rules_version = bundle.get("version", "unknown")
+        self.diagnosis_scenes = bundle.get("diagnosis_scenes", [])
+        self.steps = bundle.get("steps", [])
+        self.steps_map = bundle.get("steps_map", {})
+        self.metrics_meta = bundle.get("metrics", {})
+        self.default_scene_id = bundle.get("default_scene_id")
         logger.info(
-            "RuleLoader 初始化完成: %d scenes, %d steps, %d metrics",
+            "RuleLoader 初始化完成: pipeline=%s scenes=%d steps=%d metrics=%d",
+            pipeline_id,
             len(self.diagnosis_scenes),
             len(self.steps),
             len(self.metrics_meta),
         )
 
-    def _load_rules(self) -> None:
-        """加载 rules.json"""
-        if not os.path.exists(_RULES_PATH):
-            logger.warning("rules.json 不存在: %s", _RULES_PATH)
-            return
-
-        with open(_RULES_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        self.rules_version = data.get("version", "unknown")
-        self.diagnosis_scenes = data.get("diagnosis_scenes", [])
-        self.steps = data.get("steps", [])
-
-        validation_errors = validate_rules_config(data, action_exists=has_action)
-        if validation_errors:
-            msg = "rules.json 校验失败:\n- " + "\n- ".join(validation_errors)
-            if _RULES_STRICT:
-                raise ValueError(msg)
-            logger.error(msg)
-
-        # 构建 step_id → step 的映射（step id 可能是 int 或 str）
-        self.steps_map = {}
-        for step in self.steps:
-            sid = str(step["id"])
-            self.steps_map[sid] = step
-
-        logger.info("rules.json 加载完成 (version=%s)", self.rules_version)
-
-    def _load_metrics(self) -> None:
-        """加载 metrics.json"""
-        if not os.path.exists(_METRICS_PATH):
-            logger.warning("metrics.json 不存在: %s", _METRICS_PATH)
-            return
-
-        with open(_METRICS_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        # 过滤掉空字典（如 "动态上片偏差": {}）
-        self.metrics_meta = {k: v for k, v in data.items() if v}
-        logger.info("metrics.json 加载完成: %d 指标定义", len(self.metrics_meta))
-
     # ── 查询接口 ────────────────────────────────────────────────────────────
-
-    def get_scene_by_reject_reason(self, reject_reason_id: int) -> Optional[Dict[str, Any]]:
-        """
-        根据 reject_reason_id 查找匹配的诊断场景
-
-        当前仅 COARSE_ALIGN_FAILED (reject_reason_id=6) 有对应诊断场景。
-
-        Args:
-            reject_reason_id: 拒片原因 ID
-
-        Returns:
-            匹配的 diagnosis_scene 字典，未找到则返回 None
-        """
-        # 当前映射：reject_reason_id=6 → scene id=1001 (COWA 倍率超限)
-        REJECT_REASON_SCENE_MAP = {
-            6: 1001,  # COARSE_ALIGN_FAILED → COWA 倍率超限
-        }
-
-        scene_id = REJECT_REASON_SCENE_MAP.get(reject_reason_id)
-        if scene_id is None:
-            return None
-
-        for scene in self.diagnosis_scenes:
-            if scene.get("id") == scene_id:
-                return scene
-
-        return None
 
     def get_step(self, step_id: str) -> Optional[Dict[str, Any]]:
         """根据 step_id 获取步骤定义"""
@@ -212,6 +104,8 @@ class RuleLoader:
                 results = branch.get("results", {})
                 for result_key in results.keys():
                     metric_ids.add(result_key)
+                for var_name in _extract_vars_from_definition(branch.get("condition")):
+                    metric_ids.add(var_name)
 
         return list(metric_ids)
 
@@ -271,6 +165,11 @@ class RuleLoader:
 
     def reload(self) -> None:
         """强制重新加载配置文件"""
-        RuleLoader._loaded = False
-        self._load()
-        RuleLoader._loaded = True
+        self.store.reload()
+        bundle = self.store.get_pipeline(self.pipeline_id)
+        self.rules_version = bundle.get("version", "unknown")
+        self.diagnosis_scenes = bundle.get("diagnosis_scenes", [])
+        self.steps = bundle.get("steps", [])
+        self.steps_map = bundle.get("steps_map", {})
+        self.metrics_meta = bundle.get("metrics", {})
+        self.default_scene_id = bundle.get("default_scene_id")

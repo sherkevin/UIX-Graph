@@ -16,6 +16,7 @@ import os
 import logging
 
 from app.utils.time_utils import timestamp_to_datetime, datetime_to_timestamp
+from app.diagnosis.service import DiagnosisService
 from app.ods.datacenter_ods import DatacenterODS
 from app.models.reject_errors_db import RejectedDetailedRecord, get_db_session
 from app.engine.diagnosis_engine import DiagnosisEngine
@@ -41,13 +42,9 @@ class RejectErrorService:
 
     @classmethod
     def get_diagnosis_engine(cls) -> DiagnosisEngine:
-        """获取诊断引擎（每次重新创建以获取最新 rules.json）"""
+        """获取 reject-errors 诊断引擎。"""
         if cls._diagnosis_engine is None:
-            # 强制 RuleLoader 重新加载配置
-            from app.engine.rule_loader import RuleLoader
-            RuleLoader._instance = None
-            RuleLoader._loaded = False
-            cls._diagnosis_engine = DiagnosisEngine(time_window_minutes=5)
+            cls._diagnosis_engine = DiagnosisService.get_engine("reject_errors")
         return cls._diagnosis_engine
 
     @classmethod
@@ -314,6 +311,8 @@ class RejectErrorService:
         """
         empty_meta = {
             "total": 0,
+            "metricDiagnosticTotal": 0,
+            "metricModelParamTotal": 0,
             "pageNo": page_no,
             "pageSize": page_size,
             "totalPages": 0,
@@ -328,7 +327,7 @@ class RejectErrorService:
                 source_record = DatacenterODS.get_failure_record_by_id(failure_id, db)
                 if not source_record:
                     return None, empty_meta
-                # 前端详情页始终携带 requestTime。这里统一绕过缓存，避免 rules.json
+                # 前端详情页始终携带 requestTime。这里统一绕过缓存，避免诊断配置
                 # 或阈值判定逻辑更新后仍复用旧 metrics_data，导致详情页展示过期结果。
                 bypass_cache = True
 
@@ -474,21 +473,34 @@ class RejectErrorService:
         page_no: int,
         page_size: int,
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """对指标列表分页"""
-        total = len(all_metrics)
-        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+        """
+        对指标分页：仅对「诊断类」切片；建模参数（model_param）每页完整附带，便于详情页折叠区展示。
+        """
+        diagnostic = [m for m in all_metrics if m.get("type") != "model_param"]
+        model_param = [m for m in all_metrics if m.get("type") == "model_param"]
+        n_diag = len(diagnostic)
+        n_mp = len(model_param)
+        total_all = len(all_metrics)
 
-        if page_no > total_pages and total > 0:
-            paged_metrics = []
-        else:
+        total_pages = (n_diag + page_size - 1) // page_size if n_diag > 0 else 0
+        if n_diag == 0 and n_mp > 0:
+            total_pages = 1
+
+        if n_diag > 0 and page_no > total_pages:
+            paged_diagnostic: List[Dict[str, Any]] = []
+        elif n_diag > 0:
             start_idx = (page_no - 1) * page_size
             end_idx = start_idx + page_size
-            paged_metrics = all_metrics[start_idx:end_idx]
+            paged_diagnostic = diagnostic[start_idx:end_idx]
+        else:
+            paged_diagnostic = []
 
-        detail_data["metrics"] = paged_metrics
+        detail_data["metrics"] = paged_diagnostic + model_param
 
         return detail_data, {
-            "total": total,
+            "total": total_all,
+            "metricDiagnosticTotal": n_diag,
+            "metricModelParamTotal": n_mp,
             "pageNo": page_no,
             "pageSize": page_size,
             "totalPages": total_pages,

@@ -1,13 +1,13 @@
-# rules.json 执行规范（后端实现契约）
+# reject_errors.diagnosis.json 执行规范（后端实现契约）
 
 文档版本: 1.0  
-适用范围: `config/rules.json` + `src/backend/app/engine/diagnosis_engine.py`
+适用范围: `config/reject_errors.diagnosis.json` + `src/backend/app/engine/diagnosis_engine.py`
 
 ---
 
 ## 1. 目标
 
-本规范定义 `rules.json` 的运行语义，确保规则配置与后端执行一致，避免“配置写得出、引擎跑不通”。
+本规范定义 `reject_errors.diagnosis.json` 中 `diagnosis_scenes` / `steps` 的运行语义，确保规则配置与后端执行一致，避免“配置写得出、引擎跑不通”。
 
 ---
 

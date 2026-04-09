@@ -172,8 +172,8 @@ GET  /health                               健康检查
 |--------|------|----------|
 | MySQL `datacenter` | 主数据 + 缓存表 | 生产可用 |
 | ClickHouse | 指标数据（Tx/Ty/Rw 等） | 内网接通前使用 mock |
-| `config/rules.json` | 诊断决策树规则 | 随代码一起部署 |
-| `config/metrics.json` | 指标元数据配置 | 随代码一起部署 |
+| `config/diagnosis.json` | 诊断 pipeline 索引配置 | 随代码一起部署 |
+| `config/reject_errors.diagnosis.json` | reject_errors 的 structured 诊断配置 | 随代码一起部署 |
 
 ### 4.4 不纳入本轮范围
 

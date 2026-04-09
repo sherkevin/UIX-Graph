@@ -5,23 +5,36 @@ ODS 层 - ClickHouse 数据源封装
 只需修改 connections.json 中对应环境的 clickhouse 配置，即可切换到不同 ClickHouse 实例。
 
 ClickHouse 表约定（SMEE LAS 系统）：
-  - 时间列名：time（可通过 metrics.json 中的 time_column 字段覆盖）
-  - 设备列名：equipment（可通过 metrics.json 中的 equipment_column 字段覆盖）
-  - detail 字段正则提取：通过 extraction_rule 字段配置（如 "regex:Mwx\\s*\\(([\\d\\.]+)\\)"）
+  - 时间列名：time（可通过 pipeline 指标配置中的 time_column 字段覆盖）
+  - 设备列名：equipment（可通过 pipeline 指标配置中的 equipment_column 字段覆盖）
+  - extraction_rule：本模块仅处理以 `regex:` 开头的规则；`json:<key>` 仅在 MySQL 路径（metric_fetcher._apply_extraction_rule）生效，勿在 ClickHouse 指标上依赖 json 提取。
 """
 import clickhouse_connect
 import logging
 import re
 from typing import Optional, List, Dict, Any
+
+_CH_IDENT_SEGMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 import json
 import os
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# ── 列名默认值（若内网实际列名不同，在 metrics.json 对应指标加 time_column / equipment_column 覆盖）──
+# ── 列名默认值（若内网实际列名不同，在 pipeline 指标配置中覆盖 time_column / equipment_column）──
 DEFAULT_TIME_COLUMN = os.environ.get("CH_DEFAULT_TIME_COLUMN", "time")
 DEFAULT_EQUIPMENT_COLUMN = os.environ.get("CH_DEFAULT_EQUIPMENT_COLUMN", "equipment")
+
+
+def _ch_quote_ident(name: str) -> str:
+    """Backtick-quote each segment of db.table so mixed-case columns (e.g. WS_pos_x) work."""
+    parts = str(name).split(".")
+    out: List[str] = []
+    for p in parts:
+        if not _CH_IDENT_SEGMENT.fullmatch(p):
+            raise ValueError(f"非法 ClickHouse 标识符: {name!r}")
+        out.append(f"`{p}`")
+    return ".".join(out)
 
 
 # ============== 数据库配置 ==============
@@ -86,6 +99,8 @@ class ClickHouseODS:
         extraction_rule: Optional[str] = None,
         time_column: str = DEFAULT_TIME_COLUMN,
         equipment_column: str = DEFAULT_EQUIPMENT_COLUMN,
+        extra_filters: Optional[List[str]] = None,
+        extra_filter_params: Optional[Dict[str, Any]] = None,
     ) -> Optional[float]:
         """
         在时间窗口 [time_start, time_end] 内查询距 reference_time 最近的指标值。
@@ -103,8 +118,8 @@ class ClickHouseODS:
             time_end        : 时间窗口终点
             reference_time  : 基准时间 T，用于"最近一条"排序
             extraction_rule : 正则提取规则，仅 detail 类列需要，如 "regex:Mwx\\s*\\(([\\d\\.]+)\\)"
-            time_column     : 时间列名（默认 "time"，可被 metrics.json 的 time_column 字段覆盖）
-            equipment_column: 设备列名（默认 "equipment"，可被 metrics.json 的 equipment_column 覆盖）
+            time_column     : 时间列名（默认 "time"，可被 pipeline 指标配置中的 time_column 字段覆盖）
+            equipment_column: 设备列名（默认 "equipment"，可被 pipeline 指标配置中的 equipment_column 字段覆盖）
 
         Returns:
             float 或 None（窗口内无数据）
@@ -117,14 +132,19 @@ class ClickHouseODS:
             t_end_str   = time_end.strftime(ts_fmt)
             t_ref_str   = reference_time.strftime(ts_fmt)
 
+            q_table = _ch_quote_ident(table_name)
+            q_col = _ch_quote_ident(column_name)
+            q_time = _ch_quote_ident(time_column)
+            q_equip = _ch_quote_ident(equipment_column)
             query = f"""
-                SELECT {column_name}
-                FROM {table_name}
-                WHERE {equipment_column} = %(equipment)s
-                  AND {time_column} >= toDateTime(%(t_start)s)
-                  AND {time_column} <= toDateTime(%(t_end)s)
+                SELECT {q_col}
+                FROM {q_table}
+                WHERE {q_equip} = %(equipment)s
+                  AND {q_time} >= toDateTime(%(t_start)s)
+                  AND {q_time} <= toDateTime(%(t_end)s)
+                  {"AND " + " AND ".join(extra_filters) if extra_filters else ""}
                 ORDER BY abs(dateDiff('second',
-                    {time_column},
+                    {q_time},
                     toDateTime(%(t_ref)s)
                 )) ASC
                 LIMIT 1
@@ -135,6 +155,8 @@ class ClickHouseODS:
                 "t_end":     t_end_str,
                 "t_ref":     t_ref_str,
             }
+            if extra_filter_params:
+                params.update(extra_filter_params)
             result = client.query(query, parameters=params)
 
             if not result.result_set:
@@ -147,9 +169,11 @@ class ClickHouseODS:
                 pattern = extraction_rule[6:]
                 match = re.search(pattern, str(raw))
                 if match:
-                    val_str = match.group(1) if match.groups() else match.group(0)
-                    return float(val_str)
-                return None
+                    if match.groups():
+                        val_str = match.group(1)
+                        return float(val_str)
+                    return True
+                return False
 
             # 直接转数值
             return float(raw) if raw is not None else None

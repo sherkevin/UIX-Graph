@@ -350,6 +350,7 @@ const FaultRecords = () => {
         rootCause: data.rootCause || null,
         system: data.system || null,
         metrics,
+        metricsMeta: meta,
       })
 
       // 详情接口返回了最新诊断结果后，立即回填主页表格当前行，
@@ -365,9 +366,9 @@ const FaultRecords = () => {
             : row
         )))
       }
-      // 指标总数只计 diagnostic 类型（不含建模参数）
-      const diagCount = (data.metrics || []).filter(m => m.type !== 'model_param').length
-      setMetricTotal(diagCount)
+      // 后端 meta.metricDiagnosticTotal：全量诊断指标数（分页仅切诊断类；建模参数每页全量附带）
+      const diagTotal = meta.metricDiagnosticTotal ?? (data.metrics || []).filter(m => m.type !== 'model_param').length
+      setMetricTotal(diagTotal)
     } catch (error) {
       message.error(`获取详情失败：${extractErrorMessage(error)}`)
       setDetailVisible(false)
@@ -418,7 +419,7 @@ const FaultRecords = () => {
       render: (time) => formatTimestamp(time),
     },
     {
-      title: 'Reject Reason',
+      title: '拒片现象',
       dataIndex: 'rejectReason',
       key: 'rejectReason',
       width: 160,
@@ -460,7 +461,7 @@ const FaultRecords = () => {
       title: '指标值',
       key: 'value',
       width: 160,
-      render: (_, row) => `${formatMetricValue(row.value)} ${row.unit || ''}`.trim(),
+      render: (_, row) => `${row.approximate ? '~' : ''}${formatMetricValue(row.value)} ${row.unit || ''}`.trim(),
     },
     {
       title: '阈值条件',
@@ -661,7 +662,14 @@ const FaultRecords = () => {
           <Row gutter={16} style={{ marginTop: 8 }}>
             <Col span={8}><strong>故障根因：</strong>{detailData?.rootCause || '-'}</Col>
             <Col span={8}><strong>分系统：</strong>{detailData?.system || '-'}</Col>
-            <Col span={8}><strong>指标总数：</strong>{metricTotal}</Col>
+            <Col span={8}>
+              <strong>诊断指标数：</strong>{detailData?.metricsMeta?.metricDiagnosticTotal ?? metricTotal}
+              {(detailData?.metricsMeta?.metricModelParamTotal ?? 0) > 0 && (
+                <span style={{ color: '#888', fontWeight: 400, marginLeft: 6 }}>
+                  （建模参数 {detailData.metricsMeta.metricModelParamTotal} 项，见下方折叠区）
+                </span>
+              )}
+            </Col>
           </Row>
         </div>
 
@@ -674,10 +682,10 @@ const FaultRecords = () => {
           pagination={{
             current: metricPage,
             pageSize: METRIC_PAGE_SIZE,
-            total: metricTotal,
+            total: detailData?.metricsMeta?.metricDiagnosticTotal ?? metricTotal,
             onChange: handleMetricPageChange,
             showSizeChanger: false,
-            showTotal: (total) => `共 ${total} 条指标`,
+            showTotal: (total) => `共 ${total} 条诊断指标`,
           }}
           scroll={{ y: 320 }}
         />
@@ -709,7 +717,7 @@ const FaultRecords = () => {
                 .map(m => (
                   <span key={m.name} style={{ fontSize: 13, color: '#555', whiteSpace: 'nowrap' }}>
                     <span style={{ color: '#888' }}>{m.name}：</span>
-                    <span>{Number(m.value).toFixed(3)}{m.unit ? ' ' + m.unit : ''}</span>
+                    <span>{m.approximate ? '~' : ''}{Number(m.value).toFixed(3)}{m.unit ? ' ' + m.unit : ''}</span>
                   </span>
                 ))
               }

@@ -1,0 +1,977 @@
+{
+  "version": "3.0.0",
+  "metrics": {
+    "Coarse Alignment Failed": {
+      "description": "COWA拒片的识别字段",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "failure_record_field",
+      "field": "reject_reason",
+      "transform": {
+        "type": "equals",
+        "value": 6
+      },
+      "role": "trigger_only"
+    },
+    "Mwx out of range,CGG6_check_parameter_ranges": {
+      "description": "倍率超限的识别字段",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "time_window_only",
+        "keys": [],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "las.LOG_EH_UNION_VIEW",
+      "column_name": "detail",
+      "time_column": "file_time",
+      "extraction_rule": "regex:M[wa]x out of range,C?GG6_check_parameter_ranges",
+      "duration": "1000",
+      "role": "trigger_only"
+    },
+    "Mwx_0": {
+      "description": "倍率实测值",
+      "data_type": null,
+      "unit": "ppm",
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "time_window_only",
+        "keys": [],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "las.LOG_EH_UNION_VIEW",
+      "column_name": "detail",
+      "time_column": "file_time",
+      "extraction_rule": "regex:M[wa]x\\s*\\(\\s*([\\d\\.]+)\\s*\\)",
+      "duration": "1000"
+    },
+    "ws_pos_x": {
+      "description": "cowa标记对准位置 (mark_scan) ws_pos_x",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_SET_OFL",
+      "column_name": "WS_pos_x",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "ws_pos_y": {
+      "description": "cowa标记对准位置 (mark_scan) ws_pos_y",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_SET_OFL",
+      "column_name": "WS_pos_y",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "mark_pos_x": {
+      "description": "cowa标记名义位置 (mark_data) mark_pos_x",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "recipe_id", "source": "recipe_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+      "column_name": "mark_pos_x",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "mark_pos_y": {
+      "description": "cowa标记名义位置 (mark_data) mark_pos_y",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "recipe_id", "source": "recipe_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+      "column_name": "mark_pos_y",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "Msx": {
+      "description": "台对准建模结果Msx",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "wafer_id", "source": "wafer_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+      "column_name": "ms_x",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "Msy": {
+      "description": "台对准建模结果Msy",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "wafer_id", "source": "wafer_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+      "column_name": "ms_y",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "e_ws_x": {
+      "description": "台对准建模结果e_ws_x",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "wafer_id", "source": "wafer_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+      "column_name": "e_ws_x",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "e_ws_y": {
+      "description": "台对准建模结果e_ws_y",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "equipment", "source": "equipment"},
+          {"target": "lot_id", "source": "lot_id"},
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "wafer_id", "source": "wafer_id"}
+        ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_SA_RESULT_OFL",
+      "column_name": "e_ws_y",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "1000"
+    },
+    "Sx": {
+      "description": "静态上片偏差x",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "mysql_nearest_row",
+      "linking": {
+        "mode": "time_window_only",
+        "keys": [],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "datacenter.mc_config_commits_history",
+      "column_name": "data",
+      "extraction_rule": "json:Sx",
+      "time_column": "last_modify_date",
+      "equipment_column": "equipment",
+      "mysql_omit_equipment_filter": true,
+      "duration": "1000",
+      "_note": "内网表无 equipment/committed_at；用 last_modify_date(varchar) 做时间窗；与 performance 的 table_name/env_id 关联规则见 docs/intranet/linking_tbd.md"
+    },
+    "Sy": {
+      "description": "静态上片偏差y",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "mysql_nearest_row",
+      "linking": {
+        "mode": "time_window_only",
+        "keys": [],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "datacenter.mc_config_commits_history",
+      "column_name": "data",
+      "extraction_rule": "json:Sy",
+      "time_column": "last_modify_date",
+      "equipment_column": "equipment",
+      "mysql_omit_equipment_filter": true,
+      "duration": "1000",
+      "_note": "同 Sx；extraction_rule 仅 MySQL 路径支持 json:"
+    },
+    "动态上片偏差": {
+      "description": "动态上片偏差（当前未启用）",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "intermediate",
+      "enabled": false
+    },
+    "Tx": {
+      "description": "上片偏差Tx",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "failure_record_field",
+      "field": "wafer_translation_x"
+    },
+    "Ty": {
+      "description": "上片偏差Ty",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "failure_record_field",
+      "field": "wafer_translation_y"
+    },
+    "Rw": {
+      "description": "上片旋转值Rw",
+      "data_type": null,
+      "unit": "urad",
+      "source_kind": "failure_record_field",
+      "field": "wafer_rotation"
+    },
+    "mean_Tx": {
+      "description": "一个月内上片偏差Tx均值",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "intermediate"
+    },
+    "mean_Ty": {
+      "description": "一个月内上片偏差Ty均值",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "intermediate"
+    },
+    "mean_Rw": {
+      "description": "一个月内上片旋转Rw均值",
+      "data_type": null,
+      "unit": "urad",
+      "source_kind": "intermediate"
+    },
+    "n_88um": {
+      "description": "88微米建模次数",
+      "data_type": "int",
+      "unit": "次",
+      "source_kind": "intermediate"
+    },
+    "output_Mw": {
+      "description": "COWA建模输出倍率Mw",
+      "data_type": null,
+      "unit": "ppm",
+      "source_kind": "intermediate"
+    },
+    "output_Tx": {
+      "description": "COWA建模输出上片偏差Tx",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "failure_record_field",
+      "field": "wafer_translation_x",
+      "role": "diagnostic",
+      "approximate": true
+    },
+    "output_Ty": {
+      "description": "COWA建模输出上片偏差Ty",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "failure_record_field",
+      "field": "wafer_translation_y",
+      "role": "diagnostic",
+      "approximate": true
+    },
+    "output_Rw": {
+      "description": "COWA建模输出上片旋转Rw",
+      "data_type": null,
+      "unit": "urad",
+      "source_kind": "failure_record_field",
+      "field": "wafer_rotation",
+      "role": "diagnostic",
+      "approximate": true
+    },
+    "D_x": {
+      "description": "建模中间量 D_x",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "intermediate"
+    },
+    "D_y": {
+      "description": "建模中间量 D_y",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "intermediate"
+    }
+  },
+  "diagnosis_scenes": [
+    {
+      "id": 1001,
+      "module": "COWA",
+      "phenomenon": "倍率超限",
+      "description": "COWA倍率超限，补偿建模",
+      "metric_id": [
+        "Coarse Alignment Failed"
+      ],
+      "trigger_condition": [
+        "Coarse Alignment Failed == true"
+      ],
+      "start_node": "1"
+    }
+  ],
+  "steps": [
+    {
+      "id": 1,
+      "description": "判断M值及输出模型类型",
+      "metric_id": "Mwx_0",
+      "details": [
+        {
+          "action": "determine_model_type",
+          "description": "根据Mwx_0范围自动判断并输出model_type",
+          "params": null,
+          "results": {
+            "model_type": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "10",
+          "condition": "{Mwx_0} > 1.0001",
+          "operator": ">",
+          "limit": 1.0001,
+          "set": {
+            "model_type": "88um"
+          }
+        },
+        {
+          "target": "10",
+          "condition": "{Mwx_0} < 0.9999",
+          "operator": "<",
+          "limit": 0.9999,
+          "set": {
+            "model_type": "88um"
+          }
+        },
+        {
+          "target": "11",
+          "condition": "1.00002 < {Mwx_0} < 1.0001",
+          "operator": "between",
+          "limit": [
+            1.00002,
+            1.0001
+          ],
+          "set": {
+            "model_type": "8um"
+          }
+        },
+        {
+          "target": "11",
+          "condition": "0.9999 < {Mwx_0} < 0.99998",
+          "operator": "between",
+          "limit": [
+            0.9999,
+            0.99998
+          ],
+          "set": {
+            "model_type": "8um"
+          }
+        },
+        {
+          "target": "99",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "description": "建立88微米模型",
+      "details": [
+        {
+          "action": "build_88um_model",
+          "description": "88um补偿建模",
+          "params": {
+            "ws_pos_x": "",
+            "ws_pos_y": "",
+            "mark_pos_x": "",
+            "mark_pos_y": "",
+            "Msx": "",
+            "Msy": "",
+            "e_ws_x": "",
+            "e_ws_y": "",
+            "Sx": "",
+            "Sy": "",
+            "D_x": "",
+            "D_y": ""
+          },
+          "results": {
+            "n_88um": "",
+            "output_Tx": "",
+            "output_Ty": "",
+            "output_Rw": "",
+            "output_Mw": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "20",
+          "condition": ""
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "description": "建立8微米模型",
+      "details": [
+        {
+          "action": "build_8um_model",
+          "description": "8um补偿建模",
+          "params": {
+            "ws_pos_x": "",
+            "ws_pos_y": "",
+            "mark_pos_x": "",
+            "mark_pos_y": "",
+            "Msx": "",
+            "Msy": "",
+            "e_ws_x": "",
+            "e_ws_y": "",
+            "Sx": "",
+            "Sy": "",
+            "D_x": "",
+            "D_y": ""
+          },
+          "results": {
+            "n_88um": "",
+            "output_Tx": "",
+            "output_Ty": "",
+            "output_Rw": "",
+            "output_Mw": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "20",
+          "condition": ""
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "description": "检查补偿建模次数",
+      "metric_id": "n_88um",
+      "details": null,
+      "next": [
+        {
+          "target": "21",
+          "condition": "n_88um≤8",
+          "operator": "≤",
+          "limit": 8
+        },
+        {
+          "target": "99",
+          "condition": "n_88um>8",
+          "operator": ">",
+          "limit": 8
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "description": "检查COWA建模结果的倍率是否正常",
+      "metric_id": "output_Mw",
+      "details": null,
+      "next": [
+        {
+          "target": [
+            "22",
+            "23",
+            "24"
+          ],
+          "condition": "-20<{output_Mw}<20",
+          "operator": "between",
+          "limit": [
+            -20,
+            20
+          ]
+        },
+        {
+          "target": "continue_model",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": "continue_model",
+      "description": "继续建模",
+      "details": null,
+      "next": [
+        {
+          "target": "10",
+          "condition": " {model_type} == '88um'"
+        },
+        {
+          "target": "11",
+          "condition": " {model_type} == '8um'"
+        },
+        {
+          "target": "10",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "description": "检查上片偏差Tx",
+      "metric_id": "Tx",
+      "details": [
+        {
+          "action": null,
+          "description": "判断Tx是否在正常范围内",
+          "params": null,
+          "results": null
+        }
+      ],
+      "next": [
+        {
+          "target": "221",
+          "condition": "-20<{output_Tx}<20",
+          "operator": "between",
+          "limit": [
+            -20,
+            20
+          ]
+        },
+        {
+          "target": "30",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 221,
+      "description": "Tx正常，normal_count + 1",
+      "details": [
+        {
+          "action": "increment_counter",
+          "description": "累加正常计数器（normal_count += 1）",
+          "params": {
+            "counter_name": "normal_count",
+            "increment": 1
+          },
+          "results": {
+            "normal_count": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "50",
+          "condition": ""
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "description": "检查上片偏差Ty",
+      "metric_id": "Ty",
+      "next": [
+        {
+          "target": "231",
+          "condition": "-20<{output_Ty}<20",
+          "operator": "between",
+          "limit": [
+            -20,
+            20
+          ]
+        },
+        {
+          "target": "31",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 231,
+      "description": "Ty正常，normal_count + 1",
+      "details": [
+        {
+          "action": "increment_counter",
+          "description": "累加正常计数器（normal_count += 1）",
+          "params": {
+            "counter_name": "normal_count",
+            "increment": 1
+          },
+          "results": {
+            "normal_count": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "50",
+          "condition": ""
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "description": "检查上片旋转Rw",
+      "metric_id": "Rw",
+      "next": [
+        {
+          "target": "241",
+          "condition": "-300<{output_Rw}<300",
+          "operator": "between",
+          "limit": [
+            -300,
+            300
+          ]
+        },
+        {
+          "target": "32",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 241,
+      "description": "Rw正常，normal_count + 1",
+      "details": [
+        {
+          "action": "increment_counter",
+          "description": "累加正常计数器（normal_count += 1）",
+          "params": {
+            "counter_name": "normal_count",
+            "increment": 1
+          },
+          "results": {
+            "normal_count": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "50",
+          "condition": ""
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "description": "计算Tx的mean值",
+      "metric_id": "Tx",
+      "details": [
+        {
+          "action": "calculate_monthly_mean_Tx",
+          "description": "计算一个月内Tx的mean值",
+          "params": {
+            "Tx": ""
+          },
+          "results": {
+            "mean_Tx": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "41",
+          "condition": "-2<{mean_Tx}<2",
+          "operator": "between",
+          "limit": [
+            -2,
+            2
+          ]
+        },
+        {
+          "target": "40",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "description": "计算Ty的mean值",
+      "metric_id": "Ty",
+      "details": [
+        {
+          "action": "calculate_monthly_mean_Ty",
+          "description": "计算一个月内Ty的mean值",
+          "params": {
+            "Ty": ""
+          },
+          "results": {
+            "mean_Ty": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "43",
+          "condition": "-2<{mean_Ty}<2",
+          "operator": "between",
+          "limit": [
+            -2,
+            2
+          ]
+        },
+        {
+          "target": "42",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "description": "计算Rw的mean值",
+      "metric_id": "Rw",
+      "details": [
+        {
+          "action": "calculate_monthly_mean_Rw",
+          "description": "计算一个月内Rw的mean值",
+          "params": {
+            "Rw": ""
+          },
+          "results": {
+            "mean_Rw": ""
+          }
+        }
+      ],
+      "next": [
+        {
+          "target": "45",
+          "condition": "-30<{mean_Rw}<30",
+          "operator": "between",
+          "limit": [
+            -30,
+            30
+          ]
+        },
+        {
+          "target": "44",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "description": "输出异常Tx的mean值",
+      "details": [
+        {
+          "action": null,
+          "description": "输出异常的Tx的mean值、根因及定位分系统",
+          "params": null,
+          "result": {
+            "mean_Tx": "",
+            "rootCause": "上片工艺适应性问题",
+            "system": null
+          }
+        }
+      ],
+      "next": []
+    },
+    {
+      "id": 41,
+      "description": "输出正常Tx的mean值",
+      "details": [
+        {
+          "action": null,
+          "description": "输出正常的Tx的mean值、根因及定位分系统",
+          "params": null,
+          "result": {
+            "mean_Tx": "",
+            "rootCause": "上片偏差异常",
+            "system": "WS与WH分系统"
+          }
+        }
+      ],
+      "next": []
+    },
+    {
+      "id": 42,
+      "description": "输出异常的Ty的mean值",
+      "details": [
+        {
+          "action": null,
+          "description": "输出异常的Ty的mean值、根因及定位分系统",
+          "params": null,
+          "result": {
+            "mean_Ty": "",
+            "rootCause": "上片工艺适应性问题",
+            "system": null
+          }
+        }
+      ],
+      "next": []
+    },
+    {
+      "id": 43,
+      "description": "输出正常的Ty的mean值",
+      "details": [
+        {
+          "action": null,
+          "description": "输出正常的Ty的mean值、根因及定位分系统",
+          "params": null,
+          "result": {
+            "mean_Ty": "",
+            "rootCause": "上片偏差异常",
+            "system": "WS与WH分系统"
+          }
+        }
+      ],
+      "next": []
+    },
+    {
+      "id": 44,
+      "description": "输出异常的Rw的mean值",
+      "details": [
+        {
+          "action": null,
+          "description": "输出异常的Rw的mean值、根因及定位分系统",
+          "params": null,
+          "result": {
+            "mean_Rw": "",
+            "rootCause": "上片工艺适应性问题",
+            "system": null
+          }
+        }
+      ],
+      "next": []
+    },
+    {
+      "id": 45,
+      "description": "输出正常的Rw的mean值",
+      "details": [
+        {
+          "action": null,
+          "description": "输出正常的Rw的mean值、根因及定位分系统",
+          "params": null,
+          "result": {
+            "mean_Rw": "",
+            "rootCause": "上片旋转异常",
+            "system": "WS与WH分系统"
+          }
+        }
+      ],
+      "next": []
+    },
+    {
+      "id": 50,
+      "description": "汇总上片偏差、上片旋转正常情况",
+      "details": [
+        {
+          "action": null,
+          "description": "检查Tx、Ty、Rw是否全部正常",
+          "params": null,
+          "results": null
+        }
+      ],
+      "next": [
+        {
+          "target": "99",
+          "condition": "{normal_count} == 3"
+        },
+        {
+          "target": "99",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": "99",
+      "description": "需要人工处理",
+      "details": [
+        {
+          "action": null,
+          "description": "前端报需人工处理",
+          "params": null,
+          "results": {
+            "rootCause": "人工处理"
+          }
+        }
+      ],
+      "next": []
+    }
+  ]
+}

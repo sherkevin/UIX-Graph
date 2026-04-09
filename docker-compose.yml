@@ -1,0 +1,46 @@
+# 本地联调：MySQL（与 config/connections.json local.mysql 端口一致）+ ClickHouse
+# 用法：
+#   docker compose up -d
+#   首次启动会自动执行 scripts/init_docker_db.sql（MySQL）
+#   与 scripts/init_clickhouse_local.sql（ClickHouse，见官方镜像 docker-entrypoint-initdb.d）
+#
+# 后端：APP_ENV=local METRIC_SOURCE_MODE=real UIX_ROOT=<仓库根> 启动后调接口 3 验证指标
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: uix-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: datacenter
+    volumes:
+      - ./scripts/init_docker_db.sql:/docker-entrypoint-initdb.d/01-uix-init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: uix-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: root
+    volumes:
+      - ./scripts/init_clickhouse_local.sql:/docker-entrypoint-initdb.d/01-uix-ch.sql:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
