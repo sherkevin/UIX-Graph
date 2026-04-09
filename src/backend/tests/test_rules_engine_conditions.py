@@ -51,33 +51,33 @@ def test_expression_between_without_operator():
 
 def test_boolean_condition_with_and_or():
     assert evaluate_boolean_condition_text(
-        "Coarse Alignment Failed == true AND Mwx out of range,CGG6_check_parameter_ranges == true",
+        "{Coarse Alignment Failed} == true AND {Mwx out of range,CGG6_check_parameter_ranges} == true",
         {
             "Coarse Alignment Failed": True,
             "Mwx out of range,CGG6_check_parameter_ranges": True,
         },
     ) is True
     assert evaluate_boolean_condition_text(
-        "A == true OR B == true",
+        "{A} == true OR {B} == true",
         {"A": False, "B": True},
     ) is True
     assert evaluate_boolean_condition_text(
-        "A == true AND B == true",
+        "{A} == true AND {B} == true",
         {"A": True, "B": False},
     ) is False
 
 
 def test_boolean_condition_with_parentheses():
     assert evaluate_boolean_condition_text(
-        "(A == true AND B == true) OR C == true",
+        "({A} == true AND {B} == true) OR {C} == true",
         {"A": True, "B": True, "C": False},
     ) is True
     assert evaluate_boolean_condition_text(
-        "A == true AND (B == true OR C == true)",
+        "{A} == true AND ({B} == true OR {C} == true)",
         {"A": True, "B": False, "C": True},
     ) is True
     assert evaluate_boolean_condition_text(
-        "A == true AND (B == true OR C == true)",
+        "{A} == true AND ({B} == true OR {C} == true)",
         {"A": False, "B": True, "C": True},
     ) is False
 

@@ -394,7 +394,7 @@
         "Coarse Alignment Failed"
       ],
       "trigger_condition": [
-        "Coarse Alignment Failed == true"
+        "{Coarse Alignment Failed} == true"
       ],
       "start_node": "1"
     }
@@ -418,8 +418,6 @@
         {
           "target": "10",
           "condition": "{Mwx_0} > 1.0001",
-          "operator": ">",
-          "limit": 1.0001,
           "set": {
             "model_type": "88um"
           }
@@ -427,8 +425,6 @@
         {
           "target": "10",
           "condition": "{Mwx_0} < 0.9999",
-          "operator": "<",
-          "limit": 0.9999,
           "set": {
             "model_type": "88um"
           }
@@ -436,11 +432,6 @@
         {
           "target": "11",
           "condition": "1.00002 < {Mwx_0} < 1.0001",
-          "operator": "between",
-          "limit": [
-            1.00002,
-            1.0001
-          ],
           "set": {
             "model_type": "8um"
           }
@@ -448,11 +439,6 @@
         {
           "target": "11",
           "condition": "0.9999 < {Mwx_0} < 0.99998",
-          "operator": "between",
-          "limit": [
-            0.9999,
-            0.99998
-          ],
           "set": {
             "model_type": "8um"
           }
@@ -545,15 +531,11 @@
       "next": [
         {
           "target": "21",
-          "condition": "n_88um≤8",
-          "operator": "≤",
-          "limit": 8
+          "condition": "{n_88um} <= 8"
         },
         {
           "target": "99",
-          "condition": "n_88um>8",
-          "operator": ">",
-          "limit": 8
+          "condition": "{n_88um} > 8"
         }
       ]
     },
@@ -569,12 +551,7 @@
             "23",
             "24"
           ],
-          "condition": "-20<{output_Mw}<20",
-          "operator": "between",
-          "limit": [
-            -20,
-            20
-          ]
+          "condition": "-20 < {output_Mw} < 20"
         },
         {
           "target": "continue_model",
@@ -589,11 +566,11 @@
       "next": [
         {
           "target": "10",
-          "condition": " {model_type} == '88um'"
+          "condition": "{model_type} == '88um'"
         },
         {
           "target": "11",
-          "condition": " {model_type} == '8um'"
+          "condition": "{model_type} == '8um'"
         },
         {
           "target": "10",
@@ -616,12 +593,7 @@
       "next": [
         {
           "target": "221",
-          "condition": "-20<{output_Tx}<20",
-          "operator": "between",
-          "limit": [
-            -20,
-            20
-          ]
+          "condition": "-20 < {output_Tx} < 20"
         },
         {
           "target": "30",
@@ -659,12 +631,7 @@
       "next": [
         {
           "target": "231",
-          "condition": "-20<{output_Ty}<20",
-          "operator": "between",
-          "limit": [
-            -20,
-            20
-          ]
+          "condition": "-20 < {output_Ty} < 20"
         },
         {
           "target": "31",
@@ -702,12 +669,7 @@
       "next": [
         {
           "target": "241",
-          "condition": "-300<{output_Rw}<300",
-          "operator": "between",
-          "limit": [
-            -300,
-            300
-          ]
+          "condition": "-300 < {output_Rw} < 300"
         },
         {
           "target": "32",
@@ -757,12 +719,7 @@
       "next": [
         {
           "target": "41",
-          "condition": "-2<{mean_Tx}<2",
-          "operator": "between",
-          "limit": [
-            -2,
-            2
-          ]
+          "condition": "-2 < {mean_Tx} < 2"
         },
         {
           "target": "40",
@@ -789,12 +746,7 @@
       "next": [
         {
           "target": "43",
-          "condition": "-2<{mean_Ty}<2",
-          "operator": "between",
-          "limit": [
-            -2,
-            2
-          ]
+          "condition": "-2 < {mean_Ty} < 2"
         },
         {
           "target": "42",
@@ -821,12 +773,7 @@
       "next": [
         {
           "target": "45",
-          "condition": "-30<{mean_Rw}<30",
-          "operator": "between",
-          "limit": [
-            -30,
-            30
-          ]
+          "condition": "-30 < {mean_Rw} < 30"
         },
         {
           "target": "44",

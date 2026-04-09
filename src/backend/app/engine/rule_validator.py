@@ -9,7 +9,7 @@ from app.engine.condition_evaluator import (
 )
 
 
-SUPPORTED_OPERATORS = {">", "<", ">=", "<=", "≤", "between", "==", "=", "!="}
+SUPPORTED_OPERATORS = {">", "<", ">=", "<=", "==", "!="}
 
 
 def validate_rules_config(

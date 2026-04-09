@@ -6,8 +6,11 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 
+SUPPORTED_COMPARISON_OPERATORS = {"<", ">", "<=", ">=", "==", "!="}
+
+
 def normalize_condition_text(condition: str) -> str:
-    return (condition or "").strip().replace("≤", "<=").replace("≥", ">=")
+    return (condition or "").strip()
 
 
 def parse_condition_literal(token: str) -> Any:
@@ -25,7 +28,7 @@ def parse_condition_literal(token: str) -> Any:
             return raw[1:-1]
 
     try:
-        if "." in raw:
+        if any(ch in raw for ch in (".", "e", "E")):
             return float(raw)
         return int(raw)
     except ValueError:
@@ -76,8 +79,21 @@ def _collect_vars_from_boolean_expr(expr: str) -> List[str]:
                     result.append(var_name)
         return result
     signature = parse_condition_signature(text_expr)
-    var_name = signature.get("var") if signature else None
-    return [str(var_name)] if isinstance(var_name, str) else []
+    if not signature:
+        return []
+    if signature.get("type") == "range":
+        var_name = signature.get("var")
+        return [str(var_name)] if isinstance(var_name, str) else []
+    if signature.get("type") == "comparison":
+        vars_found: List[str] = []
+        left_var = signature.get("var")
+        right_var = signature.get("rhs_var")
+        if isinstance(left_var, str):
+            vars_found.append(left_var)
+        if isinstance(right_var, str) and right_var not in vars_found:
+            vars_found.append(right_var)
+        return vars_found
+    return []
 
 
 def _strip_outer_parentheses(expr: str) -> str:
@@ -105,7 +121,6 @@ def _split_top_level_boolean(expr: str, op: str) -> List[str]:
     depth = 0
     i = 0
     op_text = f" {op} "
-    upper_expr = expr.upper()
     while i < len(expr):
         ch = expr[i]
         if ch == "(":
@@ -118,7 +133,7 @@ def _split_top_level_boolean(expr: str, op: str) -> List[str]:
             buf.append(ch)
             i += 1
             continue
-        if depth == 0 and upper_expr[i:i + len(op_text)] == op_text:
+        if depth == 0 and expr[i:i + len(op_text)] == op_text:
             part = "".join(buf).strip()
             if part:
                 parts.append(part)
@@ -134,29 +149,28 @@ def _split_top_level_boolean(expr: str, op: str) -> List[str]:
 
 
 def eval_comparison(left: Any, operator: str, right: Any) -> bool:
-    normalized_op = "==" if operator == "=" else operator
     try:
         left_num = float(left)
         right_num = float(right)
-        if normalized_op == "==":
+        if operator == "==":
             return abs(left_num - right_num) < 1e-9
-        if normalized_op == "!=":
+        if operator == "!=":
             return abs(left_num - right_num) >= 1e-9
-        if normalized_op == "<":
+        if operator == "<":
             return left_num < right_num
-        if normalized_op == "<=":
+        if operator == "<=":
             return left_num <= right_num
-        if normalized_op == ">":
+        if operator == ">":
             return left_num > right_num
-        if normalized_op == ">=":
+        if operator == ">=":
             return left_num >= right_num
         return False
     except (TypeError, ValueError):
         left_str = str(left)
         right_str = str(right)
-        if normalized_op == "==":
+        if operator == "==":
             return left_str == right_str
-        if normalized_op == "!=":
+        if operator == "!=":
             return left_str != right_str
         return False
 
@@ -175,30 +189,36 @@ def parse_condition_signature(condition: str) -> Optional[Dict[str, Any]]:
     if expr == "else":
         return {"type": "else"}
 
+    if re.search(r"\b(?:and|or)\b", expr):
+        return None
+
     range_match = re.match(
-        r"^\s*(-?\d+(?:\.\d+)?)\s*<\s*(?:\{([^}]+)\}|(.+?))\s*<\s*(-?\d+(?:\.\d+)?)\s*$",
+        r"^\s*(-?\d+(?:\.\d+)?)\s*<\s*\{([^}]+)\}\s*<\s*(-?\d+(?:\.\d+)?)\s*$",
         expr,
     )
     if range_match:
-        var_name = (range_match.group(2) or range_match.group(3) or "").strip()
+        var_name = (range_match.group(2) or "").strip()
         return {
             "type": "range",
             "var": var_name,
             "operator": "between",
-            "limit": [float(range_match.group(1)), float(range_match.group(4))],
+            "limit": [float(range_match.group(1)), float(range_match.group(3))],
         }
 
     compare_match = re.match(
-        r"^\s*(?:\{([^}]+)\}|(.+?))\s*(==|=|!=|<=|>=|<|>)\s*(.+)\s*$",
+        r"^\s*\{([^}]+)\}\s*(==|!=|<=|>=|<|>)\s*(.+)\s*$",
         expr,
     )
     if compare_match:
-        var_name = (compare_match.group(1) or compare_match.group(2) or "").strip()
+        var_name = (compare_match.group(1) or "").strip()
+        rhs_token = compare_match.group(3).strip()
+        rhs_var_match = re.match(r"^\{([^}]+)\}$", rhs_token)
         return {
             "type": "comparison",
             "var": var_name,
-            "operator": compare_match.group(3),
-            "rhs": parse_condition_literal(compare_match.group(4).strip()),
+            "operator": compare_match.group(2),
+            "rhs": parse_condition_literal(rhs_token) if rhs_var_match is None else None,
+            "rhs_var": rhs_var_match.group(1).strip() if rhs_var_match else None,
         }
     return None
 
@@ -233,10 +253,13 @@ def evaluate_condition_text(
     if sig_type == "comparison":
         var_name = signature["var"]
         operator = signature["operator"]
-        rhs_value = signature["rhs"]
+        rhs_var_name = signature.get("rhs_var")
+        rhs_value = context.get(rhs_var_name) if rhs_var_name else signature.get("rhs")
         left_value = context.get(var_name)
         if left_value is None:
             return False, var_name, operator, rhs_value, None
+        if rhs_var_name and rhs_value is None:
+            return False, var_name, operator, rhs_var_name, left_value
         return (
             eval_comparison(left_value, operator, rhs_value),
             var_name,
@@ -295,6 +318,8 @@ def _validate_boolean_expr(expr: str) -> bool:
         return True
     if _has_invalid_parentheses(text_expr):
         return False
+    if re.search(r"\b(?:and|or)\b", text_expr):
+        return False
     or_parts = _split_top_level_boolean(text_expr, "OR")
     if len(or_parts) > 1:
         return all(_validate_boolean_expr(part) for part in or_parts)
@@ -323,7 +348,12 @@ def validate_condition_definition(condition: Any) -> bool:
         return False
     if "compare" in condition and isinstance(condition["compare"], dict):
         spec = condition["compare"]
-        return bool(spec.get("left")) and bool(spec.get("operator", spec.get("op"))) and "right" in spec
+        operator = str(spec.get("operator", spec.get("op", ""))).strip()
+        return (
+            bool(spec.get("left"))
+            and operator in SUPPORTED_COMPARISON_OPERATORS
+            and "right" in spec
+        )
     if "all_of" in condition:
         items = condition.get("all_of", []) or []
         return bool(items) and all(validate_condition_definition(item) for item in items)
