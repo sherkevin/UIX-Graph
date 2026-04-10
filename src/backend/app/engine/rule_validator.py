@@ -1,20 +1,54 @@
 """
 诊断 steps / scenes 静态校验器
 """
-from typing import Any, Callable, Dict, List, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from app.engine.condition_evaluator import (
     _extract_vars_from_definition,
+    extract_condition_vars,
     validate_condition_definition,
 )
 
 
-SUPPORTED_OPERATORS = {">", "<", ">=", "<=", "==", "!="}
+def _pipeline_allowed_var_names(
+    metrics: Dict[str, Any],
+    scenes: List[Any],
+    steps: List[Any],
+) -> Set[str]:
+    """Phase A：condition 中出现的变量须落在此集合（metrics 键 ∪ scene/step metric_id ∪ 分支 set 键）。"""
+    names: Set[str] = set(metrics.keys())
+    for scene in scenes:
+        mids = scene.get("metric_id") or []
+        if isinstance(mids, str):
+            mids = [mids]
+        if isinstance(mids, list):
+            for mid in mids:
+                names.add(str(mid))
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        mid = step.get("metric_id")
+        if mid:
+            names.add(str(mid))
+        for item in step.get("details") or []:
+            if not isinstance(item, dict):
+                continue
+            res = item.get("results")
+            if isinstance(res, dict):
+                names.update(str(k) for k in res.keys())
+        for br in step.get("next") or []:
+            if not isinstance(br, dict):
+                continue
+            st = br.get("set")
+            if isinstance(st, dict):
+                names.update(str(k) for k in st.keys())
+    return names
 
 
 def validate_rules_config(
     rules_data: Dict[str, Any],
     action_exists: Callable[[str], bool],
+    metrics: Optional[Dict[str, Any]] = None,
 ) -> List[str]:
     """
     返回错误列表；空列表表示通过。
@@ -31,6 +65,10 @@ def validate_rules_config(
         errors.append("steps 存在重复 id")
 
     step_id_set: Set[str] = set(step_ids)
+
+    allowed_pipeline_vars: Optional[Set[str]] = None
+    if metrics is not None and isinstance(metrics, dict):
+        allowed_pipeline_vars = _pipeline_allowed_var_names(metrics, scenes, steps)
 
     for scene in scenes:
         scene_id = scene.get("id")
@@ -103,22 +141,39 @@ def validate_rules_config(
                     errors.append(f"step({sid}) next[{idx}] target 不存在: {target}")
 
             condition = branch.get("condition")
-            operator = (branch.get("operator") or "").strip()
-            limit = branch.get("limit")
+            operator_raw = branch.get("operator")
+            limit_raw = branch.get("limit")
+
+            if operator_raw is not None and str(operator_raw).strip():
+                errors.append(
+                    f"step({sid}) next[{idx}] 已废弃 operator 字段，请在 condition 中写比较或区间表达式"
+                    "（见 docs/stage3/rules_execution_spec.md）"
+                )
+            if limit_raw is not None:
+                errors.append(
+                    f"step({sid}) next[{idx}] 已废弃 limit 字段，请在 condition 中写比较或区间表达式"
+                )
 
             if condition == "else":
                 continue
 
-            if operator:
-                if operator not in SUPPORTED_OPERATORS:
-                    errors.append(f"step({sid}) next[{idx}] operator 不支持: {operator}")
-                if operator != "else" and limit is None:
-                    errors.append(f"step({sid}) next[{idx}] operator={operator} 缺少 limit")
+            if condition is None or (isinstance(condition, str) and not str(condition).strip()):
                 continue
 
-            # 无 operator 的条件必须可解析（空串代表无条件跳转）
-            if condition:
-                if not validate_condition_definition(condition):
-                    errors.append(f"step({sid}) next[{idx}] condition 无法解析: {condition}")
+            if not validate_condition_definition(condition):
+                errors.append(f"step({sid}) next[{idx}] condition 无法解析: {condition}")
+                continue
+
+            if allowed_pipeline_vars is not None:
+                if isinstance(condition, str):
+                    used_names = extract_condition_vars(condition)
+                else:
+                    used_names = _extract_vars_from_definition(condition)
+                for vn in used_names:
+                    if vn not in allowed_pipeline_vars:
+                        errors.append(
+                            f"step({sid}) next[{idx}] condition 引用未知变量 {vn!r}"
+                            "（须为 metrics 键、某 step.metric_id、scene.metric_id 或某分支 set 键）"
+                        )
 
     return errors

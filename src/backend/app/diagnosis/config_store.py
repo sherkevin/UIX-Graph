@@ -166,6 +166,7 @@ class DiagnosisConfigStore:
         validation_errors = validate_rules_config(
             {"diagnosis_scenes": scenes, "steps": steps},
             action_exists=has_action,
+            metrics=metrics,
         )
         if validation_errors:
             raise ValueError(

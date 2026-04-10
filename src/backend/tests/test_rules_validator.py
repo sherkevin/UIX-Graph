@@ -22,6 +22,7 @@ def test_current_rules_config_is_valid():
             "steps": data.get("steps", []),
         },
         action_exists=has_action,
+        metrics=data.get("metrics", {}),
     )
     assert errors == []
 
@@ -57,19 +58,20 @@ def test_validator_detects_unparseable_condition():
     assert any("condition 无法解析" in e for e in errors)
 
 
-def test_validator_detects_unsupported_operator():
+def test_validator_rejects_deprecated_operator_limit_on_next():
     data = {
         "diagnosis_scenes": [{"id": 1, "start_node": "1"}],
         "steps": [
             {
                 "id": 1,
                 "details": [],
-                "next": [{"target": "1", "condition": "{x} ~~ 1", "operator": "~~", "limit": 1}],
+                "next": [{"target": "1", "condition": "{x} > 1", "operator": ">", "limit": 1}],
             }
         ],
     }
     errors = validate_rules_config(data, action_exists=has_action)
-    assert any("operator 不支持" in e for e in errors)
+    assert any("已废弃 operator" in e for e in errors)
+    assert any("已废弃 limit" in e for e in errors)
 
 
 def test_validator_detects_invalid_trigger_condition():
@@ -126,12 +128,59 @@ def test_validator_accepts_structured_conditions():
     assert errors == []
 
 
+def test_validator_detects_unknown_var_in_next_when_metrics_provided():
+    data = {
+        "diagnosis_scenes": [{"id": 1, "start_node": "1"}],
+        "steps": [
+            {
+                "id": 1,
+                "details": [],
+                "next": [{"target": "1", "condition": "{ghost_metric} == 1"}],
+            },
+        ],
+    }
+    errors = validate_rules_config(
+        data,
+        action_exists=has_action,
+        metrics={"only_real": {}},
+    )
+    assert any("未知变量" in e and "ghost_metric" in e for e in errors)
+
+
+def test_validator_accepts_next_var_from_branch_set_key():
+    """Phase A：分支 set 注入的键名视为合法变量名。"""
+    data = {
+        "diagnosis_scenes": [{"id": 1, "start_node": "1"}],
+        "steps": [
+            {
+                "id": 1,
+                "details": [],
+                "next": [
+                    {
+                        "target": "1",
+                        "condition": "{injected} == 1",
+                        "set": {"injected": "x"},
+                    },
+                ],
+            },
+        ],
+    }
+    errors = validate_rules_config(
+        data,
+        action_exists=has_action,
+        metrics={},
+    )
+    assert errors == []
+
+
 if __name__ == "__main__":
     test_current_rules_config_is_valid()
     test_validator_detects_missing_action_and_target()
     test_validator_detects_unparseable_condition()
-    test_validator_detects_unsupported_operator()
+    test_validator_rejects_deprecated_operator_limit_on_next()
     test_validator_detects_invalid_trigger_condition()
     test_validator_detects_trigger_metric_not_declared()
     test_validator_accepts_structured_conditions()
+    test_validator_detects_unknown_var_in_next_when_metrics_provided()
+    test_validator_accepts_next_var_from_branch_set_key()
     print("OK: test_rules_validator")

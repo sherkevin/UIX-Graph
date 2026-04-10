@@ -83,6 +83,9 @@ class RuleLoader:
             params = self.get_step_params(step)
             for param_name in params.keys():
                 metric_ids.add(param_name)
+            for raw_value in params.values():
+                for var_name in _extract_vars_from_definition(raw_value):
+                    metric_ids.add(var_name)
 
             # 收集 details 中的输出 results（新格式建模步骤的输出指标）
             output_results = self.get_step_output_results(step)

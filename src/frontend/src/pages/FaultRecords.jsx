@@ -24,6 +24,7 @@ const mixedSort = (a, b) => {
 }
 
 const formatMetricValue = (value) => {
+  if (value === null || value === undefined || value === '') return '-'
   const n = Number(value)
   if (!Number.isFinite(n)) return '-'
   if (Number.isInteger(n)) return String(n)
@@ -446,7 +447,7 @@ const FaultRecords = () => {
       key: 'status',
       width: 90,
       render: (status) => (
-        <Tag color={status === 'ABNORMAL' ? 'red' : 'green'}>
+        <Tag color={status === 'ABNORMAL' ? 'red' : status === 'UNKNOWN' ? 'default' : 'green'}>
           {status}
         </Tag>
       ),
@@ -664,9 +665,9 @@ const FaultRecords = () => {
             <Col span={8}><strong>分系统：</strong>{detailData?.system || '-'}</Col>
             <Col span={8}>
               <strong>诊断指标数：</strong>{detailData?.metricsMeta?.metricDiagnosticTotal ?? metricTotal}
-              {(detailData?.metricsMeta?.metricModelParamTotal ?? 0) > 0 && (
+              {((detailData?.metricsMeta?.metricModelParamTotal ?? 0) > 0 || (detailData?.metrics || []).some(m => m.type === 'model_param')) && (
                 <span style={{ color: '#888', fontWeight: 400, marginLeft: 6 }}>
-                  （建模参数 {detailData.metricsMeta.metricModelParamTotal} 项，见下方折叠区）
+                  （建模参数 {detailData?.metricsMeta?.metricModelParamTotal ?? (detailData?.metrics || []).filter(m => m.type === 'model_param').length} 项，见下方折叠区）
                 </span>
               )}
             </Col>
@@ -691,7 +692,7 @@ const FaultRecords = () => {
         />
 
         {/* 建模参数：仅作为模型输入，无阈值判断，折叠展示 */}
-        {(detailData?.metrics || []).some(m => m.type === 'model_param') && (
+        {((detailData?.metricsMeta?.metricModelParamTotal ?? 0) > 0 || (detailData?.metrics || []).some(m => m.type === 'model_param')) && (
           <details style={{ marginTop: 12 }}>
             <summary style={{
               cursor: 'pointer',
@@ -700,7 +701,7 @@ const FaultRecords = () => {
               userSelect: 'none',
               padding: '4px 0',
             }}>
-              建模参数（{(detailData?.metrics || []).filter(m => m.type === 'model_param').length} 项，仅供参考，无阈值判断）
+              建模参数（{detailData?.metricsMeta?.metricModelParamTotal ?? (detailData?.metrics || []).filter(m => m.type === 'model_param').length} 项，仅供参考，无阈值判断）
             </summary>
             <div style={{
               display: 'flex',
@@ -717,10 +718,13 @@ const FaultRecords = () => {
                 .map(m => (
                   <span key={m.name} style={{ fontSize: 13, color: '#555', whiteSpace: 'nowrap' }}>
                     <span style={{ color: '#888' }}>{m.name}：</span>
-                    <span>{m.approximate ? '~' : ''}{Number(m.value).toFixed(3)}{m.unit ? ' ' + m.unit : ''}</span>
+                    <span>{m.approximate ? '~' : ''}{formatMetricValue(m.value)}{m.unit ? ' ' + m.unit : ''}</span>
                   </span>
                 ))
               }
+              {!(detailData?.metrics || []).some(m => m.type === 'model_param') && (
+                <span style={{ fontSize: 13, color: '#999' }}>本次返回未附带建模参数明细，请检查后端取数日志。</span>
+              )}
             </div>
           </details>
         )}

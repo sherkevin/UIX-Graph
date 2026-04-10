@@ -31,19 +31,21 @@
 
 "mark_pos_x":
   notes:
-    - "clickhouse.src.RPT_WAA_SET_OFL.列mark_id ws_pos_x ws_pos_y"
+    - "业务最新口径：clickhouse.src.RPT_WAA_SET_OFL"
+    - "当前结构化配置按业务最新口径已将表名从 src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA 切到 src.RPT_WAA_SET_OFL"
 
 "mark_pos_y":
   notes:
-    - "clickhouse.src.RPT_WAA_SET_OFL.列mark_id ws_pos_x ws_pos_y"
+    - "业务最新口径：clickhouse.src.RPT_WAA_SET_OFL"
+    - "当前结构化配置按业务最新口径已将表名从 src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA 切到 src.RPT_WAA_SET_OFL"
 
 "Msx":
   notes:
-    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列ms_x"
+    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列ms_x（当前结构化配置已对齐为小写列名）"
 
 "Msy":
   notes:
-    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列ms_y"
+    - "clickhouse.src.RPT_WAA_SA_RESULT_OFL.列ms_y（当前结构化配置已对齐为小写列名）"
 
 "e_ws_x":
   notes:
@@ -55,11 +57,13 @@
 
 "Sx":
   notes:
-    - "mysql.datacenter.mc_config_commits_history.data列.chuck_message[1]"
+    - "mysql.datacenter.mc_config_commits_history.data"
+    - "当前结构化配置时间列使用 last_modify_date"
 
 "Sy":
   notes:
-    - "mysql.datacenter.mc_config_commits_history.data列.chuck_message[1]"
+    - "mysql.datacenter.mc_config_commits_history.data"
+    - "当前结构化配置时间列使用 last_modify_date"
 
 "动态上片偏差":
   notes:

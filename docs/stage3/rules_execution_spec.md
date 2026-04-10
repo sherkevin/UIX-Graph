@@ -1,7 +1,11 @@
 # reject_errors.diagnosis.json 执行规范（后端实现契约）
 
-文档版本: 1.0  
+文档版本: 1.2  
 适用范围: `config/reject_errors.diagnosis.json` + `src/backend/app/engine/diagnosis_engine.py`
+
+**v1.1**：`next` 分支仅支持 **condition 表达式**（与 Python 式比较、区间写法一致）；**不再**使用 JSON 上的 `operator` / `limit` 字段（启动期校验会报错）。
+
+**v1.2**：布尔连接词 **`AND` / `OR` 大小写不敏感**（仍须 **两侧空格**，如 ` and `）；加载 pipeline 时对 `next.condition` 做 **变量名可达性（Phase A）** 校验（见 §5.1）。
 
 ---
 
@@ -13,7 +17,7 @@
 
 ## 2. Step 结构定义
 
-以示例节点为例：
+以示例节点为例（区间条件写在 **一条 `condition` 字符串** 中，中间变量用 `{name}`）：
 
 ```json
 {
@@ -30,9 +34,7 @@
   "next": [
     {
       "target": "45",
-      "condition": "-300<{mean_Rw}<300",
-      "operator": "between",
-      "limit": [-300, 300]
+      "condition": "-300 < {mean_Rw} < 300"
     },
     {
       "target": "44",
@@ -73,11 +75,14 @@
 7. **`target` 是下一跳 step id**  
    引擎将 `target` 作为下一个要执行的 step。
 
-8. **`condition` 中 `{}` 是变量引用**  
-   例如 `-300<{mean_Rw}<300` 中 `{mean_Rw}` 表示从当前上下文取变量 `mean_Rw`。
-   - 支持两种写法：  
-     - 结构化写法：`operator + limit`（推荐）  
-     - 表达式写法：仅 `condition`（如 `{model_type} == '88um'`、`{normal_count}==3`）
+8. **`condition` 表达式（唯一约定）**  
+   - **变量**必须写在花括号内：`{mean_Rw}`、`{model_type}`（名称中可含空格、逗号等，与指标 id 一致）。  
+   - **单比较**：`{Mwx_0} > 1.0001`、`{n_88um} <= 8`、`{model_type} == '88um'`。  
+     支持的比较运算符与校验器一致：**`>` `<` `>=` `<=` `==` `!=`**（不使用单独一个 `=` 作为等于号）。  
+   - **开区间（两常数夹变量）**：`-300 < {mean_Rw} < 300`；语义为左界 **严格小于** 变量 **严格小于** 右界（与引擎 `condition_evaluator` 一致）。  
+   - **布尔组合**（场景触发等）：子句用 **` AND ` / ` OR `（两侧须有空格）** 连接；**大小写不敏感**（`and`/`or`/`And` 等与 `AND`/`OR` 等价），如 `{A} == true and {B} == true`。  
+   - **结构化条件**（可选）：仍支持 JSON 对象形式的 `compare` / `all_of` / `any_of` / `not`（见 `condition_evaluator.validate_condition_definition`），用于复杂组合；`next` 上以字符串条件为主。  
+   - **`next` 上禁止**再写 **`operator`**、**`limit`** 字段；区间、比较一律只写在 `condition` 中。
 
 9. **`next` 为空即叶子**  
    当 `next: []` 或缺省且无后继时，节点视为终止节点；若同时具备 `result`/`results`（含 `rootCause`），则作为归因输出。
@@ -88,6 +93,8 @@
 
 - 规则加载: `src/backend/app/engine/rule_loader.py`
 - 决策执行: `src/backend/app/engine/diagnosis_engine.py`
+- 条件解析/求值: `src/backend/app/engine/condition_evaluator.py`
+- 启动期校验: `src/backend/app/engine/rule_validator.py`
 - action 注册/调用: `src/backend/app/engine/actions/__init__.py`
 - 内置动作: `src/backend/app/engine/actions/builtin.py`
 
@@ -102,14 +109,16 @@
 
 ## 5.1 启动期静态校验
 
-`RuleLoader` 在加载 `rules.json` 时会执行静态校验（默认严格模式）：
+`DiagnosisConfigStore` 加载 pipeline 时会执行静态校验（失败则服务无法启动）：
 
 - step id 唯一性
 - scene 的 `start_node` 必须存在
 - `next.target` 必须指向存在的 step
 - `action` 必须已注册
-- `condition` 表达式必须可解析
-- `operator` 必须在支持列表中且配置完整
+- `next` 上 **不得** 出现非空的 **`operator`** 或任意 **`limit`** 键（已废弃）
+- `condition` 必须可被解析（字符串布尔式、单比较、区间、或结构化字典）
+- 场景 `trigger_condition` 中引用的变量必须出现在对应 `metric_id` 中
+- **Phase A（变量名）**：加载时传入 `metrics` 映射后，`next.condition` 中出现的 **`{var}` 名称** 须属于 **`metrics` 键 ∪ 任意 step 的 `metric_id` ∪ 任意 scene 的 `metric_id` ∪ 任意分支 `set` 的键 ∪ 任意 `details[].results` 声明的键**（仍无法保证与 action 实际返回值完全一致，属保守校验）
 
 校验失败时会阻止服务启动，避免错误规则在运行时触发不可控行为。
 
@@ -121,7 +130,7 @@
 - 每个非叶子 step 建议提供 `else`，保证异常输入可回退。
 - `details.results` 与 action 返回字段需保持一致，避免下游条件引用不到变量。
 - 条件中使用的变量名必须在上下文可解析（原始指标、action 输出、分支 `set` 注入）。
-- 新增规则时优先使用 `operator + limit`，便于静态校验；表达式写法用于兼容历史配置。
+- **新增/修改规则时只改 `condition` 字符串**，保持与 `condition_evaluator` 支持的语法一致；勿再添加 `operator`/`limit`。
 
 ---
 
@@ -132,7 +141,6 @@
 1) 执行 `calculate_monthly_mean_Rw(Rw)`  
 2) 函数返回 `{"mean_Rw": ...}`，写入上下文  
 3) 独立评估 `next`：  
-- 若 `mean_Rw` 在 `(-300, 300)` -> 跳到 `45`  
+- 若 `mean_Rw` 满足 `-300 < mean_Rw < 300` -> 跳到 `45`  
 - 否则 -> 跳到 `44`  
 4) 仅会进入一个目标节点
-

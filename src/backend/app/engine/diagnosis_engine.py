@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
 from app.engine.rule_loader import RuleLoader
-from app.engine.metric_fetcher import MetricFetcher, DEFAULT_FALLBACK_WINDOW_MINUTES
+from app.engine.metric_fetcher import MetricFetcher, DEFAULT_FALLBACK_WINDOW_DAYS
 from app.engine.actions import call_action
 from app.engine.condition_evaluator import (
     evaluate_boolean_condition_definition,
@@ -30,6 +30,12 @@ from app.engine.condition_evaluator import (
 )
 
 logger = logging.getLogger(__name__)
+
+# _evaluate_branches 第三返回值：供日志区分「规则冲突」与「无匹配」
+BRANCH_OUTCOME_MATCHED_ONE = "matched_one"
+BRANCH_OUTCOME_MATCHED_ELSE = "matched_else"
+BRANCH_OUTCOME_NO_MATCH_NO_ELSE = "no_match_no_else"
+BRANCH_OUTCOME_CONFLICT_NO_ELSE = "conflict_no_else"
 
 
 class DiagnosisResult:
@@ -76,14 +82,14 @@ class DiagnosisEngine:
 
     def __init__(
         self,
-        time_window_minutes: int = DEFAULT_FALLBACK_WINDOW_MINUTES,
+        time_window_days: int = DEFAULT_FALLBACK_WINDOW_DAYS,
         pipeline_id: str = "reject_errors",
     ):
         """
         Args:
-            time_window_minutes: 指标未配置 duration 时的回退窗口（分钟），默认 5
+            time_window_days: 指标未配置 duration 时的回退窗口（天），默认 7
         """
-        self.time_window_minutes = time_window_minutes
+        self.time_window_days = time_window_days
         self.pipeline_id = pipeline_id
         self.rule_loader = RuleLoader(pipeline_id=pipeline_id)
         # 最近一次诊断用到的 MetricFetcher 实例，service 层读取 source_log 用
@@ -125,7 +131,7 @@ class DiagnosisEngine:
             equipment=source_record.get("equipment", ""),
             reference_time=ref,
             chuck_id=source_record.get("chuck_id"),
-            fallback_duration_minutes=self.time_window_minutes,
+            fallback_duration_days=self.time_window_days,
             pipeline_id=self.pipeline_id,
             params=params,
             source_record=source_record,
@@ -183,7 +189,7 @@ class DiagnosisEngine:
             result.confidence = int(leaf_result.get("confidence") or (85 if result.is_diagnosed else 0))
 
         # 防御性兜底：如果有 rootCause 但 system 为空，赋默认值
-        if result.root_cause and not result.system:
+        if result.root_cause and not result.system and result.root_cause != "人工处理":
             result.system = "待确认"
             logger.warning(
                 "诊断到 rootCause=%s 但 system 为空，使用默认值",
@@ -305,12 +311,23 @@ class DiagnosisEngine:
                 break
 
             # 评估分支条件，返回 (next_node, chosen_branch)
-            next_node, chosen_branch = self._evaluate_branches(
+            next_node, chosen_branch, branch_outcome = self._evaluate_branches(
                 step, next_branches, context, abnormal_metrics
             )
 
             if next_node is None:
-                logger.warning("步骤 %s 所有分支均不满足", current_node)
+                if branch_outcome == BRANCH_OUTCOME_CONFLICT_NO_ELSE:
+                    logger.error(
+                        "步骤 %s 多个 next 同时命中且无 else 分支，诊断中断",
+                        current_node,
+                    )
+                elif branch_outcome == BRANCH_OUTCOME_NO_MATCH_NO_ELSE:
+                    logger.warning(
+                        "步骤 %s 无分支命中且无 else，诊断中断",
+                        current_node,
+                    )
+                else:
+                    logger.warning("步骤 %s 无法选择 next 分支，诊断中断", current_node)
                 break
 
             # 将 branch 的 set 字段注入 context（如 model_type）
@@ -423,9 +440,9 @@ class DiagnosisEngine:
         branches: List[Dict[str, Any]],
         context: Dict[str, Any],
         abnormal_metrics: List[str],
-    ) -> Tuple[Optional[Any], Optional[Dict]]:
+    ) -> Tuple[Optional[Any], Optional[Dict], str]:
         """
-        评估步骤的分支条件，返回 (next_node_id, chosen_branch)。
+        评估步骤的分支条件，返回 (next_node_id, chosen_branch, outcome)。
 
         变量查找规则（优先级从高到低）：
           1. condition 字符串中的 {var_name}
@@ -439,7 +456,7 @@ class DiagnosisEngine:
             abnormal_metrics: 异常指标列表（会被修改）
 
         Returns:
-            (next_node_id, chosen_branch_dict) 或 (None, None)
+            (next_node_id, chosen_branch_dict, outcome)；outcome 见模块常量 BRANCH_OUTCOME_*。
         """
         metric_id = step.get("metric_id")
         else_branch = None
@@ -447,36 +464,31 @@ class DiagnosisEngine:
         matched_branches: List[Tuple[Any, Dict[str, Any], Optional[str], str, Any, Any]] = []
 
         for branch in branches:
-            condition = branch.get("condition", "")
-            operator = branch.get("operator", "")
-            limit = branch.get("limit")
+            condition = branch.get("condition")
             target = branch.get("target")
 
-            # else 分支留到最后
-            if condition == "else" or (not operator and not condition):
+            # else / 无条件回退：与 rule_validator 约定一致（仅 condition，不用 operator/limit）
+            if condition == "else" or condition is None or (
+                isinstance(condition, str) and not str(condition).strip()
+            ):
                 else_branch = target
                 else_branch_obj = branch
                 continue
 
-            # 优先从 condition 字符串提取变量名，回退到 metric_id
+            matched, parsed_var, parsed_operator, parsed_limit, parsed_value = evaluate_condition_definition(
+                condition, context, metric_id
+            )
             var_name = self._extract_condition_var(condition) or metric_id
+            operator = ""
+            limit: Any = None
             value = context.get(var_name) if var_name else None
-
-            if operator:
-                if value is None:
-                    continue
-                matched = self._eval_condition(value, operator, limit)
-            else:
-                matched, parsed_var, parsed_operator, parsed_limit, parsed_value = evaluate_condition_definition(
-                    condition, context, metric_id
-                )
-                if parsed_var:
-                    var_name = parsed_var
-                if parsed_operator:
-                    operator = parsed_operator
-                    limit = parsed_limit
-                if parsed_value is not None:
-                    value = parsed_value
+            if parsed_var:
+                var_name = parsed_var
+            if parsed_operator:
+                operator = parsed_operator
+                limit = parsed_limit
+            if parsed_value is not None:
+                value = parsed_value
 
             if matched:
                 matched_branches.append((target, branch, var_name, operator, limit, value))
@@ -486,7 +498,7 @@ class DiagnosisEngine:
             target, branch, var_name, operator, limit, value = matched_branches[0]
             if var_name and self._is_abnormal_branch(operator, limit, value):
                 abnormal_metrics.append(var_name)
-            return target, branch
+            return target, branch, BRANCH_OUTCOME_MATCHED_ONE
 
         # 若命中多条，说明规则配置冲突（不依赖 next 顺序），中断并回退到 else（若存在）
         if len(matched_branches) > 1:
@@ -497,59 +509,46 @@ class DiagnosisEngine:
                 ",".join(matched_targets),
             )
             if else_branch is not None:
-                return else_branch, else_branch_obj
-            return None, None
+                return else_branch, else_branch_obj, BRANCH_OUTCOME_MATCHED_ELSE
+            return None, None, BRANCH_OUTCOME_CONFLICT_NO_ELSE
 
         # 所有条件都不满足，走 else
         if else_branch is not None:
-            return else_branch, else_branch_obj
+            return else_branch, else_branch_obj, BRANCH_OUTCOME_MATCHED_ELSE
 
-        return None, None
-
-    def _eval_condition(
-        self, value: float, operator: str, limit: Any
-    ) -> bool:
-        """评估单个条件"""
-        try:
-            if operator == ">":
-                return value > float(limit)
-            elif operator == "<":
-                return value < float(limit)
-            elif operator == ">=":
-                return value >= float(limit)
-            elif operator == "<=":
-                return value <= float(limit)
-            elif operator == "between":
-                if isinstance(limit, list) and len(limit) == 2:
-                    return float(limit[0]) < value < float(limit[1])
-            elif operator == "==" or operator == "=":
-                return abs(value - float(limit)) < 1e-9
-            else:
-                logger.warning("未知操作符: %s", operator)
-                return False
-        except (TypeError, ValueError) as e:
-            logger.warning("条件评估失败: value=%s, op=%s, limit=%s, error=%s", value, operator, limit, e)
-            return False
+        return None, None, BRANCH_OUTCOME_NO_MATCH_NO_ELSE
 
     def _is_abnormal_branch(
         self, operator: str, limit: Any, value: float
     ) -> bool:
         """
-        判断当前分支是否代表"异常"路径
+        判断当前「已命中」的分支是否应把主变量记入 abnormal_metrics（接口展示启发式）。
 
-        简单启发式：如果条件是极端值比较，视为异常。
+        - between：落在区间内，通常视为正常路径 → 非异常。
+        - >、<、>=、<=：越界类比较，命中多为异常分支 → 异常。
+        - !=：与期望值不等，命中视为异常。
+        - ==：多用于路由（如 model_type），命中不代表指标异常 → 非异常。
         """
-        # between 条件通常是正常范围
         if operator == "between":
             return False
-        # > 或 < 极限值通常是异常
         if operator in (">", "<", ">=", "<="):
+            return True
+        if operator == "!=":
             return True
         return False
 
     # ── 构建指标列表 ────────────────────────────────────────────────────────
 
     # 场景触发条件识别字段：仅用于判断是否进入诊断场景，不作为诊断指标展示
+    @staticmethod
+    def _normalize_metric_display_value(value: Any) -> Any:
+        if isinstance(value, list):
+            for item in value:
+                if item is not None:
+                    return item
+            return None
+        return value
+
     def _build_metrics_list(
         self,
         metric_ids: List[str],
@@ -563,8 +562,7 @@ class DiagnosisEngine:
 
         排除规则：
         1. 场景触发条件识别字段（_SCENE_TRIGGER_FIELDS）：仅用于触发诊断，不展示
-        2. 无实际值的指标：值为 None 则跳过
-        3. 不在 pipeline metrics 中的指标：无元数据则跳过
+        2. 不在 pipeline metrics 中的指标：无元数据则跳过
 
         Args:
             metric_ids: 指标 ID 列表
@@ -580,12 +578,11 @@ class DiagnosisEngine:
             meta = self.rule_loader.get_metric_meta(mid)
             if meta is None:
                 continue
-            if meta.get("role") == "trigger_only":
+            if meta.get("role") in {"trigger_only", "internal"}:
                 continue
 
             value = metric_values.get(mid)
-            if value is None:
-                continue
+            value = self._normalize_metric_display_value(value)
 
             unit = meta.get("unit", "") or ""
 
@@ -595,9 +592,9 @@ class DiagnosisEngine:
             # 有阈值 → 诊断指标；无阈值 → 建模输入参数
             metric_type = "diagnostic" if threshold_info else "model_param"
 
-            # 判定 status（仅诊断指标才有意义）
-            status = "NORMAL"
-            if threshold_info:
+            # 缺值时也保留该指标，避免详情页把建模参数/诊断项直接“吃掉”。
+            status = "UNKNOWN" if value is None else "NORMAL"
+            if threshold_info and value is not None:
                 op = threshold_info["operator"]
                 limit_val = threshold_info["limit"]
                 if not self._is_within_normal_range(value, op, limit_val):
@@ -613,11 +610,12 @@ class DiagnosisEngine:
                 "threshold": threshold_info or {"operator": "-", "limit": 0},
             })
 
-        # 排序：诊断指标在前（ABNORMAL 置顶），建模参数在后
+        # 排序：诊断指标在前，ABNORMAL 置顶，UNKNOWN 次之，建模参数在后
         metrics.sort(key=lambda x: (
             0 if x["type"] == "diagnostic" and x["status"] == "ABNORMAL" else
-            1 if x["type"] == "diagnostic" else
-            2
+            1 if x["type"] == "diagnostic" and x["status"] == "UNKNOWN" else
+            2 if x["type"] == "diagnostic" else
+            3
         ))
 
         return metrics

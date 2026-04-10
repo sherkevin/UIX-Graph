@@ -11,6 +11,8 @@
 
 用于验证 [`config/reject_errors.diagnosis.json`](../../config/reject_errors.diagnosis.json) 在 **`METRIC_SOURCE_MODE=real`** 下接口 3 的指标值与种子一致，并做 FaultRecords 页面与 Network 验收。
 
+**FaultRecords 时间窗与种子**：锚点拒片时间为 **2026-01-10**（见 §4）。若当前系统日期较晚，点「**最近 30 天**」得到的时间范围**可能不包含元月**，列表会为 0 条——属正常。请在时间范围中**手动包含 2026-01-01～2026-01-31**（或至少覆盖 2026-01-10）再点查询，才能看到种子行并验详情。
+
 ---
 
 ## 1. 启动数据库容器
@@ -22,7 +24,7 @@ docker compose up -d
 ```
 
 - **MySQL**：`localhost:3307`，库 `datacenter`，首次启动执行 [`scripts/init_docker_db.sql`](../../scripts/init_docker_db.sql)。
-- **ClickHouse**：`localhost:8123`，首次启动执行 [`scripts/init_clickhouse_local.sql`](../../scripts/init_clickhouse_local.sql)（`las` / `src`）。
+- **ClickHouse**：`localhost:8123`，首次启动执行 [`scripts/init_clickhouse_local.sql`](../../scripts/init_clickhouse_local.sql)（`las` / `src`）。**说明**：compose **不再映射宿主 `9000→9000`**（部分 Windows 环境 `9000` 被系统保留会导致容器启动失败）；后端通过 **HTTP `8123`** 访问 ClickHouse 即可。
 
 若 ClickHouse 未自动执行 init：
 

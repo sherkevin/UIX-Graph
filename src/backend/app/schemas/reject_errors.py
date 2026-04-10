@@ -97,9 +97,9 @@ class ThresholdInfo(BaseModel):
 class MetricInfo(BaseModel):
     """指标信息"""
     name: str = Field(..., description="指标名称")
-    value: float = Field(..., description="指标值")
+    value: Optional[Any] = Field(None, description="指标值；取数失败或缺失时为 null")
     unit: str = Field(..., description="单位")
-    status: str = Field(..., description="状态：NORMAL / ABNORMAL")
+    status: str = Field(..., description="状态：NORMAL / ABNORMAL / UNKNOWN")
     threshold: ThresholdInfo = Field(..., description="阈值信息")
 
 

@@ -29,8 +29,8 @@
       "table_name": "las.LOG_EH_UNION_VIEW",
       "column_name": "detail",
       "time_column": "file_time",
-      "extraction_rule": "regex:M[wa]x out of range,C?GG6_check_parameter_ranges",
-      "duration": "1000",
+      "extraction_rule": "regex:Mwx out of range,CGG6_check_parameter_ranges",
+      "duration": "7",
       "role": "trigger_only"
     },
     "Mwx_0": {
@@ -49,8 +49,8 @@
       "table_name": "las.LOG_EH_UNION_VIEW",
       "column_name": "detail",
       "time_column": "file_time",
-      "extraction_rule": "regex:M[wa]x\\s*\\(\\s*([\\d\\.]+)\\s*\\)",
-      "duration": "1000"
+      "extraction_rule": "regex:Mwx\\s*\\(\\s*([\\d\\.]+)\\s*\\)",
+      "duration": "7"
     },
     "ws_pos_x": {
       "description": "cowa标记对准位置 (mark_scan) ws_pos_x",
@@ -62,7 +62,8 @@
         "keys": [
           {"target": "equipment", "source": "equipment"},
           {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"}
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "wafer_id", "source": "wafer_id"}
         ],
         "filters": []
       },
@@ -73,7 +74,7 @@
       "column_name": "WS_pos_x",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7"
     },
     "ws_pos_y": {
       "description": "cowa标记对准位置 (mark_scan) ws_pos_y",
@@ -85,7 +86,8 @@
         "keys": [
           {"target": "equipment", "source": "equipment"},
           {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"}
+          {"target": "chuck_id", "source": "chuck_id"},
+          {"target": "wafer_id", "source": "wafer_id"}
         ],
         "filters": []
       },
@@ -96,7 +98,7 @@
       "column_name": "WS_pos_y",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7"
     },
     "mark_pos_x": {
       "description": "cowa标记名义位置 (mark_data) mark_pos_x",
@@ -109,18 +111,19 @@
           {"target": "equipment", "source": "equipment"},
           {"target": "lot_id", "source": "lot_id"},
           {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "recipe_id", "source": "recipe_id"}
+          {"target": "wafer_id", "source": "wafer_id"}
         ],
         "filters": []
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+      "table_name": "src.RPT_WAA_SET_OFL",
       "column_name": "mark_pos_x",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7",
+      "_note": "按业务最新 metrics_meta.yaml，mark_pos_x 表名已切到 src.RPT_WAA_SET_OFL；列名以业务最新口径保留为 mark_pos_x"
     },
     "mark_pos_y": {
       "description": "cowa标记名义位置 (mark_data) mark_pos_y",
@@ -133,18 +136,19 @@
           {"target": "equipment", "source": "equipment"},
           {"target": "lot_id", "source": "lot_id"},
           {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "recipe_id", "source": "recipe_id"}
+          {"target": "wafer_id", "source": "wafer_id"}
         ],
         "filters": []
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+      "table_name": "src.RPT_WAA_SET_OFL",
       "column_name": "mark_pos_y",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7",
+      "_note": "按业务最新 metrics_meta.yaml，mark_pos_y 表名已切到 src.RPT_WAA_SET_OFL；列名以业务最新口径保留为 mark_pos_y"
     },
     "Msx": {
       "description": "台对准建模结果Msx",
@@ -168,7 +172,7 @@
       "column_name": "ms_x",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7"
     },
     "Msy": {
       "description": "台对准建模结果Msy",
@@ -192,7 +196,7 @@
       "column_name": "ms_y",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7"
     },
     "e_ws_x": {
       "description": "台对准建模结果e_ws_x",
@@ -216,7 +220,7 @@
       "column_name": "e_ws_x",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7"
     },
     "e_ws_y": {
       "description": "台对准建模结果e_ws_y",
@@ -240,7 +244,7 @@
       "column_name": "e_ws_y",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "1000"
+      "duration": "7"
     },
     "Sx": {
       "description": "静态上片偏差x",
@@ -261,7 +265,7 @@
       "time_column": "last_modify_date",
       "equipment_column": "equipment",
       "mysql_omit_equipment_filter": true,
-      "duration": "1000",
+      "duration": "7",
       "_note": "内网表无 equipment/committed_at；用 last_modify_date(varchar) 做时间窗；与 performance 的 table_name/env_id 关联规则见 docs/intranet/linking_tbd.md"
     },
     "Sy": {
@@ -283,7 +287,7 @@
       "time_column": "last_modify_date",
       "equipment_column": "equipment",
       "mysql_omit_equipment_filter": true,
-      "duration": "1000",
+      "duration": "7",
       "_note": "同 Sx；extraction_rule 仅 MySQL 路径支持 json:"
     },
     "动态上片偏差": {
@@ -313,6 +317,63 @@
       "unit": "urad",
       "source_kind": "failure_record_field",
       "field": "wafer_rotation"
+    },
+    "Tx_history": {
+      "description": "30天窗口内Tx原始值列表",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "mysql_nearest_row",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "chuck_id", "source": "chuck_id"}
+        ],
+        "filters": []
+      },
+      "table_name": "datacenter.lo_batch_equipment_performance",
+      "column_name": "wafer_translation_x",
+      "time_column": "wafer_product_start_time",
+      "equipment_column": "equipment",
+      "duration": "30",
+      "role": "internal"
+    },
+    "Ty_history": {
+      "description": "30天窗口内Ty原始值列表",
+      "data_type": null,
+      "unit": "um",
+      "source_kind": "mysql_nearest_row",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "chuck_id", "source": "chuck_id"}
+        ],
+        "filters": []
+      },
+      "table_name": "datacenter.lo_batch_equipment_performance",
+      "column_name": "wafer_translation_y",
+      "time_column": "wafer_product_start_time",
+      "equipment_column": "equipment",
+      "duration": "30",
+      "role": "internal"
+    },
+    "Rw_history": {
+      "description": "30天窗口内Rw原始值列表",
+      "data_type": null,
+      "unit": "urad",
+      "source_kind": "mysql_nearest_row",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {"target": "chuck_id", "source": "chuck_id"}
+        ],
+        "filters": []
+      },
+      "table_name": "datacenter.lo_batch_equipment_performance",
+      "column_name": "wafer_rotation",
+      "time_column": "wafer_product_start_time",
+      "equipment_column": "equipment",
+      "duration": "30",
+      "role": "internal"
     },
     "mean_Tx": {
       "description": "一个月内上片偏差Tx均值",
@@ -348,8 +409,7 @@
       "description": "COWA建模输出上片偏差Tx",
       "data_type": null,
       "unit": "um",
-      "source_kind": "failure_record_field",
-      "field": "wafer_translation_x",
+      "source_kind": "intermediate",
       "role": "diagnostic",
       "approximate": true
     },
@@ -357,8 +417,7 @@
       "description": "COWA建模输出上片偏差Ty",
       "data_type": null,
       "unit": "um",
-      "source_kind": "failure_record_field",
-      "field": "wafer_translation_y",
+      "source_kind": "intermediate",
       "role": "diagnostic",
       "approximate": true
     },
@@ -366,8 +425,7 @@
       "description": "COWA建模输出上片旋转Rw",
       "data_type": null,
       "unit": "urad",
-      "source_kind": "failure_record_field",
-      "field": "wafer_rotation",
+      "source_kind": "intermediate",
       "role": "diagnostic",
       "approximate": true
     },
@@ -391,10 +449,11 @@
       "phenomenon": "倍率超限",
       "description": "COWA倍率超限，补偿建模",
       "metric_id": [
-        "Coarse Alignment Failed"
+        "Coarse Alignment Failed",
+        "Mwx out of range,CGG6_check_parameter_ranges"
       ],
       "trigger_condition": [
-        "{Coarse Alignment Failed} == true"
+        "{Coarse Alignment Failed} == true AND {Mwx out of range,CGG6_check_parameter_ranges} == true"
       ],
       "start_node": "1"
     }
@@ -405,6 +464,17 @@
       "description": "判断M值及输出模型类型",
       "metric_id": "Mwx_0",
       "details": [
+        {
+          "action": "select_window_metric",
+          "description": "从窗口列表中选择距离T最近的Mwx_0供后续判断",
+          "params": {
+            "metric_name": "Mwx_0",
+            "values": "{Mwx_0}"
+          },
+          "results": {
+            "Mwx_0": ""
+          }
+        },
         {
           "action": "determine_model_type",
           "description": "根据Mwx_0范围自动判断并输出model_type",
@@ -565,6 +635,21 @@
       "details": null,
       "next": [
         {
+          "target": "99",
+          "condition": "{n_88um} >= 8"
+        },
+        {
+          "target": "continue_model_dispatch",
+          "condition": "else"
+        }
+      ]
+    },
+    {
+      "id": "continue_model_dispatch",
+      "description": "按模型类型选择下一轮建模",
+      "details": null,
+      "next": [
+        {
           "target": "10",
           "condition": "{model_type} == '88um'"
         },
@@ -709,7 +794,7 @@
           "action": "calculate_monthly_mean_Tx",
           "description": "计算一个月内Tx的mean值",
           "params": {
-            "Tx": ""
+            "Tx": "{Tx_history}"
           },
           "results": {
             "mean_Tx": ""
@@ -736,7 +821,7 @@
           "action": "calculate_monthly_mean_Ty",
           "description": "计算一个月内Ty的mean值",
           "params": {
-            "Ty": ""
+            "Ty": "{Ty_history}"
           },
           "results": {
             "mean_Ty": ""
@@ -763,7 +848,7 @@
           "action": "calculate_monthly_mean_Rw",
           "description": "计算一个月内Rw的mean值",
           "params": {
-            "Rw": ""
+            "Rw": "{Rw_history}"
           },
           "results": {
             "mean_Rw": ""

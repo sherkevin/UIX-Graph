@@ -16,7 +16,8 @@
     "table_name": "las.LOG_EH_UNION_VIEW",
     "column_name": "detail",
     "extraction_rule": "regex:Mwx out of range,CGG6_check_parameter_ranges",
-    "duration": "1000"
+    "time_column": "file_time",
+    "duration": "7"
   },
   "Mwx_0": {
     "description": "倍率实测值",
@@ -26,7 +27,8 @@
     "table_name": "las.LOG_EH_UNION_VIEW",
     "column_name": "detail",
     "extraction_rule": "regex:Mwx\\s*\\(\\s*([\\d\\.]+)\\s*\\)",
-    "duration": "1000"
+    "time_column": "file_time",
+    "duration": "7"
   },
   "ws_pos_x": {
     "description": "cowa标记对准位置 (mark_scan) ws_pos_x",
@@ -34,10 +36,10 @@
     "unit": null,
     "db_type": "clickhouse",
     "table_name": "src.RPT_WAA_SET_OFL",
-    "column_name": "ws_pos_x",
-    "time_column": "time",
+    "column_name": "WS_pos_x",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7"
   },
   "ws_pos_y": {
     "description": "cowa标记对准位置 (mark_scan) ws_pos_y",
@@ -45,32 +47,34 @@
     "unit": null,
     "db_type": "clickhouse",
     "table_name": "src.RPT_WAA_SET_OFL",
-    "column_name": "ws_pos_y",
-    "time_column": "time",
+    "column_name": "WS_pos_y",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7"
   },
   "mark_pos_x": {
     "description": "cowa标记名义位置 (mark_data) mark_pos_x",
     "data_type": null,
     "unit": null,
     "db_type": "clickhouse",
-    "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+    "table_name": "src.RPT_WAA_SET_OFL",
     "column_name": "mark_pos_x",
-    "time_column": "time",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7",
+    "_note": "按业务最新 metrics_meta.yaml，表名已切到 src.RPT_WAA_SET_OFL"
   },
   "mark_pos_y": {
     "description": "cowa标记名义位置 (mark_data) mark_pos_y",
     "data_type": null,
     "unit": null,
     "db_type": "clickhouse",
-    "table_name": "src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA",
+    "table_name": "src.RPT_WAA_SET_OFL",
     "column_name": "mark_pos_y",
-    "time_column": "time",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7",
+    "_note": "按业务最新 metrics_meta.yaml，表名已切到 src.RPT_WAA_SET_OFL"
   },
   "Msx": {
     "description": "台对准建模结果Msx",
@@ -78,10 +82,10 @@
     "unit": null,
     "db_type": "clickhouse",
     "table_name": "src.RPT_WAA_SA_RESULT_OFL",
-    "column_name": "Msx",
-    "time_column": "time",
+    "column_name": "ms_x",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7"
   },
   "Msy": {
     "description": "台对准建模结果Msy",
@@ -89,10 +93,10 @@
     "unit": null,
     "db_type": "clickhouse",
     "table_name": "src.RPT_WAA_SA_RESULT_OFL",
-    "column_name": "Msy",
-    "time_column": "time",
+    "column_name": "ms_y",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7"
   },
   "e_ws_x": {
     "description": "台对准建模结果e_ws_x",
@@ -101,9 +105,9 @@
     "db_type": "clickhouse",
     "table_name": "src.RPT_WAA_SA_RESULT_OFL",
     "column_name": "e_ws_x",
-    "time_column": "time",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7"
   },
   "e_ws_y": {
     "description": "台对准建模结果e_ws_y",
@@ -112,9 +116,9 @@
     "db_type": "clickhouse",
     "table_name": "src.RPT_WAA_SA_RESULT_OFL",
     "column_name": "e_ws_y",
-    "time_column": "time",
+    "time_column": "file_time",
     "equipment_column": "equipment",
-    "duration": "1000"
+    "duration": "7"
   },
   "Sx": {
     "description": "静态上片偏差x",
@@ -124,10 +128,10 @@
     "table_name": "datacenter.mc_config_commits_history",
     "column_name": "data",
     "extraction_rule": "json:Sx",
-    "time_column": "committed_at",
+    "time_column": "last_modify_date",
     "equipment_column": "equipment",
-    "duration": "1000",
-    "_note": "extraction_rule 支持 json:<key> 或 regex:<pattern>；若列名不同在此修改 time_column / equipment_column，无需改代码"
+    "duration": "7",
+    "_note": "按当前内网对齐口径使用 last_modify_date；extraction_rule 支持 json:<key> 或 regex:<pattern>"
   },
   "Sy": {
     "description": "静态上片偏差y",
@@ -137,10 +141,10 @@
     "table_name": "datacenter.mc_config_commits_history",
     "column_name": "data",
     "extraction_rule": "json:Sy",
-    "time_column": "committed_at",
+    "time_column": "last_modify_date",
     "equipment_column": "equipment",
-    "duration": "1000",
-    "_note": "同 Sx，按实际表结构调整 extraction_rule / time_column / equipment_column"
+    "duration": "7",
+    "_note": "同 Sx，按当前内网对齐口径使用 last_modify_date"
   },
   "动态上片偏差": {},
   "Tx": {
@@ -151,7 +155,7 @@
     "table_name": "datacenter.lo_batch_equipment_performance",
     "column_name": "wafer_translation_x",
     "filter_condition": "chuck_id={chuck_id} AND lot_start_time >= {time_filter}",
-    "duration": "1000"
+    "duration": "7"
   },
   "Ty": {
     "description": "上片偏差Ty",
@@ -161,7 +165,7 @@
     "table_name": "datacenter.lo_batch_equipment_performance",
     "column_name": "wafer_translation_y",
     "filter_condition": "chuck_id={chuck_id} AND lot_start_time >= {time_filter}",
-    "duration": "1000"
+    "duration": "7"
   },
   "Rw": {
     "description": "上片旋转值Rw",
@@ -171,7 +175,7 @@
     "table_name": "datacenter.lo_batch_equipment_performance",
     "column_name": "wafer_rotation",
     "filter_condition": "chuck_id={chuck_id} AND lot_start_time >= {time_filter}",
-    "duration": "1000"
+    "duration": "7"
   },
   "n_88um": {
     "description": "88微米建模次数",

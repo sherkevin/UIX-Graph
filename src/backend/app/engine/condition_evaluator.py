@@ -2,8 +2,11 @@
 rules 条件表达式解析与求值工具
 """
 import ast
+import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 SUPPORTED_COMPARISON_OPERATORS = {"<", ">", "<=", ">=", "==", "!="}
@@ -133,7 +136,7 @@ def _split_top_level_boolean(expr: str, op: str) -> List[str]:
             buf.append(ch)
             i += 1
             continue
-        if depth == 0 and expr[i:i + len(op_text)] == op_text:
+        if depth == 0 and expr[i:i + len(op_text)].lower() == op_text.lower():
             part = "".join(buf).strip()
             if part:
                 parts.append(part)
@@ -189,7 +192,7 @@ def parse_condition_signature(condition: str) -> Optional[Dict[str, Any]]:
     if expr == "else":
         return {"type": "else"}
 
-    if re.search(r"\b(?:and|or)\b", expr):
+    if re.search(r"(?i)\b(?:and|or)\b", expr):
         return None
 
     range_match = re.match(
@@ -230,6 +233,14 @@ def evaluate_condition_text(
 ) -> Tuple[bool, Optional[str], str, Any, Any]:
     signature = parse_condition_signature(condition)
     if signature is None:
+        expr = normalize_condition_text(condition)
+        if expr:
+            snippet = expr if len(expr) <= 200 else expr[:200] + "..."
+            logger.warning(
+                "condition 无法解析为原子表达式（将视为不匹配）: %r fallback_metric_id=%s",
+                snippet,
+                fallback_metric_id,
+            )
         return False, fallback_metric_id, "", None, None
 
     sig_type = signature["type"]
@@ -317,8 +328,6 @@ def _validate_boolean_expr(expr: str) -> bool:
     if not text_expr:
         return True
     if _has_invalid_parentheses(text_expr):
-        return False
-    if re.search(r"\b(?:and|or)\b", text_expr):
         return False
     or_parts = _split_top_level_boolean(text_expr, "OR")
     if len(or_parts) > 1:

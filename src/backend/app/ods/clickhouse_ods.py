@@ -101,9 +101,9 @@ class ClickHouseODS:
         equipment_column: str = DEFAULT_EQUIPMENT_COLUMN,
         extra_filters: Optional[List[str]] = None,
         extra_filter_params: Optional[Dict[str, Any]] = None,
-    ) -> Optional[float]:
+    ) -> List[Any]:
         """
-        在时间窗口 [time_start, time_end] 内查询距 reference_time 最近的指标值。
+        在时间窗口 [time_start, time_end] 内查询窗口内的指标值列表。
 
         支持两种模式：
           1. 直接列值：column_name 为数值列，直接读取并转 float
@@ -122,7 +122,7 @@ class ClickHouseODS:
             equipment_column: 设备列名（默认 "equipment"，可被 pipeline 指标配置中的 equipment_column 字段覆盖）
 
         Returns:
-            float 或 None（窗口内无数据）
+            提取后的值列表（按距 reference_time 由近到远排序；窗口内无数据则为空列表）
         """
         client = get_clickhouse_client()
         try:
@@ -136,18 +136,21 @@ class ClickHouseODS:
             q_col = _ch_quote_ident(column_name)
             q_time = _ch_quote_ident(time_column)
             q_equip = _ch_quote_ident(equipment_column)
+            # 内网部分表（如 RPT_WAA_LOT_MARK_INFO_OFL_KAFKA）的 file_time 是 String，
+            # 也有表为 DateTime。统一先 toString 再做 BestEffort 解析，避免 String/DateTime
+            # 混比较触发 NO_COMMON_TYPE。
+            q_time_expr = f"parseDateTimeBestEffortOrNull(toString({q_time}))"
             query = f"""
                 SELECT {q_col}
                 FROM {q_table}
                 WHERE {q_equip} = %(equipment)s
-                  AND {q_time} >= toDateTime(%(t_start)s)
-                  AND {q_time} <= toDateTime(%(t_end)s)
+                  AND {q_time_expr} >= toDateTime(%(t_start)s)
+                  AND {q_time_expr} <= toDateTime(%(t_end)s)
                   {"AND " + " AND ".join(extra_filters) if extra_filters else ""}
                 ORDER BY abs(dateDiff('second',
-                    {q_time},
+                    {q_time_expr},
                     toDateTime(%(t_ref)s)
                 )) ASC
-                LIMIT 1
             """
             params = {
                 "equipment": equipment,
@@ -160,23 +163,26 @@ class ClickHouseODS:
             result = client.query(query, parameters=params)
 
             if not result.result_set:
-                return None
+                return []
 
-            raw = result.result_set[0][0]
-
-            # 正则提取模式
-            if extraction_rule and str(extraction_rule).startswith("regex:"):
-                pattern = extraction_rule[6:]
-                match = re.search(pattern, str(raw))
-                if match:
+            values: List[Any] = []
+            for row in result.result_set:
+                raw = row[0]
+                if extraction_rule and str(extraction_rule).startswith("regex:"):
+                    pattern = extraction_rule[6:]
+                    match = re.search(pattern, str(raw))
+                    if not match:
+                        continue
                     if match.groups():
                         val_str = match.group(1)
-                        return float(val_str)
-                    return True
-                return False
+                        values.append(float(val_str))
+                    else:
+                        values.append(True)
+                    continue
 
-            # 直接转数值
-            return float(raw) if raw is not None else None
+                if raw is not None:
+                    values.append(float(raw))
+            return values
 
         except Exception as e:
             logger.error("ClickHouse query_metric_in_window 失败: table=%s column=%s error=%s",

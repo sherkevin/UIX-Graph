@@ -24,7 +24,7 @@
 | 来源 | 内容 |
 |------|------|
 | [docs/stage3/prd3.md](stage3/prd3.md) | 拒片模块 API 契约：接口 1 元数据、接口 2 搜索、接口 3 详情+指标；时间戳规范、分页、`rootCause`/`system` 与缓存关系。 |
-| [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md) | `reject_errors.diagnosis.json` 执行规范：`details/action/params/results/next` 的严格语义与后端实现约束。 |
+| [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md) | `reject_errors.diagnosis.json` 执行规范（**v1.2**）：`details/action/params/results/next`、**仅 `condition` 分支**、布尔组合与 Phase A 变量校验、与 `rule_validator` / `diagnosis_engine` 对齐。 |
 | [docs/data_source.md](data_source.md) | 各接口字段到 MySQL 表（以 `datacenter.lo_batch_equipment_performance` 为主）的映射；接口 3 指标与 `reject_errors.diagnosis.json` 的对应关系。 |
 | [docs/stage3/database_schema.md](stage3/database_schema.md) | 相关表 DDL 与字段约定。 |
 | [docs/stage3/feature_todo.md](stage3/feature_todo.md) | **未来改进**：读写解耦、MQ + 异步预计算、分布式锁、REST/时间格式统一、胖服务端分页与状态判定、OpenAPI 契约化等。 |
@@ -38,7 +38,7 @@
 
 - **路由**: [src/backend/app/handler/reject_errors.py](../src/backend/app/handler/reject_errors.py) — `GET .../metadata`、`POST .../search`、`GET .../{id}/metrics`。
 - **业务层**: [src/backend/app/service/reject_error_service.py](../src/backend/app/service/reject_error_service.py) — 元数据/搜索/详情；空数组筛选短路；接口 3 诊断与缓存。
-- **诊断引擎**: [src/backend/app/engine/](../src/backend/app/engine/) — `rule_loader.py` 通过 `diagnosis.json` 索引加载 `reject_errors.diagnosis.json`；`metric_fetcher.py` 按指标配置取数；`diagnosis_engine.py` 遍历决策树并组装 `metrics`（含 `status`、阈值、ABNORMAL 置顶）。
+- **诊断引擎**: [src/backend/app/engine/](../src/backend/app/engine/) — `rule_loader.py` 通过 `diagnosis.json` 索引加载 `reject_errors.diagnosis.json`；`metric_fetcher.py` 按指标配置取数；`diagnosis_engine.py` 遍历决策树并组装 `metrics`（含 `status`、阈值、ABNORMAL 置顶）。**条件表达式**由 `condition_evaluator.py` 解析；`steps[].next` **仅允许 `condition` 字符串**（禁止 `operator`/`limit`），布尔连接词 **`and`/`or` 大小写不敏感**（两侧须空格）。**启动校验**：`DiagnosisConfigStore` 加载时调用 `rule_validator.validate_rules_config(..., metrics=...)`，除语法外对 `next.condition` 中 **`{var}` 做 Phase A 可达性检查**（metrics 键 ∪ step/scene `metric_id` ∪ 分支 `set` 键 ∪ `details[].results` 键）。**分支语义**：多分支同时命中且无 `else` 时返回失败，日志为 **error**；无命中且无 `else` 为 **warning**（与旧版「一律写所有分支均不满足」区分）。权威说明见 [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md)（当前 **v1.2**）。
 - **数据访问**: [src/backend/app/ods/datacenter_ods.py](../src/backend/app/ods/datacenter_ods.py) 等。
 - **模型**: [src/backend/app/models/reject_errors_db.py](../src/backend/app/models/reject_errors_db.py) — 源表 + `rejected_detailed_records` 缓存表。
 
@@ -56,6 +56,7 @@
 
 - [src/backend/tests/test_reject_errors.py](../src/backend/tests/test_reject_errors.py) — 接口 1、2 的集成测试（**依赖 MySQL**，未起库会连接失败，属环境原因）。
 - [src/backend/tests/test_metric_fetcher_window.py](../src/backend/tests/test_metric_fetcher_window.py) — `MetricFetcher` 按 `duration` 计算 `[T-duration, T]` 的单元测试（**不依赖数据库**，适合 CI 常跑）。
+- [src/backend/tests/test_rules_validator.py](../src/backend/tests/test_rules_validator.py)、[test_rules_engine_conditions.py](../src/backend/tests/test_rules_engine_conditions.py) — 诊断配置静态校验、条件表达式求值与分支 outcome（**不依赖 MySQL**，适合 CI）。
 
 **外网本地 / 内网边界**：内网前后端可按内网既有 Docker / 发布链路运行，但数据库始终连接真实 MySQL、ClickHouse，与本仓库根目录的 [`docker-compose.yml`](../docker-compose.yml) 无关。外网开发机若连不上内网库，可用该 compose **仅启动 MySQL 与 ClickHouse** 作为同名库表替身，前后端仍在宿主机运行；步骤与 Chrome 验收清单见 [docs/deployment/docker_local_e2e.md](deployment/docker_local_e2e.md)。
 
@@ -64,6 +65,7 @@
 - [config/diagnosis.json](../config/diagnosis.json) — 诊断 pipeline 索引文件。
 - [config/reject_errors.diagnosis.json](../config/reject_errors.diagnosis.json) — reject_errors 的 structured 诊断配置（场景、步骤、指标、时间窗）。
 - [config/connections.json](../config/connections.json) — 数据库连接（如 `local` 下 MySQL 端口）。
+- [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md) — **`reject_errors.diagnosis.json` 执行契约**（v1.2：`next` 仅 `condition`、布尔词大小写不敏感、Phase A 变量名校验、与后端实现一致）。
 
 ---
 
@@ -136,9 +138,10 @@ python tests/test_diagnosis_prd1.py
 
 | 路径 | 作用 |
 |------|------|
-| [README.md](../README.md) | 仓库总览、目录树、快速启动、关键接口表。 |
+| [README.md](../README.md) | 仓库总览、目录树、快速启动、关键接口表（**UTF-8**）。 |
 | **本文档 HANDOVER.md** | 交接用：目标、需求出处、完成度、运行方式、待办、`duration`/`requestTime` 约定；**第 9 章为维护排坑（路径、缓存、并发、测试）**。 |
 | [docs/data_source.md](data_source.md) | 接口字段到数据库表的溯源；接口 3 指标与时间窗策略。 |
+| [docs/stage3/rules_execution_spec.md](stage3/rules_execution_spec.md) | **`reject_errors.diagnosis.json` 执行契约（v1.2）**；与 `rule_validator` / `diagnosis_engine` 对齐。 |
 | [docs/stage3/prd3.md](stage3/prd3.md) | Stage3 API 设计权威说明。 |
 | [docs/stage3/database_schema.md](stage3/database_schema.md) | 表结构 DDL。 |
 | [docs/stage3/feature_todo.md](stage3/feature_todo.md) | 演进路线与风险。 |
@@ -150,7 +153,7 @@ python tests/test_diagnosis_prd1.py
 
 | 路径 | 作用 |
 |------|------|
-| `src/backend/app/` | FastAPI 应用：`handler`、`service`、`engine`、`ods`、`models`、`schemas`。 |
+| `src/backend/app/` | FastAPI 应用：`handler`、`service`、`engine`、`diagnosis`（配置加载）、`ods`、`models`、`schemas`。 |
 | `src/frontend/` | **约定主前端**（Vite + React）：FaultRecords、API 层。 |
 | `frontend/`（若存在） | 可能与 `src/frontend` 重复；**交接约定以 `src/frontend` 与根 README 为准**，避免两处并行修改分叉。 |
 | `config/` | `diagnosis.json`、`reject_errors.diagnosis.json`、`ontology_api.diagnosis.json`、`connections.json`、`metrics_meta.yaml`。 |
@@ -231,7 +234,7 @@ python tests/test_diagnosis_prd1.py
 ### 9.6 测试与根 README
 
 - **无 MySQL** 时：`test_reject_errors.py` 报连接拒绝是预期现象，不代表业务逻辑必坏；可先跑 **`test_metric_fetcher_window.py`** 验证时间窗逻辑。
-- 仓库根目录 **README.md** 在部分环境下为 **UTF-16 编码**，个别工具可能显示异常；**运行步骤与模块说明以本文 + [src/backend/README.md](../src/backend/README.md) 为准**。
+- 仓库根目录 **README.md** 已统一为 **UTF-8**；若本地仍见乱码，请检查编辑器编码设置。**运行步骤与模块说明以本文 + [src/backend/README.md](../src/backend/README.md) 为准**。
 
 ### 9.7 `metrics.json` 与性能
 

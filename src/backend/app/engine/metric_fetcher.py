@@ -14,7 +14,7 @@ from app.engine.rule_loader import RuleLoader
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FALLBACK_WINDOW_MINUTES = 5
+DEFAULT_FALLBACK_WINDOW_DAYS = 7
 
 METRIC_SOURCE_MODE = os.environ.get("METRIC_SOURCE_MODE", "mock_allowed").lower()
 _VALID_MODES = {"real", "mock_allowed", "mock_forbidden"}
@@ -37,7 +37,7 @@ class MetricFetcher:
         equipment: str,
         reference_time: datetime,
         chuck_id: Any = None,
-        fallback_duration_minutes: int = DEFAULT_FALLBACK_WINDOW_MINUTES,
+        fallback_duration_days: int = DEFAULT_FALLBACK_WINDOW_DAYS,
         pipeline_id: str = "reject_errors",
         params: Optional[Dict[str, Any]] = None,
         source_record: Optional[Dict[str, Any]] = None,
@@ -45,7 +45,7 @@ class MetricFetcher:
         self.equipment = equipment
         self.reference_time = reference_time
         self.chuck_id = chuck_id
-        self.fallback_duration_minutes = fallback_duration_minutes
+        self.fallback_duration_days = fallback_duration_days
         self.pipeline_id = pipeline_id
         self.params = params or {}
         self.source_record = source_record or {}
@@ -54,30 +54,40 @@ class MetricFetcher:
         self.pipeline = self.store.get_pipeline(pipeline_id)
         self.source_log: Dict[str, str] = {}
 
-    def _duration_minutes_for_meta(self, meta: Dict[str, Any]) -> int:
+    def _duration_days_for_meta(self, meta: Dict[str, Any]) -> int:
         raw = meta.get("duration")
         if raw is not None:
             try:
                 return int(str(raw).strip())
             except ValueError:
-                logger.warning("指标 duration 无效: %r，使用回退 %s 分钟", raw, self.fallback_duration_minutes)
-        return self.fallback_duration_minutes
+                logger.warning("指标 duration 无效: %r，使用回退 %s 天", raw, self.fallback_duration_days)
+        return self.fallback_duration_days
 
     def window_for_metric(self, meta: Dict[str, Any]) -> Tuple[datetime, datetime]:
-        mins = self._duration_minutes_for_meta(meta)
+        days = self._duration_days_for_meta(meta)
         end = self.reference_time
-        start = end - timedelta(minutes=mins)
+        start = end - timedelta(days=days)
         return start, end
 
     def fetch_all(self, metric_ids: List[str]) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
         for metric_id in metric_ids:
             try:
-                result[metric_id] = self._fetch_one(metric_id)
+                value = self._fetch_one(metric_id)
+                result[metric_id] = value
+                meta = self.rule_loader.get_metric_meta(metric_id) or {}
+                source_kind = str(meta.get("source_kind", "")).strip().lower()
+                source_kind = {
+                    "mysql": "mysql_nearest_row",
+                    "clickhouse": "clickhouse_window",
+                }.get(source_kind, source_kind)
+                if source_kind in {"mysql_nearest_row", "clickhouse_window"}:
+                    result[f"{metric_id}_window"] = list(value or [])
             except Exception as exc:
                 logger.warning("获取指标 %s 失败: %s", metric_id, exc)
                 self.source_log[metric_id] = "none"
                 result[metric_id] = None
+                result[f"{metric_id}_window"] = []
         return result
 
     def _fetch_one(self, metric_id: str) -> Any:
@@ -355,7 +365,7 @@ class MetricFetcher:
             return ""
         return " AND " + " AND ".join(clauses)
 
-    def _query_mysql_scalar(
+    def _query_mysql_window(
         self,
         table_name: str,
         column_name: str,
@@ -366,7 +376,7 @@ class MetricFetcher:
         where_sql: str,
         where_params: Dict[str, Any],
         omit_equipment_filter: bool = False,
-    ) -> Any:
+    ) -> List[Any]:
         from app.ods.datacenter_ods import SessionLocal
 
         if omit_equipment_filter:
@@ -393,21 +403,18 @@ class MetricFetcher:
               AND {time_column} <= :time_end
               {where_sql}
             ORDER BY ABS(TIMESTAMPDIFF(SECOND, {time_column}, :ref_time)) ASC
-            LIMIT 1
             """
         )
         db = SessionLocal()
         try:
-            row = db.execute(
+            rows = db.execute(
                 sql,
                 {
                     **base_params,
                     **where_params,
                 },
-            ).fetchone()
-            if row is None:
-                return None
-            return row[0]
+            ).fetchall()
+            return [row[0] for row in rows if row is not None]
         finally:
             db.close()
 
@@ -555,7 +562,6 @@ class MetricFetcher:
         equipment_column = _safe_identifier(meta.get("equipment_column", "equipment"))
         omit_equipment = bool(meta.get("mysql_omit_equipment_filter"))
         time_start, time_end = self.window_for_metric(meta)
-        fallback_policy = self._fallback_policy(meta)
         linking = self._normalize_linking(meta)
 
         filter_sql, filter_params = self._render_mysql_filters(meta.get("filter_condition"), time_start, {})
@@ -568,11 +574,11 @@ class MetricFetcher:
         )
 
         try:
-            raw = None
-            used_fallback = False
-
-            if linking["mode"] == "exact_keys" and not missing_required:
-                raw = self._query_mysql_scalar(
+            if linking["mode"] == "exact_keys":
+                if missing_required:
+                    self.source_log[metric_id] = "none"
+                    return None
+                raw_values = self._query_mysql_window(
                     table_name,
                     column_name,
                     time_column,
@@ -583,12 +589,7 @@ class MetricFetcher:
                     {**filter_params, **linking_params},
                     omit_equipment_filter=omit_equipment,
                 )
-
-            if raw is None:
-                allow_fallback = linking["mode"] != "exact_keys" or fallback_policy == "nearest_in_window"
-                if not allow_fallback:
-                    self.source_log[metric_id] = "none"
-                    return None
+            else:
                 fallback_clauses, fallback_params, _ = self._build_metric_filters(
                     meta,
                     time_start,
@@ -596,7 +597,7 @@ class MetricFetcher:
                     include_linking_filters=True,
                     placeholder_style="mysql",
                 )
-                raw = self._query_mysql_scalar(
+                raw_values = self._query_mysql_window(
                     table_name,
                     column_name,
                     time_column,
@@ -607,19 +608,23 @@ class MetricFetcher:
                     {**filter_params, **fallback_params},
                     omit_equipment_filter=omit_equipment,
                 )
-                used_fallback = linking["mode"] == "exact_keys"
 
-            if raw is None:
+            if not raw_values:
                 self.source_log[metric_id] = "none"
                 return None
 
-            value = self._apply_extraction_rule(raw, meta.get("extraction_rule", ""))
-            value = self._apply_data_type(metric_id, value, meta)
-            if value is None:
+            values = []
+            for raw in raw_values:
+                value = self._apply_extraction_rule(raw, meta.get("extraction_rule", ""))
+                value = self._apply_data_type(metric_id, value, meta)
+                if value is None or value is False:
+                    continue
+                values.append(value)
+            if not values:
                 self.source_log[metric_id] = "none"
                 return None
-            self.source_log[metric_id] = "real_mysql_fallback" if used_fallback else "real_mysql"
-            return value
+            self.source_log[metric_id] = "real_mysql"
+            return values
         except Exception as exc:
             logger.error("MySQL 查询失败: metric=%s table=%s error=%s", metric_id, table_name, exc)
             if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
@@ -627,17 +632,14 @@ class MetricFetcher:
                 return None
             value = self._mock_value(metric_id, meta)
             self.source_log[metric_id] = "mock"
-            return value
+            return [value] if value is not None else []
 
     def _fetch_from_clickhouse(self, metric_id: str, meta: Dict[str, Any]) -> Any:
         time_start, time_end = self.window_for_metric(meta)
-        fallback_policy = self._fallback_policy(meta)
         linking = self._normalize_linking(meta)
         try:
             from app.ods.clickhouse_ods import ClickHouseODS
 
-            value = None
-            used_fallback = False
             exact_filters, exact_filter_params, missing_required = self._build_metric_filters(
                 meta,
                 time_start,
@@ -646,8 +648,11 @@ class MetricFetcher:
                 placeholder_style="clickhouse",
             )
 
-            if linking["mode"] == "exact_keys" and not missing_required:
-                value = ClickHouseODS.query_metric_in_window(
+            if linking["mode"] == "exact_keys":
+                if missing_required:
+                    self.source_log[metric_id] = "none"
+                    return None
+                values = ClickHouseODS.query_metric_in_window(
                     table_name=meta["table_name"],
                     column_name=meta["column_name"],
                     equipment=self.equipment,
@@ -660,12 +665,7 @@ class MetricFetcher:
                     extra_filters=exact_filters,
                     extra_filter_params=exact_filter_params,
                 )
-
-            if value is None:
-                allow_fallback = linking["mode"] != "exact_keys" or fallback_policy == "nearest_in_window"
-                if not allow_fallback:
-                    self.source_log[metric_id] = "none"
-                    return None
+            else:
                 fallback_filters, fallback_filter_params, _ = self._build_metric_filters(
                     meta,
                     time_start,
@@ -673,28 +673,28 @@ class MetricFetcher:
                     include_linking_filters=True,
                     placeholder_style="clickhouse",
                 )
-            value = ClickHouseODS.query_metric_in_window(
-                table_name=meta["table_name"],
-                column_name=meta["column_name"],
-                equipment=self.equipment,
-                time_start=time_start,
-                time_end=time_end,
-                reference_time=self.reference_time,
-                extraction_rule=meta.get("extraction_rule"),
-                time_column=meta.get("time_column", "time"),
-                equipment_column=meta.get("equipment_column", "equipment"),
+                values = ClickHouseODS.query_metric_in_window(
+                    table_name=meta["table_name"],
+                    column_name=meta["column_name"],
+                    equipment=self.equipment,
+                    time_start=time_start,
+                    time_end=time_end,
+                    reference_time=self.reference_time,
+                    extraction_rule=meta.get("extraction_rule"),
+                    time_column=meta.get("time_column", "time"),
+                    equipment_column=meta.get("equipment_column", "equipment"),
                     extra_filters=fallback_filters,
                     extra_filter_params=fallback_filter_params,
                 )
-                used_fallback = linking["mode"] == "exact_keys"
 
-        value = self._apply_data_type(metric_id, value, meta)
-            self.source_log[metric_id] = (
-                "real_clickhouse_fallback" if value is not None and used_fallback
-                else "real_clickhouse" if value is not None
-                else "none"
-            )
-            return value
+            normalized = []
+            for value in values:
+                value = self._apply_data_type(metric_id, value, meta)
+                if value is None or value is False:
+                    continue
+                normalized.append(value)
+            self.source_log[metric_id] = "real_clickhouse" if normalized else "none"
+            return normalized or None
         except Exception as exc:
             if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
                 logger.error("ClickHouse 查询失败: metric=%s error=%s", metric_id, exc)
@@ -702,7 +702,7 @@ class MetricFetcher:
                 return None
             value = self._mock_value(metric_id, meta)
             self.source_log[metric_id] = "mock"
-            return value
+            return [value] if value is not None else []
 
     def _mock_value(self, metric_id: str, meta: Dict[str, Any]) -> Any:
         if "mock_value" in meta:

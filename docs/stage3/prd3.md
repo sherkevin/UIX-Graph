@@ -28,7 +28,7 @@
 2. **`data_source.md`**：定义底层取数溯源映射（接口字段对应底层 MySQL 哪张表）。
 3. **`config/diagnosis.json`**：诊断 pipeline 索引文件。
 4. **`config/reject_errors.diagnosis.json`**：COWA 拒片诊断 structured 配置（metrics / diagnosis_scenes / steps）；对需按时间拉取历史数据的指标可配置 **`duration`（分钟）**，与接口 3 的基准时间 **T** 共同定义查询区间 **`[T - duration, T]`**（详见 §3.3.2）。
-5. **`docs/stage3/rules_execution_spec.md`**：`reject_errors.diagnosis.json` 执行规范（`details/action/params/results/next` 的运行语义与后端契约）。
+5. **`docs/stage3/rules_execution_spec.md`**（**v1.2**）：`reject_errors.diagnosis.json` 执行规范（`details/action/params/results/next`；**`next` 仅 `condition`**；布尔 `and`/`or` **大小写不敏感**；启动期 **Phase A** 变量名校验；与 `rule_validator` / `diagnosis_engine` 一致）。
 
 ---
 

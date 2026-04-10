@@ -1,5 +1,5 @@
 """
-MetricFetcher 按指标 duration 计算时间窗（无需数据库）
+MetricFetcher 时间窗与窗口列表行为测试。
 """
 import sys
 from pathlib import Path
@@ -9,31 +9,32 @@ from types import SimpleNamespace
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from app.engine.actions.builtin import calculate_monthly_mean_Tx, select_window_metric
 from app.engine.metric_fetcher import MetricFetcher
 
 
-def test_window_uses_duration_from_meta():
+def test_window_uses_duration_days_from_meta():
     T = datetime(2026, 3, 25, 12, 0, 0)
     f = MetricFetcher(
         equipment="SSB8000",
         reference_time=T,
-        fallback_duration_minutes=5,
+        fallback_duration_days=7,
     )
-    start, end = f.window_for_metric({"duration": "1000"})
+    start, end = f.window_for_metric({"duration": "30"})
     assert end == T
-    assert start == T - timedelta(minutes=1000)
+    assert start == T - timedelta(days=30)
 
 
-def test_window_fallback_when_no_duration():
+def test_window_fallback_when_no_duration_uses_days():
     T = datetime(2026, 3, 25, 12, 0, 0)
     f = MetricFetcher(
         equipment="SSB8000",
         reference_time=T,
-        fallback_duration_minutes=7,
+        fallback_duration_days=7,
     )
     start, end = f.window_for_metric({})
     assert end == T
-    assert start == T - timedelta(minutes=7)
+    assert start == T - timedelta(days=7)
 
 
 def test_mysql_filter_condition_supports_parentheses_and_or():
@@ -42,11 +43,11 @@ def test_mysql_filter_condition_supports_parentheses_and_or():
         equipment="SSB8000",
         reference_time=T,
         chuck_id=12,
-        fallback_duration_minutes=5,
+        fallback_duration_days=7,
     )
     sql, params = f._render_mysql_filters(
         "(chuck_id={chuck_id} AND lot_start_time >= {time_filter}) OR wafer_index = 5",
-        T - timedelta(minutes=30),
+        T - timedelta(days=1),
         {},
     )
     assert " OR " in sql
@@ -61,7 +62,7 @@ def test_extract_direct_metric_applies_transform_and_data_type(monkeypatch):
     f = MetricFetcher(
         equipment="SSB8000",
         reference_time=T,
-        fallback_duration_minutes=5,
+        fallback_duration_days=7,
     )
 
     def _fake_meta(metric_id):
@@ -86,7 +87,7 @@ def test_apply_data_type_ignores_none_without_warning():
     f = MetricFetcher(
         equipment="SSB8000",
         reference_time=T,
-        fallback_duration_minutes=5,
+        fallback_duration_days=7,
     )
     assert f._apply_data_type("X", "raw-text", {"data_type": None}) == "raw-text"
 
@@ -107,7 +108,7 @@ def test_resolve_filter_value_reads_source_record_context():
         equipment="SSB8000",
         reference_time=T,
         chuck_id=12,
-        fallback_duration_minutes=5,
+        fallback_duration_days=7,
         source_record={"lot_id": "LOT-1", "wafer_index": "W03"},
     )
     assert f._resolve_filter_value("{lot_id}", T, {}) == "LOT-1"
@@ -120,7 +121,7 @@ def test_build_metric_filters_uses_exact_keys_from_source_record():
         equipment="SSB8000",
         reference_time=T,
         chuck_id=12,
-        fallback_duration_minutes=5,
+        fallback_duration_days=7,
         source_record={"lot_id": "LOT-1", "wafer_index": "W03"},
     )
     clauses, params, missing = f._build_metric_filters(
@@ -153,11 +154,11 @@ def test_mysql_exact_match_returns_none_without_explicit_fallback(monkeypatch):
     f = MetricFetcher(
         equipment="SSB8000",
         reference_time=T,
-        fallback_duration_minutes=5,
+        fallback_duration_days=7,
         source_record={"lot_id": "LOT-1"},
     )
 
-    monkeypatch.setattr(f, "_query_mysql_scalar", lambda *args, **kwargs: None)
+    monkeypatch.setattr(f, "_query_mysql_window", lambda *args, **kwargs: [])
     value = f._fetch_from_mysql(
         "Sx",
         {
@@ -178,50 +179,12 @@ def test_mysql_exact_match_returns_none_without_explicit_fallback(monkeypatch):
     assert f.source_log["Sx"] == "none"
 
 
-def test_mysql_exact_match_can_fallback_when_explicitly_allowed(monkeypatch):
-    T = datetime(2026, 3, 25, 12, 0, 0)
-    f = MetricFetcher(
-        equipment="SSB8000",
-        reference_time=T,
-        fallback_duration_minutes=5,
-        source_record={"lot_id": "LOT-1"},
-    )
-    calls = {"count": 0}
-
-    def fake_query(*args, **kwargs):
-        calls["count"] += 1
-        if calls["count"] == 1:
-            return None
-        return '{"Sx": 1.23}'
-
-    monkeypatch.setattr(f, "_query_mysql_scalar", fake_query)
-    value = f._fetch_from_mysql(
-        "Sx",
-        {
-            "table_name": "datacenter.mc_config_commits_history",
-            "column_name": "data",
-            "time_column": "committed_at",
-            "equipment_column": "equipment",
-            "extraction_rule": "json:Sx",
-            "linking": {
-                "mode": "exact_keys",
-                "keys": [{"target": "lot_id", "source": "lot_id"}],
-                "filters": [],
-            },
-            "fallback": {"policy": "nearest_in_window"},
-        },
-    )
-    assert value == 1.23
-    assert calls["count"] == 2
-    assert f.source_log["Sx"] == "real_mysql_fallback"
-
-
-def test_mysql_scalar_omits_equipment_predicate_when_configured(monkeypatch):
+def test_mysql_window_omits_equipment_predicate_when_configured(monkeypatch):
     captured: dict = {}
 
     class FakeResult:
-        def fetchone(self):
-            return None
+        def fetchall(self):
+            return []
 
     class FakeDb:
         def execute(self, sql, params):
@@ -235,8 +198,8 @@ def test_mysql_scalar_omits_equipment_predicate_when_configured(monkeypatch):
     monkeypatch.setattr("app.ods.datacenter_ods.SessionLocal", lambda: FakeDb())
 
     T = datetime(2026, 3, 25, 12, 0, 0)
-    f = MetricFetcher(equipment="SSB8000", reference_time=T, fallback_duration_minutes=5)
-    f._query_mysql_scalar(
+    f = MetricFetcher(equipment="SSB8000", reference_time=T, fallback_duration_days=7)
+    f._query_mysql_window(
         "datacenter.mc_config_commits_history",
         "data",
         "last_modify_date",
@@ -262,7 +225,7 @@ def test_clickhouse_query_accepts_extra_filters(monkeypatch):
         def query(self, query, parameters=None):
             captured["query"] = query
             captured["parameters"] = parameters or {}
-            return SimpleNamespace(result_set=[["1.02"]])
+            return SimpleNamespace(result_set=[["1.02"], ["1.03"]])
 
         def close(self):
             return None
@@ -278,16 +241,43 @@ def test_clickhouse_query_accepts_extra_filters(monkeypatch):
         extra_filters=["lot_id = %(link_0)s", "wafer_index = %(link_1)s"],
         extra_filter_params={"link_0": "LOT-1", "link_1": "W03"},
     )
-    assert value == 1.02
+    assert value == [1.02, 1.03]
     assert "`db`.`tbl`" in captured["query"]
     assert "`metric_col`" in captured["query"]
+    assert "parseDateTimeBestEffortOrNull(toString(`time`))" in captured["query"]
     assert "lot_id = %(link_0)s" in captured["query"]
     assert "wafer_index = %(link_1)s" in captured["query"]
+    assert "LIMIT 1" not in captured["query"]
     assert captured["parameters"]["link_0"] == "LOT-1"
     assert captured["parameters"]["link_1"] == "W03"
 
 
+def test_fetch_all_adds_window_alias_for_query_metrics(monkeypatch):
+    T = datetime(2026, 3, 25, 12, 0, 0)
+    f = MetricFetcher(equipment="SSB8000", reference_time=T, fallback_duration_days=7)
+
+    monkeypatch.setattr(
+        f.rule_loader,
+        "get_metric_meta",
+        lambda metric_id: {"source_kind": "clickhouse_window"} if metric_id == "Mwx_0" else None,
+    )
+    monkeypatch.setattr(f, "_fetch_one", lambda metric_id: [1.0, 2.0] if metric_id == "Mwx_0" else None)
+
+    values = f.fetch_all(["Mwx_0"])
+    assert values["Mwx_0"] == [1.0, 2.0]
+    assert values["Mwx_0_window"] == [1.0, 2.0]
+
+
+def test_select_window_metric_picks_first_value():
+    assert select_window_metric(metric_name="Mwx_0", values=[1.00003, 1.00006]) == {"Mwx_0": 1.00003}
+
+
+def test_monthly_mean_action_uses_list_input():
+    result = calculate_monthly_mean_Tx(Tx=[1.0, 2.0, 3.0])
+    assert result == {"mean_Tx": 2.0}
+
+
 if __name__ == "__main__":
-    test_window_uses_duration_from_meta()
-    test_window_fallback_when_no_duration()
+    test_window_uses_duration_days_from_meta()
+    test_window_fallback_when_no_duration_uses_days()
     print("OK: test_metric_fetcher_window")

@@ -24,6 +24,17 @@ src/backend/
 │   ├── service/          # Service 层 - 业务逻辑
 │   │   └── reject_error_service.py  ★ 拒片故障业务逻辑
 │   │
+│   ├── engine/           # 拒片 pipeline 规则引擎（Stage3）
+│   │   ├── diagnosis_engine.py   ★ 决策树执行、分支 outcome 日志
+│   │   ├── condition_evaluator.py   条件表达式解析/求值（布尔 and/or 大小写不敏感）
+│   │   ├── rule_validator.py     启动期校验（含 next 变量 Phase A）
+│   │   ├── rule_loader.py
+│   │   ├── metric_fetcher.py
+│   │   └── actions/              内置 action 注册
+│   │
+│   ├── diagnosis/        # 配置加载（合并 pipeline + 调用 rule_validator）
+│   │   └── config_store.py
+│   │
 │   ├── ods/              # ODS 层 - 数据源封装
 │   │   ├── datacenter_ods.py  ★ MySQL datacenter 数据源
 │   │   └── clickhouse_ods.py  ClickHouse 数据源
@@ -53,6 +64,8 @@ src/backend/
 │
 ├── tests/                # 测试目录
 │   ├── test_reject_errors.py  ★ 接口 1 & 2 完整测试套件
+│   ├── test_rules_validator.py / test_rules_engine_conditions.py  规则校验与条件求值（无 DB）
+│   ├── test_diagnosis_config_store.py
 │   └── test_diagnosis_prd1.py   诊断引擎测试
 │
 ├── requirements.txt      # 依赖清单
@@ -60,6 +73,12 @@ src/backend/
 ```
 
 > ★ 标注为拒片故障管理模块（Stage 3）的核心文件。
+
+### 拒片诊断配置契约（研发必读）
+
+- 执行语义与校验清单：[docs/stage3/rules_execution_spec.md](../../docs/stage3/rules_execution_spec.md)（**v1.2**）。
+- 要点：`steps[].next` **只写 `condition`**（勿用 JSON `operator`/`limit`）；布尔组合推荐 ` AND ` / ` OR ` 且 **大小写不敏感**；加载时对 `next` 中 **`{变量}`** 做 Phase A 可达性校验（与 `metrics`、step/scene `metric_id`、`set`、`details.results` 对齐）。
+- 无法解析的原子条件在运行期会打 **warning** 日志（`condition_evaluator`），多分支冲突且无 `else` 时 **error** 日志（`diagnosis_engine`）。
 
 ---
 
@@ -155,6 +174,16 @@ python tests/test_reject_errors.py
 ```bash
 cd src/backend
 python tests/test_diagnosis_prd1.py
+```
+
+### 拒片规则与条件表达式（无数据库）
+
+```bash
+cd src/backend
+python tests/test_rules_validator.py
+python tests/test_rules_engine_conditions.py
+# 或
+pytest tests/test_rules_validator.py tests/test_rules_engine_conditions.py -q
 ```
 
 ---

@@ -58,6 +58,13 @@ def _mean(values: Sequence[float], fallback: float) -> float:
     return sum(values) / len(values)
 
 
+def _first_numeric(values: Any, fallback: float = 0.0) -> float:
+    numeric_values = _to_float_list(values)
+    if numeric_values:
+        return numeric_values[0]
+    return _to_float(values, fallback)
+
+
 def _query_monthly_mean(column_name: str, current_value: Optional[float], **ctx) -> float:
     """
     查询某指标在当前基准时间前 30 天的均值。
@@ -187,14 +194,14 @@ def _build_model(amplitude_um: float, **ctx) -> Dict[str, Any]:
     mark_scan = [(ws_x[i], ws_y[i]) for i in range(2)]
     mark_data = [(mk_x[i], mk_y[i]) for i in range(2)]
 
-    msx = _to_float(ctx.get("Msx"), 1.0)
-    msy = _to_float(ctx.get("Msy"), 1.0)
-    e_wsx = _to_float(ctx.get("e_ws_x"), _to_float(ctx.get("e_wsx"), 0.0))
-    e_wsy = _to_float(ctx.get("e_ws_y"), _to_float(ctx.get("e_wsy"), 0.0))
-    s_x = _to_float(ctx.get("Sx"), _to_float(ctx.get("S_x"), 0.0))
-    s_y = _to_float(ctx.get("Sy"), _to_float(ctx.get("S_y"), 0.0))
-    d_x = _to_float(ctx.get("D_x"), 0.0)
-    d_y = _to_float(ctx.get("D_y"), 0.0)
+    msx = _first_numeric(ctx.get("Msx"), 1.0)
+    msy = _first_numeric(ctx.get("Msy"), 1.0)
+    e_wsx = _first_numeric(ctx.get("e_ws_x"), _first_numeric(ctx.get("e_wsx"), 0.0))
+    e_wsy = _first_numeric(ctx.get("e_ws_y"), _first_numeric(ctx.get("e_wsy"), 0.0))
+    s_x = _first_numeric(ctx.get("Sx"), _first_numeric(ctx.get("S_x"), 0.0))
+    s_y = _first_numeric(ctx.get("Sy"), _first_numeric(ctx.get("S_y"), 0.0))
+    d_x = _first_numeric(ctx.get("D_x"), 0.0)
+    d_y = _first_numeric(ctx.get("D_y"), 0.0)
 
     ops = [
         (0, "x", +amplitude_um),
@@ -207,7 +214,12 @@ def _build_model(amplitude_um: float, **ctx) -> Dict[str, Any]:
         (1, "y", -amplitude_um),
     ]
 
-    last = {"output_Tx": _to_float(ctx.get("Tx"), 0.0), "output_Ty": _to_float(ctx.get("Ty"), 0.0), "output_Mw": 9999.0, "output_Rw": _to_float(ctx.get("Rw"), 0.0)}
+    last = {
+        "output_Tx": _first_numeric(ctx.get("Tx"), 0.0),
+        "output_Ty": _first_numeric(ctx.get("Ty"), 0.0),
+        "output_Mw": 9999.0,
+        "output_Rw": _first_numeric(ctx.get("Rw"), 0.0),
+    }
     history: List[Dict[str, float]] = []
     attempts = 0
     for mark_idx, axis, delta_um in ops:
@@ -243,16 +255,25 @@ def _build_model(amplitude_um: float, **ctx) -> Dict[str, Any]:
 
 @register("calculate_monthly_mean_Tx")
 def calculate_monthly_mean_Tx(Tx: Optional[float] = None, **ctx) -> dict:
+    values = _to_float_list(Tx)
+    if values:
+        return {"mean_Tx": _mean(values, 0.0)}
     return {"mean_Tx": _query_monthly_mean("wafer_translation_x", Tx, **ctx)}
 
 
 @register("calculate_monthly_mean_Ty")
 def calculate_monthly_mean_Ty(Ty: Optional[float] = None, **ctx) -> dict:
+    values = _to_float_list(Ty)
+    if values:
+        return {"mean_Ty": _mean(values, 0.0)}
     return {"mean_Ty": _query_monthly_mean("wafer_translation_y", Ty, **ctx)}
 
 
 @register("calculate_monthly_mean_Rw")
 def calculate_monthly_mean_Rw(Rw: Optional[float] = None, **ctx) -> dict:
+    values = _to_float_list(Rw)
+    if values:
+        return {"mean_Rw": _mean(values, 0.0)}
     return {"mean_Rw": _query_monthly_mean("wafer_rotation", Rw, **ctx)}
 
 
@@ -302,6 +323,8 @@ def build_model(**ctx) -> dict:
 @register("determine_model_type")
 def determine_model_type(**ctx) -> dict:
     mwx0 = ctx.get("Mwx_0")
+    if isinstance(mwx0, list):
+        mwx0 = _first_numeric(mwx0, 0.0)
     try:
         value = float(mwx0)
     except (TypeError, ValueError):
@@ -312,6 +335,23 @@ def determine_model_type(**ctx) -> dict:
     if (1.00002 < value < 1.0001) or (0.9999 < value < 0.99998):
         return {"model_type": "8um"}
     return {"model_type": "unknown"}
+
+
+@register("select_window_metric")
+def select_window_metric(metric_name: str = "", values: Any = None, **ctx) -> dict:
+    if not metric_name:
+        return {}
+    numeric_values = _to_float_list(values)
+    if numeric_values:
+        return {metric_name: numeric_values[0]}
+    if isinstance(values, list):
+        for item in values:
+            if item is not None:
+                return {metric_name: item}
+        return {}
+    if values is None:
+        return {}
+    return {metric_name: values}
 
 
 # ── 计数器（用于并行路径的累计计数）────────────────────────────────────────
