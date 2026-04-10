@@ -29,7 +29,7 @@ services:
     container_name: uix-clickhouse
     ports:
       - "8123:8123"
-      - "9000:9000"
+      # 原生 9000 在部分 Windows 环境被系统保留导致 bind 失败；Python 客户端走 HTTP 8123 即可
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: root
