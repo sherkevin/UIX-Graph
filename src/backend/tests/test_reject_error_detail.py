@@ -217,10 +217,16 @@ def test_detail_metric_pagination():
         print("    ⚠️  诊断指标数 ≤ 2，无法验证多页，已跳过")
 
 
-def test_detail_bypass_cache_with_same_time():
-    """接口 3 - requestTime 与发生时间相同：也应绕过缓存，避免返回过期规则结果"""
-    section("接口3 - requestTime 与发生时间相同时绕过缓存")
+def test_detail_use_cache_with_same_time():
+    """接口 3 - requestTime 与发生时间相同：应复用缓存，避免前端详情与列表不一致"""
+    section("接口3 - requestTime 与发生时间相同时复用缓存")
     fid = _get_first_coarse_align_failure_id()
+
+    # 先走一次默认详情，确保缓存已生成
+    cached_detail, cached_meta = RejectErrorService.get_failure_details(failure_id=fid)
+    assert_true("预热缓存成功", cached_detail is not None)
+    if not cached_detail:
+        return
 
     records, _ = RejectErrorService.search_reject_errors(
         equipment="SSB8000", page_no=1, page_size=100
@@ -232,13 +238,19 @@ def test_detail_bypass_cache_with_same_time():
 
     occurred_ms = target["time"]
 
-    # 以相同的毫秒时间请求，也应重算而不是直接命中缓存
+    # 以相同的毫秒时间请求，应复用缓存并返回同样的结果
     detail, meta = RejectErrorService.get_failure_details(
         failure_id=fid, request_time_ms=occurred_ms
     )
     assert_true("相同时间请求返回结果", detail is not None)
     if detail:
-        assert_true("rootCause 字段存在", "rootCause" in detail)
+        assert_eq("rootCause 与缓存一致", detail.get("rootCause"), cached_detail.get("rootCause"))
+        assert_eq("system 与缓存一致", detail.get("system"), cached_detail.get("system"))
+        assert_eq("meta.total 与缓存一致", meta.get("total"), cached_meta.get("total"))
+        assert_eq("metrics 数量与缓存一致", len(detail.get("metrics", [])), len(cached_detail.get("metrics", [])))
+        if detail.get("metrics") and cached_detail.get("metrics"):
+            assert_eq("首条指标名一致", detail["metrics"][0].get("name"), cached_detail["metrics"][0].get("name"))
+            assert_eq("首条指标值一致", detail["metrics"][0].get("value"), cached_detail["metrics"][0].get("value"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -262,7 +274,7 @@ def main():
     test_detail_cache_hit()
     test_detail_bypass_cache_with_different_request_time()
     test_detail_metric_pagination()
-    test_detail_bypass_cache_with_same_time()
+    test_detail_use_cache_with_same_time()
 
     total = PASS_COUNT + FAIL_COUNT
     print("\n" + "█" * 60)

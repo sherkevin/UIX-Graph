@@ -96,39 +96,59 @@ export const rejectErrorsAPI = {
   },
 }
 
+// ── 辅助 API：旧版图谱 / 实体 / 诊断 / 知识模块 ──────────────────────────
+export const knowledgeApi = {
+  getRecords:          ()         => apiClient.get('/knowledge/records'),
+  getRecord:           (caseId)   => apiClient.get(`/knowledge/records/${caseId}`),
+  createRecord:        (payload)  => apiClient.post('/knowledge/records', payload),
+  updateRecord:        (caseId, payload) => apiClient.put(`/knowledge/records/${caseId}`, payload),
+  deleteRecord:        (caseId)   => apiClient.delete(`/knowledge/records/${caseId}`),
+}
+
+export const propagationApi = {
+  getPropagationPath:  (caseId, startNode = null) => {
+    const params = {}
+    if (startNode) params.start_node = startNode
+    return apiClient.get(`/propagation/${caseId}`, { params })
+  },
+  getEntityDetail:     (entityId) => apiClient.get(`/entity/${entityId}`),
+  getEntityTimeseries: (entityId, timeRange = '7d') =>
+    apiClient.get(`/entity/${entityId}/timeseries`, { params: { time_range: timeRange } }),
+}
+
 // ── 旧版：实体 / 图谱 / 诊断 / 本体等接口 ──────────────────────────────
 export const api = {
   // 实体
-  getEntities:         (params)   => apiClient.get('/api/entities', { params }),
-  getEntity:           (id)       => apiClient.get(`/api/entities/${id}`),
-  getEntityConnections:(id)       => apiClient.get(`/api/entities/${id}/connections`),
-  getEntityMetrics:    (id)       => apiClient.get(`/api/entities/${id}/metrics`),
+  getEntities:         (params)   => apiClient.get('/entity', { params }),
+  getEntity:           (id)       => apiClient.get(`/entity/${id}`),
+  getEntityConnections:(id)       => apiClient.get(`/entity/${id}/connections`),
+  getEntityMetrics:    (id)       => apiClient.get(`/entity/${id}/timeseries`),
 
   // 诊断
-  getDiagnosis:        (symptoms) => apiClient.post('/api/diagnosis/diagnose', { symptoms }),
-  getDiagnosisHistory: ()         => apiClient.get('/api/diagnosis/history'),
-  getDiagnosisDetails: (id)       => apiClient.get(`/api/diagnosis/${id}`),
+  getDiagnosis:        (payload)  => apiClient.post('/diagnosis/analyze', payload),
+  getDiagnosisHistory: ()         => apiClient.get('/diagnosis/history'),
+  getDiagnosisDetails: (id)       => apiClient.get(`/diagnosis/${id}`),
 
   // 图谱
-  getFullGraph:        (params)   => apiClient.get('/api/graph/full', { params }),
-  getSubgraph:         (params)   => apiClient.get('/api/graph/subgraph', { params }),
-  getGraphStats:       ()         => apiClient.get('/api/graph/stats'),
+  getFullGraph:        ()         => apiClient.get('/graph/full-graph'),
+  getSubgraph:         (caseId)   => apiClient.get(`/graph/subgraph/${caseId}`),
+  getGraphStats:       ()         => apiClient.get('/graph/stats'),
 
   // 故障传播
-  getPropagationPaths: (params)   => apiClient.post('/api/propagation/paths', params),
-  getPropagationImpact:(params)   => apiClient.post('/api/propagation/impact', params),
+  getPropagationPaths: (caseId, startNode = null) => propagationApi.getPropagationPath(caseId, startNode),
+  getPropagationImpact:(params)   => apiClient.post('/propagation/impact', params),
 
   // 知识
-  searchKnowledge:     (query)    => apiClient.get('/api/knowledge/search', { params: { q: query } }),
-  getKnowledgeGraph:   (topic)    => apiClient.get(`/api/knowledge/graph/${topic}`),
+  searchKnowledge:     (query)    => apiClient.get('/knowledge/search', { params: { q: query } }),
+  getKnowledgeGraph:   (topic)    => apiClient.get(`/knowledge/graph/${topic}`),
 
   // 本体
-  getOntologyTree:     ()         => apiClient.get('/api/ontology/tree'),
-  getOntologyDetails:  (type)     => apiClient.get(`/api/ontology/details/${type}`),
+  getOntologyTree:     ()         => apiClient.get('/ontology/tree'),
+  getOntologyDetails:  (type)     => apiClient.get(`/ontology/details/${type}`),
 
   // 可视化
-  getVisualizationData:(params)   => apiClient.get('/api/visualization/data', { params }),
-  exportVisualization: (params)   => apiClient.post('/api/visualization/export', params),
+  getVisualizationData:(params)   => apiClient.get('/visualization/data', { params }),
+  exportVisualization: (params)   => apiClient.post('/visualization/export', params),
 }
 
 export default apiClient

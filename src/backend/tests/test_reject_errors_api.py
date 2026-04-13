@@ -190,6 +190,17 @@ def _get_first_failure_id() -> int:
     return records[0]["id"]
 
 
+def _get_first_coarse_failure():
+    resp = client.post("/api/v1/reject-errors/search", json={
+        "pageNo": 1, "pageSize": 50, "equipment": "SSB8000"
+    })
+    records = resp.json().get("data", [])
+    coarse = [r for r in records if r.get("rejectReasonId") == 6]
+    if not coarse:
+        raise RuntimeError("无 COARSE_ALIGN_FAILED 测试数据")
+    return coarse[0]
+
+
 def test_api_metrics_200():
     section("接口3 HTTP - 正常请求 200")
     fid = _get_first_failure_id()
@@ -262,6 +273,35 @@ def test_api_metrics_abnormal_first():
         print("    ⚠️  此记录无 ABNORMAL 指标，跳过排序验证")
 
 
+def test_api_metrics_same_request_time_matches_cached_result():
+    section("接口3 HTTP - requestTime 等于发生时间时复用缓存结果")
+    record = _get_first_coarse_failure()
+    fid = record["id"]
+    occurred_ms = record["time"]
+
+    # 先请求一次默认详情，确保缓存已准备好
+    baseline = client.get(f"/api/v1/reject-errors/{fid}/metrics")
+    assert_eq("baseline HTTP 200", baseline.status_code, 200)
+
+    same_time = client.get(
+        f"/api/v1/reject-errors/{fid}/metrics",
+        params={"requestTime": occurred_ms}
+    )
+    assert_eq("same-time HTTP 200", same_time.status_code, 200)
+
+    baseline_body = baseline.json()
+    same_time_body = same_time.json()
+    assert_eq("rootCause 一致",
+              same_time_body["data"].get("rootCause"),
+              baseline_body["data"].get("rootCause"))
+    assert_eq("system 一致",
+              same_time_body["data"].get("system"),
+              baseline_body["data"].get("system"))
+    assert_eq("指标总数一致",
+              same_time_body["meta"].get("total"),
+              baseline_body["meta"].get("total"))
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 主入口
 # ═══════════════════════════════════════════════════════════════════════════
@@ -298,6 +338,7 @@ def main():
     test_api_metrics_200()
     test_api_metrics_response_structure()
     test_api_metrics_abnormal_first()
+    test_api_metrics_same_request_time_matches_cached_result()
 
     total = PASS_COUNT + FAIL_COUNT
     print("\n" + "█" * 60)

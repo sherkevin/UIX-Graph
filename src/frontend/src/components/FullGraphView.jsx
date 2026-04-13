@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import CytoscapeComponent from 'react-cytoscapejs'
 import { Card, Select, Spin, Tag, Space, Button, message } from 'antd'
 import { ClearOutlined } from '@ant-design/icons'
-import { knowledgeApi } from '../services/api'
+import { knowledgeApi, api } from '../services/api'
 
 const FullGraphView = () => {
   const cyRef = useRef(null)
@@ -176,8 +176,8 @@ const FullGraphView = () => {
   const fetchFullGraph = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:8000/api/graph/full-graph')
-      const data = await response.json()
+      const response = await api.getFullGraph()
+      const data = response.data
 
       // 转换为 Cytoscape 格式
       const elements = [
@@ -219,8 +219,8 @@ const FullGraphView = () => {
 
     try {
       // 获取该案例相关的节点ID
-      const response = await fetch(`http://localhost:8000/api/graph/subgraph/${caseId}`)
-      const data = await response.json()
+      const response = await api.getSubgraph(caseId)
+      const data = response.data
 
       if (cyRef.current) {
         const cy = cyRef.current

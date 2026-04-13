@@ -80,8 +80,8 @@ UIX/
 │   ├── connections.json          数据库连接配置（local/test 环境）
 │   ├── diagnosis.json            诊断 pipeline 索引（指向各 *.diagnosis.json）
 │   ├── reject_errors.diagnosis.json  拒片诊断规则与指标（Stage3 主配置）
-│   ├── metrics.json              指标映射
-│   └── metrics_meta.yaml         指标元数据
+│   ├── ontology_api.diagnosis.json   通用诊断入口配置
+│   └── CONFIG_GUIDE.md           配置编写与维护指南
 │
 ├── data/                         # 原始数据 & 处理后数据
 │   ├── 1/ ~ 8/                   各 case 原始节点/计算数据
@@ -180,4 +180,4 @@ python tests/test_diagnosis_prd1.py
 
 ## 诊断规则与文档
 
-拒片决策树配置见 `config/reject_errors.diagnosis.json`，**执行契约与校验规则**以 `docs/stage3/rules_execution_spec.md`（**v1.2**）为准：`next` 分支仅使用 **`condition` 表达式**；布尔连接词 **大小写不敏感**；服务启动时校验 **`{变量}` 可达性**（Phase A）。根目录本文件为 **UTF-8** 编码。
+拒片决策树配置见 `config/reject_errors.diagnosis.json`，`config/diagnosis.json` 负责登记 pipeline，`config/CONFIG_GUIDE.md` 负责说明字段语义、写法与维护流程。**执行契约与校验规则**以 `docs/stage3/rules_execution_spec.md`（**v1.2**）为准：`next` 分支仅使用 **`condition` 表达式**；布尔连接词 **大小写不敏感**；服务启动时校验 **`{变量}` 可达性**（Phase A）。

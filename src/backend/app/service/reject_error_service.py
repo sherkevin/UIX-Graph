@@ -327,9 +327,20 @@ class RejectErrorService:
                 source_record = DatacenterODS.get_failure_record_by_id(failure_id, db)
                 if not source_record:
                     return None, empty_meta
-                # 前端详情页始终携带 requestTime。这里统一绕过缓存，避免诊断配置
-                # 或阈值判定逻辑更新后仍复用旧 metrics_data，导致详情页展示过期结果。
-                bypass_cache = True
+
+                occurred_at = source_record.get("wafer_product_start_time")
+                if isinstance(occurred_at, str):
+                    occurred_at = datetime.fromisoformat(occurred_at)
+                occurred_ms = datetime_to_timestamp(occurred_at) if occurred_at is not None else None
+
+                # 仅当 requestTime 与记录发生时间不一致时绕过缓存。
+                # 当前前端详情页会把列表行 time 原样回传；相等时应复用缓存，
+                # 否则会出现列表已有 rootCause/system，但详情页重算后空指标的问题。
+                bypass_cache = occurred_ms is not None and request_time_ms != occurred_ms
+                logger.info(
+                    "详情缓存判定: failure_id=%s request_time_ms=%s occurred_ms=%s bypass_cache=%s",
+                    failure_id, request_time_ms, occurred_ms, bypass_cache,
+                )
 
             if not bypass_cache:
                 cached = db.query(RejectedDetailedRecord).filter(

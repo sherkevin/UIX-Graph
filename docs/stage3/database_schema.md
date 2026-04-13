@@ -70,9 +70,9 @@
 | `occurred_at` | DATETIME(6) | NOT NULL | 故障发生时间 | `datacenter.lo_batch_equipment_performance.wafer_product_start_time` |
 | `reject_reason` | VARCHAR(50) | NOT NULL | 拒片原因 | `datacenter.reject_reason_state.reject_reason_value` |
 | `reject_reason_id` | BIGINT | NOT NULL | 拒片原因 ID | `datacenter.lo_batch_equipment_performance.reject_reason` |
-| `root_cause` | VARCHAR(255) | DEFAULT NULL | 根本原因 | `rules.json.steps.results.root_cause` |
-| `system` | VARCHAR(50) | DEFAULT NULL | 所属分系统 | `rules.json.steps.results.system` |
-| `error_field` | VARCHAR(255) | DEFAULT NULL | 报错字段 | `rules.json.steps.results.metric_id` 组合 |
+| `root_cause` | VARCHAR(255) | DEFAULT NULL | 根本原因 | `reject_errors.diagnosis.json` 叶子节点结果 |
+| `system` | VARCHAR(50) | DEFAULT NULL | 所属分系统 | `reject_errors.diagnosis.json` 叶子节点结果 |
+| `error_field` | VARCHAR(255) | DEFAULT NULL | 报错字段 | 诊断结果中的异常指标组合 |
 | `metrics_data` | JSON | DEFAULT NULL | 指标数据 | 存储完整的指标数组，每个指标含 status 字段 |
 | `created_at` | DATETIME(6) | DEFAULT CURRENT_TIMESTAMP(6) | 创建时间 | 系统自动生成 |
 | `updated_at` | DATETIME(6) | DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) | 更新时间 | 系统自动生成 |
@@ -209,7 +209,7 @@
 | 场景 | 策略 |
 | --- | --- |
 | 数据源更新 | 当原始数据表 (`lo_batch_equipment_performance`, `reject_reason_state`) 更新时，同步或异步更新缓存表 |
-| 规则文件更新 | 当 `rules.json` 更新时，批量刷新缓存表中的 `root_cause`, `system`, `metrics_data` 字段 |
+| 规则文件更新 | 当 `reject_errors.diagnosis.json` 更新时，批量刷新缓存表中的 `root_cause`, `system`, `metrics_data` 字段 |
 | 缓存失效 | 可设置 TTL（如 24 小时），定期清理过期数据 |
 
 ---
@@ -410,9 +410,9 @@ COMMENT='拒片详细记录表 - 存储接口 2 和接口 3 的查询结果';
 | `waferIndex` | `wafer_id` | `datacenter.lo_batch_equipment_performance.wafer_id` |
 | `rejectReason` | `reject_reason` | `datacenter.reject_reason_state.reject_reason_value` |
 | `rejectReasonId` | `reject_reason_id` | `datacenter.lo_batch_equipment_performance.reject_reason` |
-| `rootCause` | `root_cause` | `rules.json` (计算得出) |
+| `rootCause` | `root_cause` | `reject_errors.diagnosis.json` (计算得出) |
 | `time` | `occurred_at` | `datacenter.lo_batch_equipment_performance.wafer_product_start_time` |
-| `system` | `system` | `rules.json` (计算得出) |
+| `system` | `system` | `reject_errors.diagnosis.json` (计算得出) |
 
 ### 9.2 接口 3 返回字段映射
 
@@ -423,11 +423,11 @@ COMMENT='拒片详细记录表 - 存储接口 2 和接口 3 的查询结果';
 | `chuck` | `chuck_id` | `datacenter.lo_batch_equipment_performance.chuck_id` |
 | `lotId` | `lot_id` | `datacenter.lo_batch_equipment_performance.lot_id` |
 | `waferIndex` | `wafer_id` | `datacenter.lo_batch_equipment_performance.wafer_id` |
-| `errorField` | `error_field` | `rules.json` (计算得出) |
+| `errorField` | `error_field` | `reject_errors.diagnosis.json` (计算得出) |
 | `rejectReason` | `reject_reason` | `datacenter.reject_reason_state.reject_reason_value` |
 | `rejectReasonId` | `reject_reason_id` | `datacenter.lo_batch_equipment_performance.reject_reason` |
-| `rootCause` | `root_cause` | `rules.json` (计算得出) |
-| `system` | `system` | `rules.json` (计算得出) |
+| `rootCause` | `root_cause` | `reject_errors.diagnosis.json` (计算得出) |
+| `system` | `system` | `reject_errors.diagnosis.json` (计算得出) |
 | `time` | `occurred_at` | `datacenter.lo_batch_equipment_performance.wafer_product_start_time` |
-| `metrics` | `metrics_data` | `rules.json` + 其他数据源 (计算得出) |
+| `metrics` | `metrics_data` | `reject_errors.diagnosis.json` + 其他数据源 (计算得出) |
 | `totalMetrics` | (计算字段) | `JSON_LENGTH(metrics_data)` |

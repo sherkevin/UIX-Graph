@@ -19,7 +19,7 @@
     ├─ handler/reject_errors.py        ← HTTP 路由层
     ├─ service/reject_error_service.py ← 业务逻辑层
     ├─ engine/                         ← 诊断引擎（接口3核心）
-    │   ├─ rule_loader.py              ← 加载 rules.json + metrics.json
+    │   ├─ rule_loader.py              ← 加载 structured pipeline 配置
     │   ├─ metric_fetcher.py           ← 从 DB 获取指标实际值
     │   └─ diagnosis_engine.py         ← 执行决策树推理
     ├─ ods/datacenter_ods.py           ← MySQL 查询层
@@ -136,7 +136,7 @@ GET /api/v1/reject-errors/{id}/metrics?pageNo=1&pageSize=20
     │   ├─ YES → 运行诊断引擎:
     │   │   1. 从源记录获取 Tx, Ty, Rw
     │   │   2. 从 ClickHouse 获取 Mwx_0 等 (本地 mock)
-    │   │   3. 遍历 rules.json 决策树
+    │   │   3. 遍历 `reject_errors.diagnosis.json` 中的决策树
     │   │   4. 叶子节点 → rootCause, system
     │   │   5. 构建 metrics 列表 (ABNORMAL 置顶)
     │   │   6. 写入缓存表
@@ -184,7 +184,7 @@ GET /api/v1/reject-errors/{id}/metrics?pageNo=1&pageSize=20
   │
   ├─ 点击"详情" → GET /{id}/metrics?requestTime=<行时间>&pageNo=&pageSize=
   │               ↓ requestTime 为可选；与列表行 `time` 一致时可走缓存
-  │               ↓ 诊断引擎按 T 与 metrics.json 各指标 duration 取数 → 返回 rootCause + system + metrics
+  │               ↓ 诊断引擎按 T 与 `reject_errors.diagnosis.json` 各指标 duration 取数 → 返回 rootCause + system + metrics
   │               ↓ 弹出 Modal (显示故障根因、分系统、指标列表)
   │               ↓ 满足缓存条件时诊断结果写入 rejected_detailed_records
   │

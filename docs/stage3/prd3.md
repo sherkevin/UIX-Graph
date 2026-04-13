@@ -27,7 +27,7 @@
 1. **`prd3.md` (本文档)**：定义 API 交互规范、缓存策略及前后端契约。
 2. **`data_source.md`**：定义底层取数溯源映射（接口字段对应底层 MySQL 哪张表）。
 3. **`config/diagnosis.json`**：诊断 pipeline 索引文件。
-4. **`config/reject_errors.diagnosis.json`**：COWA 拒片诊断 structured 配置（metrics / diagnosis_scenes / steps）；对需按时间拉取历史数据的指标可配置 **`duration`（分钟）**，与接口 3 的基准时间 **T** 共同定义查询区间 **`[T - duration, T]`**（详见 §3.3.2）。
+4. **`config/reject_errors.diagnosis.json`**：COWA 拒片诊断 structured 配置（metrics / diagnosis_scenes / steps）；对需按时间拉取历史数据的指标可配置 **`duration`（天）**，与接口 3 的基准时间 **T** 共同定义查询区间 **`[T - duration, T]`**（详见 §3.3.2）。
 5. **`docs/stage3/rules_execution_spec.md`**（**v1.2**）：`reject_errors.diagnosis.json` 执行规范（`details/action/params/results/next`；**`next` 仅 `condition`**；布尔 `and`/`or` **大小写不敏感**；启动期 **Phase A** 变量名校验；与 `rule_validator` / `diagnosis_engine` 一致）。
 
 ---
@@ -195,7 +195,7 @@ GET /{id}/metrics
      ├─ 诊断引擎执行:
      │   1. 从源记录获取 Tx, Ty, Rw (MySQL)
      │   2. 从 ClickHouse 获取 Mwx_0 等指标 (本地 mock)
-     │   3. 按 rules.json 决策树遍历
+     │   3. 按 `reject_errors.diagnosis.json` 决策树遍历
      │   4. 到达叶子节点 → 读取 rootCause, system
      │   5. 汇总所有指标的 {name, value, unit, status, threshold}
      │
@@ -211,9 +211,9 @@ GET /{id}/metrics
 - **基准时间 T**：
   - 由调用方通过 Query 参数 **`requestTime`** 传入（**13 位毫秒 Unix 时间戳**，可选）。
   - **未传 `requestTime`** 时，**T = 该条故障记录的 `wafer_product_start_time`**（与历史行为一致）。
-- **按指标时间窗**：对 `metrics.json` 中配置了 **`duration`** 的指标（单位：**分钟**），查询时间区间为 **`[T - duration, T]`**，用于后续链路推断所需历史数据。
-  - **`duration` 未配置**时，后端使用引擎构造参数中的 **`time_window_minutes` 作为回退**（当前服务层默认 5 分钟）。
-  - **`db_type: intermediate`** 等中间量一般不配置 `duration`，不参与按窗查库。
+- **按指标时间窗**：对 `reject_errors.diagnosis.json` 中配置了 **`duration`** 的指标（单位：**天**），查询时间区间为 **`[T - duration, T]`**，用于后续链路推断所需历史数据。
+  - **`duration` 未配置**时，后端使用 `MetricFetcher` 的默认回退窗口。
+  - **`source_kind: intermediate`** 等中间量一般不配置 `duration`，不参与按窗查库。
 - **缓存行为**：当 **`requestTime` 未传**，或与 **`wafer_product_start_time` 对应的毫秒时间戳相同**时，允许读写 `rejected_detailed_records`；**当 `requestTime` 与发生时间不一致**时，**不读、不写**该缓存表，避免以 `failure_id` 为主键的缓存被错误覆盖。
 - **后续改进**: 当有精确 ID 对应关系后，可缩小或替换时间窗口查询逻辑。
 
@@ -282,8 +282,8 @@ GET /{id}/metrics
 ```
 src/backend/app/
 ├── engine/                         ← 诊断引擎
-│   ├── rule_loader.py              ← 加载 rules.json + metrics.json
-│   ├── metric_fetcher.py           ← 根据 metrics.json 从 DB 取指标值
+│   ├── rule_loader.py              ← 加载 structured pipeline 配置
+│   ├── metric_fetcher.py           ← 根据 `reject_errors.diagnosis.json` 的 metrics 从 DB 取指标值
 │   └── diagnosis_engine.py         ← 执行决策树推理
 │
 ├── handler/                        ← HTTP 路由层
@@ -309,8 +309,8 @@ src/backend/app/
 ### 4.2 诊断引擎数据流
 
 ```
-rules.json                    metrics.json
-(决策树: steps + scenes)      (指标→数据源映射)
+reject_errors.diagnosis.json
+(包含 steps / scenes / metrics)
          │                          │
          ▼                          ▼
    RuleLoader ──────────────── MetricFetcher
@@ -338,7 +338,7 @@ rules.json                    metrics.json
 | 6 | COARSE_ALIGN_FAILED | ✅ 已实现 | COWA 倍率超限诊断 |
 | 5001-5010 | 其他原因 | ❌ 暂不支持 | 返回基础信息，metrics=[] |
 
-### 4.4 COWA 倍率超限诊断决策树 (rules.json)
+### 4.4 COWA 倍率超限诊断决策树（摘自 `reject_errors.diagnosis.json`）
 
 ```
 Step 1: 判断 Mwx_0 值

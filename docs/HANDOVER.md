@@ -45,7 +45,7 @@
 ### 3.2 接口 3 扩展（本交接版本）
 
 - **请求时间 `requestTime`（可选）**：13 位毫秒时间戳。未传或与该条 **`wafer_product_start_time`** 一致时，**仍走原缓存逻辑**；仅当传入的 `requestTime` **与** 记录发生时间**不一致**时，**不读、不写** `rejected_detailed_records`，避免错误缓存。
-- **按指标时间窗**：对需按时间从库中查询的指标，使用 **`reject_errors.diagnosis.json` 中 `metrics.*.duration`（分钟）** 定义区间 **`[T - duration, T]`**，其中 **T** 为上述请求时间（未传则用记录上的发生时间）。
+- **按指标时间窗**：对需按时间从库中查询的指标，使用 **`reject_errors.diagnosis.json` 中 `metrics.*.duration`（天）** 定义区间 **`[T - duration, T]`**，其中 **T** 为上述请求时间（未传则用记录上的发生时间）。
 
 ### 3.3 前端
 
@@ -128,7 +128,7 @@ python tests/test_diagnosis_prd1.py
 | 稳定性 | 分布式锁防缓存击穿；Redis 高可用。 |
 | 数据 | ClickHouse 真实查询落地（当前大量指标为本地 mock）。 |
 | 契约 | OpenAPI / Swagger 与 PRD 双轨一致；空数组、`pageNo` 越界等边界已在接口 2 部分落实，持续对齐文档。 |
-| 性能 | `duration` 现为统一 **1000 分钟** 的占位，生产需按指标与索引情况调优。 |
+| 性能 | `duration` 当前按“天”解释，生产需按指标与索引情况逐项调优，避免盲目放大查询窗口。 |
 
 ---
 
@@ -167,8 +167,8 @@ python tests/test_diagnosis_prd1.py
 ### 7.1 业务含义
 
 - **T**：分析基准时间。由调用方通过 **`GET .../reject-errors/{id}/metrics?requestTime=<13位毫秒>`** 传入；**不传**则 **T = 该条故障的 `wafer_product_start_time`**（与历史行为一致）。
-- **按指标历史窗口**：对需要从日志/时序表查询的指标，取 **`[T - duration, T]`** 内的数据参与后续链路推断（与 PRD/数据源文档一致）。**`duration` 单位为分钟**。
-- **默认值**：当前所有需要配置的历史窗指标在 [config/reject_errors.diagnosis.json](../config/reject_errors.diagnosis.json) 中统一为 **`"1000"`**（分钟），便于联调与占位；中间量、占位项不配置 `duration`。
+- **按指标历史窗口**：对需要从日志/时序表查询的指标，取 **`[T - duration, T]`** 内的数据参与后续链路推断（与代码实现一致）。**`duration` 单位为天**。
+- **默认值**：若某指标未配置 `duration`，后端使用 `MetricFetcher` 的默认回退窗口；中间量、占位项通常不配置 `duration`。
 
 ### 7.2 缓存约定（再次强调）
 
@@ -183,7 +183,7 @@ python tests/test_diagnosis_prd1.py
   "db_type": "clickhouse",
   "table_name": "src.RPT_WAA_SA_RESULT_OFL",
   "column_name": "Msx",
-  "duration": "1000"
+  "duration": "7"
 }
 ```
 
@@ -236,10 +236,10 @@ python tests/test_diagnosis_prd1.py
 - **无 MySQL** 时：`test_reject_errors.py` 报连接拒绝是预期现象，不代表业务逻辑必坏；可先跑 **`test_metric_fetcher_window.py`** 验证时间窗逻辑。
 - 仓库根目录 **README.md** 已统一为 **UTF-8**；若本地仍见乱码，请检查编辑器编码设置。**运行步骤与模块说明以本文 + [src/backend/README.md](../src/backend/README.md) 为准**。
 
-### 9.7 `metrics.json` 与性能
+### 9.7 配置窗口与性能
 
-- 全指标 **`duration: 1000` 分钟** 会放大 MySQL/ClickHouse 扫描范围；联调占位可接受，**上线前需按指标与索引单独调优**，并关注慢查询。
+- 对查库型指标盲目放大 `duration` 会显著放大 MySQL / ClickHouse 扫描范围；上线前需按指标与索引单独调优，并关注慢查询。
 
 ---
 
-**交接确认**：接手人建议先通读 `prd3.md` + `data_source.md`，按第 4 节拉起 Docker、后端与 `src/frontend`，用 Swagger 与 FaultRecords 页各走通接口 1→2→3；若需改指标取数逻辑，同步修改 `metrics.json` 与 `metric_fetcher.py`。修改接口 3 缓存或 `requestTime` 行为前，**务必重读本章第 9.2～9.4 节**。
+**交接确认**：接手人建议先通读 `prd3.md` + `data_source.md` + `config/CONFIG_GUIDE.md`，按第 4 节拉起 Docker、后端与 `src/frontend`，用 Swagger 与 FaultRecords 页各走通接口 1→2→3；若需改指标取数逻辑，优先修改运行时权威配置 `reject_errors.diagnosis.json` 并对照 `metric_fetcher.py`。修改接口 3 缓存或 `requestTime` 行为前，**务必重读本章第 9.2～9.4 节**。

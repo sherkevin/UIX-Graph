@@ -43,13 +43,13 @@
 
 ### 3.2 诊断字段（仅 COARSE_ALIGN_FAILED, reject_reason_id=6）
 
-- `rootCause(varchar)`: 诊断引擎遍历 `rules.json` 决策树到达叶子节点的 `result.rootCause`
+- `rootCause(varchar)`: 诊断引擎遍历 `reject_errors.diagnosis.json` 决策树到达叶子节点的 `result.rootCause`
 - `system(varchar)`: 叶子节点的 `result.system`
 - `errorField(varchar)`: 诊断路径中触发异常判断的 `metric_id` 列表，逗号分隔
 
 ### 3.3 指标数据 (metrics 数组)
 
-指标值的获取遵循 `metrics.json` 配置：
+指标值的获取遵循 `reject_errors.diagnosis.json` 中的 `metrics` 配置：
 
 | 指标 ID | 描述 | db_type | 数据表 | 列名 | 本地可用 |
 | --- | --- | --- | --- | --- | --- |
@@ -71,14 +71,14 @@
 由于目前 LOG 日志与拒片记录没有 ID 一一对应关系，使用 **`equipment + 基准时间 T + 按指标 duration`** 定位：
 
 - **基准时间 T**：由接口 3 的 Query 参数 **`requestTime`**（13 位毫秒）传入；**未传**时 **T = `wafer_product_start_time`**。
-- **按指标窗口**：`reject_errors.diagnosis.json` 中每个指标可选字段 **`duration`（分钟）**；配置了则查询 **`[T - duration, T]`** 内的数据。当前仓库对需查库的指标统一占位为 **1000 分钟**（见 `config/reject_errors.diagnosis.json`），生产可按指标调优。
-- **回退**：某指标在 `metrics.json` 中**无 `duration`** 时，后端使用诊断引擎的 **`time_window_minutes`**（服务层当前默认 5）作为该指标的时间窗长度。
+- **按指标窗口**：`reject_errors.diagnosis.json` 中每个指标可选字段 **`duration`（天）**；配置了则查询 **`[T - duration, T]`** 内的数据。
+- **回退**：某指标未配置 `duration` 时，后端使用 `MetricFetcher` 的默认回退窗口。
 - **缓存**：仅当 **未传 `requestTime`** 或 **`requestTime` 等于** 该条 **`wafer_product_start_time` 的毫秒时间戳**时，读写 `rejected_detailed_records`；否则不读不写缓存。
 - **后续改进**: 当有精确 ID 映射后，替换或缩小时间窗口查询
 
 ### 3.5 阈值与状态判定
 
-阈值条件从 `rules.json` 的 steps 中提取：
+阈值条件从 `reject_errors.diagnosis.json` 的 `steps` 中提取：
 - 找到 `metric_id` 匹配的 step
 - 优先使用 `between` 类型条件作为正常范围
 - 值在范围内 → `NORMAL`，超出 → `ABNORMAL`
