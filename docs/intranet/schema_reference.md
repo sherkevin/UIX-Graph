@@ -1,5 +1,11 @@
 # 内网数据库字段标准（参考）
 
+> ⚠️ **本文档已被 [`databases/`](./databases/) 取代,后续以 `databases/` 为权威更新。**
+>
+> - 新增表 / 改表请直接编辑 [`databases/mysql_datacenter.md`](./databases/mysql_datacenter.md)、[`databases/clickhouse_las.md`](./databases/clickhouse_las.md)、[`databases/clickhouse_src.md`](./databases/clickhouse_src.md)
+> - 模板见 [`databases/README.md`](./databases/README.md) §3
+> - 本文件保留为历史快照,**不再更新**。如发现本文件与 `databases/` 有冲突,以后者为准。
+
 本文档汇总内网实际库表字段名与类型，供诊断配置 `linking`、`filter_condition` 及 ODS 对齐使用。  
 **约定**：后续你每提供一张表，在本文件按「库.表名」新增一节，保持与内网 DDL 一致。
 
