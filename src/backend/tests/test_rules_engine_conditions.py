@@ -380,7 +380,8 @@ def test_select_scene_uses_trigger_conditions(monkeypatch):
         ),
     )
     assert scene is not None
-    assert scene["id"] == 1001
+    # scene id 在 L4 风格统一时改为字符串(C3 决策),旧测试预期整数,这里同步
+    assert str(scene["id"]) == "1001"
     assert scene["metric_id"] == [
         "trigger_reject_reason_cowa_6",
         "trigger_log_mwx_cgg6_range",

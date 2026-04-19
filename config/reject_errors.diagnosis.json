@@ -6,18 +6,19 @@
       "data_type": null,
       "unit": null,
       "source_kind": "failure_record_field",
+      "role": "trigger_only",
       "field": "reject_reason",
       "transform": {
         "type": "equals",
         "value": 6
-      },
-      "role": "trigger_only"
+      }
     },
     "trigger_log_mwx_cgg6_range": {
       "description": "场景触发：ClickHouse 时间窗内查 LOG_EH_UNION_VIEW.detail，regex 匹配日志子串（见 extraction_rule）；取数多为 list。与 true 比较时按「任一条为真」。",
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "trigger_only",
       "linking": {
         "mode": "time_window_only",
         "keys": [],
@@ -31,7 +32,6 @@
       "time_column": "file_time",
       "extraction_rule": "regex:Mwx out of range,CGG6_check_parameter_ranges",
       "duration": "7",
-      "role": "trigger_only",
       "mock_value": true
     },
     "Mwx_0": {
@@ -39,6 +39,7 @@
       "data_type": null,
       "unit": "ppm",
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "time_window_only",
         "keys": [],
@@ -52,23 +53,42 @@
       "time_column": "file_time",
       "extraction_rule": "regex:Mwx\\s*\\(\\s*([\\d\\.]+)\\s*\\)",
       "duration": "7",
-      "mock_range": [0.99985, 1.00015]
+      "mock_range": [
+        0.99985,
+        1.00015
+      ]
     },
     "ws_pos_x": {
       "description": "cowa标记对准位置 (mark_scan) ws_pos_x",
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": [
-          {"target": "phase", "value": "1ST_COWA"}
+          {
+            "target": "phase",
+            "value": "1ST_COWA"
+          }
         ]
       },
       "fallback": {
@@ -86,16 +106,32 @@
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": [
-          {"target": "phase", "value": "1ST_COWA"}
+          {
+            "target": "phase",
+            "value": "1ST_COWA"
+          }
         ]
       },
       "fallback": {
@@ -113,13 +149,26 @@
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": []
       },
@@ -138,13 +187,26 @@
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": []
       },
@@ -163,13 +225,26 @@
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": []
       },
@@ -187,13 +262,26 @@
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": []
       },
@@ -211,13 +299,26 @@
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": []
       },
@@ -235,13 +336,26 @@
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
+      "role": "diagnostic",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "equipment", "source": "equipment"},
-          {"target": "lot_id", "source": "lot_id"},
-          {"target": "chuck_id", "source": "chuck_id"},
-          {"target": "wafer_id", "source": "wafer_id"}
+          {
+            "target": "equipment",
+            "source": "equipment"
+          },
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          }
         ],
         "filters": []
       },
@@ -259,12 +373,20 @@
       "data_type": null,
       "unit": "um",
       "source_kind": "mysql_nearest_row",
+      "role": "diagnostic",
       "linking": {
         "mode": "time_window_only",
         "keys": [],
         "filters": [
-          {"target": "table_name", "value": "COMC"},
-          {"target": "env_id", "operator": "contains", "source": "equipment"}
+          {
+            "target": "table_name",
+            "value": "COMC"
+          },
+          {
+            "target": "env_id",
+            "operator": "contains",
+            "source": "equipment"
+          }
         ]
       },
       "fallback": {
@@ -284,12 +406,20 @@
       "data_type": null,
       "unit": "um",
       "source_kind": "mysql_nearest_row",
+      "role": "diagnostic",
       "linking": {
         "mode": "time_window_only",
         "keys": [],
         "filters": [
-          {"target": "table_name", "value": "COMC"},
-          {"target": "env_id", "operator": "contains", "source": "equipment"}
+          {
+            "target": "table_name",
+            "value": "COMC"
+          },
+          {
+            "target": "env_id",
+            "operator": "contains",
+            "source": "equipment"
+          }
         ]
       },
       "fallback": {
@@ -309,6 +439,7 @@
       "data_type": null,
       "unit": "um",
       "source_kind": "failure_record_field",
+      "role": "diagnostic",
       "field": "wafer_translation_x"
     },
     "Ty": {
@@ -316,6 +447,7 @@
       "data_type": null,
       "unit": "um",
       "source_kind": "failure_record_field",
+      "role": "diagnostic",
       "field": "wafer_translation_y"
     },
     "Rw": {
@@ -323,6 +455,7 @@
       "data_type": null,
       "unit": "urad",
       "source_kind": "failure_record_field",
+      "role": "diagnostic",
       "field": "wafer_rotation"
     },
     "Tx_history": {
@@ -330,10 +463,14 @@
       "data_type": null,
       "unit": "um",
       "source_kind": "mysql_nearest_row",
+      "role": "internal",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "chuck_id", "source": "chuck_id"}
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          }
         ],
         "filters": []
       },
@@ -344,18 +481,21 @@
       "column_name": "wafer_translation_x",
       "time_column": "wafer_product_start_time",
       "equipment_column": "equipment",
-      "duration": "30",
-      "role": "internal"
+      "duration": "30"
     },
     "Ty_history": {
       "description": "30天窗口内Ty原始值列表",
       "data_type": null,
       "unit": "um",
       "source_kind": "mysql_nearest_row",
+      "role": "internal",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "chuck_id", "source": "chuck_id"}
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          }
         ],
         "filters": []
       },
@@ -366,18 +506,21 @@
       "column_name": "wafer_translation_y",
       "time_column": "wafer_product_start_time",
       "equipment_column": "equipment",
-      "duration": "30",
-      "role": "internal"
+      "duration": "30"
     },
     "Rw_history": {
       "description": "30天窗口内Rw原始值列表",
       "data_type": null,
       "unit": "urad",
       "source_kind": "mysql_nearest_row",
+      "role": "internal",
       "linking": {
         "mode": "exact_keys",
         "keys": [
-          {"target": "chuck_id", "source": "chuck_id"}
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          }
         ],
         "filters": []
       },
@@ -388,32 +531,35 @@
       "column_name": "wafer_rotation",
       "time_column": "wafer_product_start_time",
       "equipment_column": "equipment",
-      "duration": "30",
-      "role": "internal"
+      "duration": "30"
     },
     "mean_Tx": {
       "description": "一个月内上片偏差Tx均值",
       "data_type": null,
       "unit": "um",
-      "source_kind": "intermediate"
+      "source_kind": "intermediate",
+      "role": "diagnostic"
     },
     "mean_Ty": {
       "description": "一个月内上片偏差Ty均值",
       "data_type": null,
       "unit": "um",
-      "source_kind": "intermediate"
+      "source_kind": "intermediate",
+      "role": "diagnostic"
     },
     "mean_Rw": {
       "description": "一个月内上片旋转Rw均值",
       "data_type": null,
       "unit": "urad",
-      "source_kind": "intermediate"
+      "source_kind": "intermediate",
+      "role": "diagnostic"
     },
     "n_88um": {
       "description": "88微米建模次数",
       "data_type": "int",
       "unit": "次",
       "source_kind": "intermediate",
+      "role": "diagnostic",
       "mock_value": 3
     },
     "output_Mw": {
@@ -421,6 +567,7 @@
       "data_type": null,
       "unit": "ppm",
       "source_kind": "intermediate",
+      "role": "diagnostic",
       "mock_value": 5.0
     },
     "output_Tx": {
@@ -455,6 +602,7 @@
       "data_type": null,
       "unit": "um",
       "source_kind": "intermediate",
+      "role": "diagnostic",
       "_status": "stage4-planned",
       "_planned_source": "datacenter.LO_wafer_result.wafer_load_offset_x",
       "_planned_linking": "lot_id + wafer_id + chuck_id"
@@ -464,6 +612,7 @@
       "data_type": null,
       "unit": "um",
       "source_kind": "intermediate",
+      "role": "diagnostic",
       "_status": "stage4-planned",
       "_planned_source": "datacenter.LO_wafer_result.wafer_load_offset_y",
       "_planned_linking": "lot_id + wafer_id + chuck_id"
@@ -471,7 +620,7 @@
   },
   "diagnosis_scenes": [
     {
-      "id": 1001,
+      "id": "1001",
       "module": "COWA",
       "phenomenon": "倍率超限",
       "description": "COWA倍率超限，补偿建模",
