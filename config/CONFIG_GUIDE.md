@@ -284,6 +284,9 @@ python -m pytest tests/test_rules_validator.py
 | `duration` | 所有 DB 类 | 窗口时间，字符串或数字，单位**天** |
 | `enabled` | 所有 | `false` 表示保留字段但取数阶段直接跳过，返回 `None` |
 | `approximate` | `intermediate` | 仅用于提示前端这是“建模产物”，不进行任何运行时计算 |
+| `alias_of` | `intermediate` | 该 metric 是另一个 metric 的别名，阈值反查时用 `alias_of` 指向的 metric_id 找规则;静态校验:目标必须存在、不能自指、不能成环。典型 `output_Tx → Tx` |
+| `mock_value` | 所有 | 任意 JSON 字面量(数字/布尔/字符串/null);取数失败或 intermediate 兜底时直接返回此值 |
+| `mock_range` | 数值类 metric | 数组 `[low, high]`,low ≤ high;取数失败或 intermediate 兜底时,返回 `[low, high]` 之间的随机数 |
 
 #### 4.2.2 保留兼容字段（谨慎使用）
 
@@ -413,12 +416,15 @@ python -m pytest tests/test_rules_validator.py
 
 ### 4.7 `extraction_rule` 规范
 
-当前支持两种主要形式：
+当前支持三种形式:
 
-- `regex:<pattern>`（正则第 1 组捕获，若无捕获组则整段匹配）
-- `jsonpath:<segments/using/slashes>`（支持 `/` 分段和 `[index]`）
+- `regex:<pattern>`(正则第 1 组捕获,若无捕获组则布尔化:匹配=true / 不匹配=false)
+- `jsonpath:<segments/using/slashes>`(支持 `/` 分段、纯数字段=数组下标、`name[N]` 复合 segment 等价于 `name/N`,支持 `{var}` 模板替换)
+- `json:<top_level_key>`(简化版:`json.loads(raw).get(top_level_key)`,只取顶层 key,不支持嵌套;新配置优先用 `jsonpath:` 表达力更强)
 
-提取阶段会发生在取数阶段而不是 action 里；对窗口型指标会先对每条原始值做提取，再汇成列表。
+提取阶段发生在**取数阶段**而不是 action 里;对窗口型指标会先对每条原始值做提取,再汇成列表。
+
+> `jsonpath:` 的 `name[N]` 形式由 `_NAME_INDEX_RE` 处理:先 `current = current[name]`(必须是 dict 取出 list),再 `current = current[N]`。对应 metric_fetcher 实现 `_extract_json_path_value`。
 
 ### 4.8 新增一个 metric 时先做这 4 个判断
 
@@ -654,7 +660,7 @@ fn(**kwargs)
 | --- | --- |
 | 单比较 | `{n_88um} <= 8`、`{model_type} == '88um'` |
 | 区间 | `-20 < {output_Mw} < 20` |
-| 布尔组合 | `{A} == true AND {B} == true`（支持 AND/OR，括号分组） |
+| 布尔组合 | `{A} == true AND {B} == true`(支持 AND/OR,括号分组;**AND/OR 大小写不敏感**:`and / Or / aNd` 都行,但两侧必须有空格) |
 | 结构化对象 | `{"all_of": [{"compare": {"left": "A", "operator": ">", "right": 1}}]}` |
 
 要求：
@@ -838,11 +844,28 @@ fn(**kwargs)
 
 ## 9. 修改后怎么验证
 
+### 9.0 自助配置自检(推荐第一步)
+
+```bash
+python scripts/check_config.py            # 检查 diagnosis.json 索引下所有 pipeline
+python scripts/check_config.py reject_errors  # 仅检查指定 pipeline
+python scripts/check_config.py --strict   # warning 也当失败
+```
+
+退出码:`0` 全过 / `1` error / `2` warning + `--strict`。除了硬校验(rule_validator),还会输出 4 类**软警告**:
+
+- **orphan intermediate metrics**:声明 `source_kind: intermediate` 但 `details.results` / `set` / `condition` / `details.params` 都没引用 → 占位垃圾或 stage 未接入的 TODO
+- **unreachable steps**:既非 `start_node` 也非任何 `next.target` → 死代码
+- **DB metric missing fallback.policy**:数据窗口空时直接 None,易让诊断走错路径(建议显式写 `nearest_in_window` 或 `none` 表态)
+- **duplicate scene start_nodes**:多个 scene 共用同一起点,语义可能冗余
+
+软警告默认不阻断 PR,但**评审时应当看一遍**(配套 [`docs/CONFIG_REVIEW_CHECKLIST.md`](../docs/CONFIG_REVIEW_CHECKLIST.md))。
+
 ### 9.1 静态校验
 
 ```bash
 cd src/backend
-python -m pytest tests/test_rules_validator.py
+python -m pytest tests/test_rules_validator.py tests/test_rule_validator_metric.py
 ```
 
 ### 9.2 路径条件校验
@@ -888,10 +911,12 @@ python -m pytest tests/test_metric_fetcher_window.py
 
 这一节不是“当前不能动”，而是提示后续维护时最容易出事故的地方。
 
-### 11.1 文档口径与运行时实现存在漂移
+### 11.1 文档口径与运行时实现的漂移管理
 
-现象：旧文档仍在描述历史文件或旧结构；`duration` 单位在不同文档中表述不一致。  
-修补：统一以 `diagnosis.json + <pipeline>.diagnosis.json` 为权威；`duration` 一律“天”。
+历史:旧文档曾描述早期文件或旧结构;`duration` 单位在不同文档曾表述不一致(分钟/秒/天)。
+现状:已统一以 `diagnosis.json + <pipeline>.diagnosis.json` 为权威;`duration` 一律「**天**」(见 §4.6)。
+
+后续保护:每次涉及 `metric_fetcher.py` / `rule_validator.py` / `condition_evaluator.py` 的代码修改,**必须**同步更新本文件 §4 的「现行权威字段」表与 [`docs/stage3/rules_execution_spec.md`](../docs/stage3/rules_execution_spec.md) §5.1 的校验项清单。
 
 ### 11.2 配置 DSL 已经很强，但模板化入口还不够友好
 

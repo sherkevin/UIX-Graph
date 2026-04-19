@@ -109,18 +109,59 @@
 
 ## 5.1 启动期静态校验
 
-`DiagnosisConfigStore` 加载 pipeline 时会执行静态校验（失败则服务无法启动）：
+`DiagnosisConfigStore` 加载 pipeline 时会执行静态校验(失败则服务无法启动):
+
+### A. scenes / steps 结构校验
 
 - step id 唯一性
 - scene 的 `start_node` 必须存在
 - `next.target` 必须指向存在的 step
-- `action` 必须已注册
-- `next` 上 **不得** 出现非空的 **`operator`** 或任意 **`limit`** 键（已废弃）
-- `condition` 必须可被解析（字符串布尔式、单比较、区间、或结构化字典）
+- `action` 必须已注册(由 `engine/actions/__init__.py` autoload 注册表决定)
+- `next` 上 **不得** 出现非空的 **`operator`** 或任意 **`limit`** 键(已废弃)
+- `condition` 必须可被解析(字符串布尔式、单比较、区间、或结构化字典)
 - 场景 `trigger_condition` 中引用的变量必须出现在对应 `metric_id` 中
-- **Phase A（变量名）**：加载时传入 `metrics` 映射后，`next.condition` 中出现的 **`{var}` 名称** 须属于 **`metrics` 键 ∪ 任意 step 的 `metric_id` ∪ 任意 scene 的 `metric_id` ∪ 任意分支 `set` 的键 ∪ 任意 `details[].results` 声明的键**（仍无法保证与 action 实际返回值完全一致，属保守校验）
 
-校验失败时会阻止服务启动，避免错误规则在运行时触发不可控行为。
+### B. condition 变量名 Phase A 校验
+
+加载时传入 `metrics` 映射后,`next.condition` 中出现的 **`{var}` 名称** 须属于:
+**`metrics` 键 ∪ 任意 step 的 `metric_id` ∪ 任意 scene 的 `metric_id` ∪ 任意分支 `set` 的键 ∪ 任意 `details[].results` 声明的键**
+(仍无法保证与 action 实际返回值完全一致,属保守校验)
+
+### C. metric 元数据 9 维校验(post-stage4 增强)
+
+`validate_metrics_metadata(metrics)` 对**每个** metric 校验:
+
+| # | 维度 | 合法集合 / 规则 |
+|---|------|----------------|
+| 1 | `source_kind` 必填 | `failure_record_field` / `request_param` / `mysql_nearest_row` / `clickhouse_window` / `intermediate`(允许历史别名 `mysql` / `clickhouse`)|
+| 2 | `role` | `diagnostic` / `trigger_only` / `internal` / `derived` |
+| 3 | `data_type` | `int / integer / float / double / number / bool / boolean / str / string / text` |
+| 4 | `transform.type` | `equals / not_equals / float / int / bool / upper_equals / lower_equals / contains / map`(`map` 必须配 `mapping` 字典) |
+| 5 | `extraction_rule` 前缀 | `regex:` / `json:` / `jsonpath:` / 空(其他前缀报错) |
+| 6 | `fallback.policy` | `none` / `nearest_in_window` |
+| 7 | `linking` | `mode ∈ {time_window_only, exact_keys}`;`keys/filters` 项必填 `target`,`operator ∈ {=,==,!=,>,>=,<,<=,contains,in}`,`source` 与 `value` 二选一必填 |
+| 8 | DB 类必填 | `mysql_nearest_row / clickhouse_window` 必填 `table_name + column_name + duration`(整数/数字字符串)|
+| 9 | 直接取字段类必填 | `failure_record_field / request_param` 必填 `field` |
+
+跨 metric 校验:
+
+- `alias_of` 引用必须指向已存在 metric_id;不能自指;不能形成循环
+- `mock_range` 必须是长度为 2 的数字数组,low ≤ high;`mock_value` 任意 JSON 字面量
+
+权威实现:[`src/backend/app/engine/rule_validator.py`](../../src/backend/app/engine/rule_validator.py),具体合法集合见模块顶部 `VALID_*` 常量。
+
+校验失败时会阻止服务启动,避免错误规则在运行时触发不可控行为。
+
+### D. 软警告(check_config.py 输出,不阻断启动)
+
+仅 [`scripts/check_config.py`](../../scripts/check_config.py) 跑出来,服务启动不报:
+
+- orphan intermediate metrics(声明但无 produce/consume)
+- unreachable steps(非 start_node 且非任何 next.target)
+- DB metric 缺 `fallback.policy`
+- 多个 scene 共用同一 `start_node`
+
+PR 评审时按 [`docs/CONFIG_REVIEW_CHECKLIST.md`](../CONFIG_REVIEW_CHECKLIST.md) 决定是否需要清理。
 
 ---
 
