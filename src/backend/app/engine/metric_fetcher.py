@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import random
+import time
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -11,6 +12,7 @@ from sqlalchemy import text
 
 from app.diagnosis.config_store import DiagnosisConfigStore
 from app.engine.rule_loader import RuleLoader
+from app.utils import detail_trace
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +71,16 @@ class MetricFetcher:
         start = end - timedelta(days=days)
         return start, end
 
-    def fetch_all(self, metric_ids: List[str]) -> Dict[str, Any]:
+    def fetch_all(self, metric_ids: List[str], extra_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
+        resolved_context: Dict[str, Any] = dict(extra_context or {})
+        t_batch = time.perf_counter()
         for metric_id in metric_ids:
+            t0 = time.perf_counter()
             try:
-                value = self._fetch_one(metric_id)
+                value = self._fetch_one(metric_id, resolved_context)
                 result[metric_id] = value
+                resolved_context[metric_id] = value
                 meta = self.rule_loader.get_metric_meta(metric_id) or {}
                 source_kind = str(meta.get("source_kind", "")).strip().lower()
                 source_kind = {
@@ -82,15 +88,33 @@ class MetricFetcher:
                     "clickhouse": "clickhouse_window",
                 }.get(source_kind, source_kind)
                 if source_kind in {"mysql_nearest_row", "clickhouse_window"}:
-                    result[f"{metric_id}_window"] = list(value or [])
+                    window_values = list(value or [])
+                    result[f"{metric_id}_window"] = window_values
+                    resolved_context[f"{metric_id}_window"] = window_values
             except Exception as exc:
                 logger.warning("获取指标 %s 失败: %s", metric_id, exc)
                 self.source_log[metric_id] = "none"
                 result[metric_id] = None
                 result[f"{metric_id}_window"] = []
+                resolved_context[metric_id] = None
+                resolved_context[f"{metric_id}_window"] = []
+            finally:
+                elapsed_ms = (time.perf_counter() - t0) * 1000
+                src = self.source_log.get(metric_id, "?")
+                detail_trace.info(
+                    "  [指标] %s | 耗时=%.1fms | source=%s",
+                    metric_id,
+                    elapsed_ms,
+                    src,
+                )
+        detail_trace.info(
+            "metric_fetch_all 批合计 | 指标数=%s | 批耗时=%.1fms",
+            len(metric_ids),
+            (time.perf_counter() - t_batch) * 1000,
+        )
         return result
 
-    def _fetch_one(self, metric_id: str) -> Any:
+    def _fetch_one(self, metric_id: str, extra_context: Optional[Dict[str, Any]] = None) -> Any:
         meta = self.rule_loader.get_metric_meta(metric_id)
         if meta is None:
             value = self._mock_intermediate_value(metric_id, {})
@@ -110,9 +134,9 @@ class MetricFetcher:
         if source_kind in {"failure_record_field", "request_param"}:
             return None
         if source_kind == "mysql_nearest_row":
-            return self._fetch_from_mysql(metric_id, meta)
+            return self._fetch_from_mysql(metric_id, meta, extra_context=extra_context)
         if source_kind == "clickhouse_window":
-            return self._fetch_from_clickhouse(metric_id, meta)
+            return self._fetch_from_clickhouse(metric_id, meta, extra_context=extra_context)
         if source_kind == "intermediate":
             value = self._mock_intermediate_value(metric_id, meta)
             self.source_log[metric_id] = "intermediate"
@@ -232,18 +256,30 @@ class MetricFetcher:
         self.source_record = source_record or {}
         result: Dict[str, Any] = {}
         remaining: List[str] = []
+        direct_ids: List[str] = []
 
         for metric_id in metric_ids:
             handled, value = self._extract_direct_metric(metric_id, source_record)
             if handled:
+                direct_ids.append(metric_id)
                 result[metric_id] = value
                 if value is None and metric_id not in self.source_log:
                     self.source_log[metric_id] = "none"
                 continue
             remaining.append(metric_id)
 
+        detail_trace.info(
+            "fetch_from_source_record 分流 | 请求数=%s | 直接字段=%s | 需fetch_all=%s | direct_ids=%s | remaining_ids=%s",
+            len(metric_ids),
+            len(direct_ids),
+            len(remaining),
+            detail_trace.preview(direct_ids, 320),
+            detail_trace.preview(remaining, 320),
+        )
+
         if remaining:
-            result.update(self.fetch_all(remaining))
+            with detail_trace.span("metric_fetch_all", remaining=len(remaining)):
+                result.update(self.fetch_all(remaining, extra_context=result))
         return result
 
     @staticmethod
@@ -275,6 +311,12 @@ class MetricFetcher:
             mapping.update(self.source_record)
         mapping.update(self.params)
         mapping.update(extra_context)
+        chuck_value = mapping.get("chuck_id")
+        try:
+            if chuck_value is not None:
+                mapping["chuck_index0"] = int(float(chuck_value)) - 1
+        except (TypeError, ValueError):
+            pass
         return mapping.get(name)
 
     def _resolve_filter_value(self, token: str, time_filter: datetime, extra_context: Dict[str, Any]) -> Any:
@@ -304,7 +346,7 @@ class MetricFetcher:
             if not target:
                 continue
             operator = str(item.get("operator", "=")).strip()
-            if operator not in {"=", "==", "!=", ">", ">=", "<", "<="}:
+            if operator not in {"=", "==", "!=", ">", ">=", "<", "<=", "contains", "in"}:
                 raise ValueError(f"linking.operator 不支持: {operator}")
             if "source" in item:
                 value = self._resolve_context_value(str(item.get("source", "")).strip(), time_filter, extra_context)
@@ -315,13 +357,42 @@ class MetricFetcher:
                 continue
             param_name = f"link_{idx}"
             sql_operator = "=" if operator == "==" else operator
+            target_ident = _safe_identifier(target)
+            if sql_operator == "contains":
+                placeholder = f":{param_name}" if placeholder_style == "mysql" else f"%({param_name})s"
+                if placeholder_style == "clickhouse":
+                    clauses.append(f"positionUTF8(toString({target_ident}), toString({placeholder})) > 0")
+                else:
+                    clauses.append(f"INSTR(CAST({target_ident} AS CHAR), CAST({placeholder} AS CHAR)) > 0")
+                params[param_name] = value
+                idx += 1
+                continue
+            if sql_operator == "in":
+                values = list(value) if isinstance(value, (list, tuple, set)) else [value]
+                if not values:
+                    missing_required = True
+                    continue
+                placeholders: List[str] = []
+                for sub_index, sub_value in enumerate(values):
+                    item_param_name = f"{param_name}_{sub_index}"
+                    placeholders.append(
+                        f":{item_param_name}" if placeholder_style == "mysql" else f"%({item_param_name})s"
+                    )
+                    params[item_param_name] = sub_value
+                if placeholder_style == "clickhouse":
+                    placeholders_sql = ", ".join(f"toString({ph})" for ph in placeholders)
+                    clauses.append(f"toString({target_ident}) IN ({placeholders_sql})")
+                else:
+                    clauses.append(f"{target_ident} IN ({', '.join(placeholders)})")
+                idx += 1
+                continue
             placeholder = f":{param_name}" if placeholder_style == "mysql" else f"%({param_name})s"
             if placeholder_style == "clickhouse" and sql_operator in {"=", "!="}:
                 # ClickHouse 本地替身与内网参考在部分 linking 列上存在 String/Int 混用，
                 # 这里统一按字符串比较，避免类型不一致导致联调失败。
-                clauses.append(f"toString({_safe_identifier(target)}) {sql_operator} toString({placeholder})")
+                clauses.append(f"toString({target_ident}) {sql_operator} toString({placeholder})")
             else:
-                clauses.append(f"{_safe_identifier(target)} {sql_operator} {placeholder}")
+                clauses.append(f"{target_ident} {sql_operator} {placeholder}")
             params[param_name] = value
             idx += 1
 
@@ -334,16 +405,18 @@ class MetricFetcher:
         include_exact_keys: bool,
         include_linking_filters: bool,
         placeholder_style: str = "mysql",
+        extra_context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[str], Dict[str, Any], bool]:
         linking = self._normalize_linking(meta)
         clauses: List[str] = []
         params: Dict[str, Any] = {}
         idx = 0
         missing_required = False
+        resolved_context = extra_context or {}
 
         if include_exact_keys and linking["mode"] == "exact_keys":
             key_clauses, key_params, idx, key_missing = self._build_linking_clauses(
-                linking["keys"], time_filter, {}, idx, placeholder_style
+                linking["keys"], time_filter, resolved_context, idx, placeholder_style
             )
             clauses.extend(key_clauses)
             params.update(key_params)
@@ -351,7 +424,7 @@ class MetricFetcher:
 
         if include_linking_filters:
             filter_clauses, filter_params, idx, filter_missing = self._build_linking_clauses(
-                linking["filters"], time_filter, {}, idx, placeholder_style
+                linking["filters"], time_filter, resolved_context, idx, placeholder_style
             )
             clauses.extend(filter_clauses)
             params.update(filter_params)
@@ -379,6 +452,16 @@ class MetricFetcher:
     ) -> List[Any]:
         from app.ods.datacenter_ods import SessionLocal
 
+        detail_trace.info(
+            "    [MySQL查询] table=%s column=%s time=[%s, %s] omit_equipment=%s where_sql=%s params=%s",
+            table_name,
+            column_name,
+            time_start,
+            time_end,
+            omit_equipment_filter,
+            detail_trace.preview(where_sql, 300),
+            detail_trace.preview(where_params, 400),
+        )
         if omit_equipment_filter:
             where_equipment = ""
             base_params: Dict[str, Any] = {
@@ -407,6 +490,7 @@ class MetricFetcher:
         )
         db = SessionLocal()
         try:
+            t0 = time.perf_counter()
             rows = db.execute(
                 sql,
                 {
@@ -414,6 +498,13 @@ class MetricFetcher:
                     **where_params,
                 },
             ).fetchall()
+            detail_trace.info(
+                "    [MySQL查询完成] table=%s column=%s rows=%s 耗时=%.1fms",
+                table_name,
+                column_name,
+                len(rows),
+                (time.perf_counter() - t0) * 1000,
+            )
             return [row[0] for row in rows if row is not None]
         finally:
             db.close()
@@ -532,7 +623,52 @@ class MetricFetcher:
             parts.append(last)
         return parts
 
-    def _apply_extraction_rule(self, raw: Any, extraction_rule: str) -> Any:
+    def _render_extraction_template(
+        self,
+        template: str,
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        resolved_context = extra_context or {}
+        missing = False
+
+        def _replace(match: re.Match[str]) -> str:
+            nonlocal missing
+            value = self._resolve_context_value(match.group(1), self.reference_time, resolved_context)
+            if value is None:
+                missing = True
+                return ""
+            return str(value)
+
+        rendered = re.sub(r"\{(\w+)\}", _replace, str(template or ""))
+        if missing:
+            return None
+        return rendered
+
+    @staticmethod
+    def _extract_json_path_value(data: Any, path: str) -> Any:
+        current = data
+        for segment in [part for part in str(path or "").split("/") if part]:
+            if isinstance(current, list):
+                if not segment.isdigit():
+                    return None
+                index = int(segment)
+                if index < 0 or index >= len(current):
+                    return None
+                current = current[index]
+                continue
+            if not isinstance(current, dict):
+                return None
+            current = current.get(segment)
+            if current is None:
+                return None
+        return current
+
+    def _apply_extraction_rule(
+        self,
+        raw: Any,
+        extraction_rule: str,
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         if raw is None:
             return None
         rule = str(extraction_rule or "").strip()
@@ -545,6 +681,16 @@ class MetricFetcher:
             except json.JSONDecodeError:
                 return None
             return self._extract_scalar(data.get(key))
+        if rule.startswith("jsonpath:"):
+            path_template = rule[9:].strip()
+            path = self._render_extraction_template(path_template, extra_context)
+            if not path:
+                return None
+            try:
+                data = json.loads(str(raw))
+            except json.JSONDecodeError:
+                return None
+            return self._extract_scalar(self._extract_json_path_value(data, path))
         if rule.startswith("regex:"):
             pattern = rule[6:]
             match = re.search(pattern, str(raw))
@@ -555,7 +701,12 @@ class MetricFetcher:
             return True
         return self._extract_scalar(raw)
 
-    def _fetch_from_mysql(self, metric_id: str, meta: Dict[str, Any]) -> Any:
+    def _fetch_from_mysql(
+        self,
+        metric_id: str,
+        meta: Dict[str, Any],
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         table_name = _safe_identifier(meta.get("table_name", ""))
         column_name = _safe_identifier(meta.get("column_name", ""))
         time_column = _safe_identifier(meta.get("time_column", "wafer_product_start_time"))
@@ -563,19 +714,39 @@ class MetricFetcher:
         omit_equipment = bool(meta.get("mysql_omit_equipment_filter"))
         time_start, time_end = self.window_for_metric(meta)
         linking = self._normalize_linking(meta)
+        resolved_context = extra_context or {}
+        detail_trace.info(
+            "  [取数:mysql] metric=%s table=%s column=%s mode=%s duration_days=%s extraction=%s filter=%s",
+            metric_id,
+            table_name,
+            column_name,
+            linking.get("mode"),
+            self._duration_days_for_meta(meta),
+            meta.get("extraction_rule"),
+            detail_trace.preview(meta.get("filter_condition"), 240),
+        )
 
-        filter_sql, filter_params = self._render_mysql_filters(meta.get("filter_condition"), time_start, {})
+        filter_sql, filter_params = self._render_mysql_filters(
+            meta.get("filter_condition"),
+            time_start,
+            resolved_context,
+        )
         linking_clauses, linking_params, missing_required = self._build_metric_filters(
             meta,
             time_start,
             include_exact_keys=True,
             include_linking_filters=True,
             placeholder_style="mysql",
+            extra_context=resolved_context,
         )
 
         try:
             if linking["mode"] == "exact_keys":
                 if missing_required:
+                    detail_trace.warning(
+                        "  [取数:mysql] metric=%s 缺少 exact_keys 必填上下文，返回 None",
+                        metric_id,
+                    )
                     self.source_log[metric_id] = "none"
                     return None
                 raw_values = self._query_mysql_window(
@@ -596,6 +767,7 @@ class MetricFetcher:
                     include_exact_keys=False,
                     include_linking_filters=True,
                     placeholder_style="mysql",
+                    extra_context=resolved_context,
                 )
                 raw_values = self._query_mysql_window(
                     table_name,
@@ -610,33 +782,73 @@ class MetricFetcher:
                 )
 
             if not raw_values:
+                detail_trace.warning("  [取数:mysql] metric=%s 原始结果为空", metric_id)
                 self.source_log[metric_id] = "none"
                 return None
 
             values = []
             for raw in raw_values:
-                value = self._apply_extraction_rule(raw, meta.get("extraction_rule", ""))
+                value = self._apply_extraction_rule(raw, meta.get("extraction_rule", ""), resolved_context)
                 value = self._apply_data_type(metric_id, value, meta)
                 if value is None or value is False:
                     continue
                 values.append(value)
             if not values:
+                detail_trace.warning(
+                    "  [取数:mysql] metric=%s 原始结果=%s，但提取/类型转换后为空",
+                    metric_id,
+                    len(raw_values),
+                )
                 self.source_log[metric_id] = "none"
                 return None
             self.source_log[metric_id] = "real_mysql"
+            detail_trace.info(
+                "  [取数:mysql] metric=%s 成功 | raw_count=%s | normalized_count=%s | sample=%s",
+                metric_id,
+                len(raw_values),
+                len(values),
+                detail_trace.preview(values[:3], 160),
+            )
             return values
         except Exception as exc:
             logger.error("MySQL 查询失败: metric=%s table=%s error=%s", metric_id, table_name, exc)
+            detail_trace.error(
+                "  [取数:mysql] metric=%s 异常 | table=%s | error=%s | mode=%s",
+                metric_id,
+                table_name,
+                detail_trace.preview(exc, 260),
+                METRIC_SOURCE_MODE,
+            )
             if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
                 self.source_log[metric_id] = "none"
                 return None
             value = self._mock_value(metric_id, meta)
             self.source_log[metric_id] = "mock"
+            detail_trace.warning(
+                "  [取数:mysql] metric=%s 使用 mock 回退 | mock_value=%s",
+                metric_id,
+                detail_trace.preview(value, 160),
+            )
             return [value] if value is not None else []
 
-    def _fetch_from_clickhouse(self, metric_id: str, meta: Dict[str, Any]) -> Any:
+    def _fetch_from_clickhouse(
+        self,
+        metric_id: str,
+        meta: Dict[str, Any],
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         time_start, time_end = self.window_for_metric(meta)
         linking = self._normalize_linking(meta)
+        resolved_context = extra_context or {}
+        detail_trace.info(
+            "  [取数:clickhouse] metric=%s table=%s column=%s mode=%s duration_days=%s extraction=%s",
+            metric_id,
+            meta.get("table_name"),
+            meta.get("column_name"),
+            linking.get("mode"),
+            self._duration_days_for_meta(meta),
+            meta.get("extraction_rule"),
+        )
         try:
             from app.ods.clickhouse_ods import ClickHouseODS
 
@@ -646,10 +858,15 @@ class MetricFetcher:
                 include_exact_keys=True,
                 include_linking_filters=True,
                 placeholder_style="clickhouse",
+                extra_context=resolved_context,
             )
 
             if linking["mode"] == "exact_keys":
                 if missing_required:
+                    detail_trace.warning(
+                        "  [取数:clickhouse] metric=%s 缺少 exact_keys 必填上下文，返回 None",
+                        metric_id,
+                    )
                     self.source_log[metric_id] = "none"
                     return None
                 values = ClickHouseODS.query_metric_in_window(
@@ -672,6 +889,7 @@ class MetricFetcher:
                     include_exact_keys=False,
                     include_linking_filters=True,
                     placeholder_style="clickhouse",
+                    extra_context=resolved_context,
                 )
                 values = ClickHouseODS.query_metric_in_window(
                     table_name=meta["table_name"],
@@ -694,14 +912,33 @@ class MetricFetcher:
                     continue
                 normalized.append(value)
             self.source_log[metric_id] = "real_clickhouse" if normalized else "none"
+            detail_trace.info(
+                "  [取数:clickhouse] metric=%s 完成 | raw_count=%s | normalized_count=%s | source=%s | sample=%s",
+                metric_id,
+                len(values or []),
+                len(normalized),
+                self.source_log[metric_id],
+                detail_trace.preview(normalized[:3], 160),
+            )
             return normalized or None
         except Exception as exc:
             if METRIC_SOURCE_MODE in ("real", "mock_forbidden"):
                 logger.error("ClickHouse 查询失败: metric=%s error=%s", metric_id, exc)
+                detail_trace.error(
+                    "  [取数:clickhouse] metric=%s 异常且禁止 mock | error=%s",
+                    metric_id,
+                    detail_trace.preview(exc, 260),
+                )
                 self.source_log[metric_id] = "none"
                 return None
             value = self._mock_value(metric_id, meta)
             self.source_log[metric_id] = "mock"
+            detail_trace.warning(
+                "  [取数:clickhouse] metric=%s 异常后使用 mock | error=%s | mock_value=%s",
+                metric_id,
+                detail_trace.preview(exc, 220),
+                detail_trace.preview(value, 160),
+            )
             return [value] if value is not None else []
 
     def _mock_value(self, metric_id: str, meta: Dict[str, Any]) -> Any:
@@ -726,7 +963,7 @@ class MetricFetcher:
             "D_x": (-0.5, 0.5),
             "D_y": (-0.5, 0.5),
         }
-        if metric_id == "Mwx out of range,CGG6_check_parameter_ranges":
+        if metric_id == "trigger_log_mwx_cgg6_range":
             return True
         if metric_id in legacy_ranges:
             low, high = legacy_ranges[metric_id]

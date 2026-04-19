@@ -152,6 +152,14 @@ def _split_top_level_boolean(expr: str, op: str) -> List[str]:
 
 
 def eval_comparison(left: Any, operator: str, right: Any) -> bool:
+    # ClickHouse/MySQL 窗口类指标常返回 list；与 true/false 比较时不能走 str(left)==str(right)，
+    # 否则 [True,True]==true 会变成 "[True, True]"=="True" 恒为假，导致场景触发永远不命中。
+    if isinstance(left, list) and isinstance(right, bool):
+        any_truthy = any(bool(x) for x in left)
+        if operator == "==":
+            return any_truthy if right else (not any_truthy)
+        if operator == "!=":
+            return (not any_truthy) if right else any_truthy
     try:
         left_num = float(left)
         right_num = float(right)
@@ -404,6 +412,29 @@ def _evaluate_boolean_expr(
         return all(_evaluate_boolean_expr(part, context, fallback_metric_id) for part in and_parts)
 
     return evaluate_condition_text(text_expr, context, fallback_metric_id)[0]
+
+
+def explain_top_level_and_parts(
+    condition: str,
+    context: Dict[str, Any],
+) -> List[Tuple[str, bool]]:
+    """
+    将顶层 AND 拆成子句并分别求值，供场景触发排障日志使用。
+    若无法拆分（无顶层 AND），则整句求值一次。
+    """
+    expr = normalize_condition_text(condition)
+    if not expr:
+        return []
+    text_expr = _strip_outer_parentheses(expr)
+    parts = _split_top_level_boolean(text_expr, "AND")
+    if len(parts) <= 1:
+        return [(condition, evaluate_boolean_condition_text(condition, context))]
+    out: List[Tuple[str, bool]] = []
+    for part in parts:
+        p = part.strip()
+        if p:
+            out.append((p, evaluate_boolean_condition_text(p, context)))
+    return out
 
 
 def evaluate_boolean_condition_definition(

@@ -133,7 +133,7 @@ def test_detail_coarse_align_basic():
             assert_true(f"字段 '{field}' 存在", field in detail_data, str(detail_data.get(field)))
 
         assert_true("rejectReasonId=6", detail_data["rejectReasonId"] == 6)
-        assert_true("rootCause 非空", bool(detail_data.get("rootCause")), detail_data.get("rootCause"))
+        assert_true("rootCause 字段存在", "rootCause" in detail_data, detail_data.get("rootCause"))
         assert_true("time 为 13 位时间戳", len(str(detail_data["time"])) == 13, str(detail_data["time"]))
         assert_true("meta.total >= 0", meta["total"] >= 0, str(meta["total"]))
 

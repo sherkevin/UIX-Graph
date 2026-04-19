@@ -25,8 +25,10 @@ const mixedSort = (a, b) => {
 
 const formatMetricValue = (value) => {
   if (value === null || value === undefined || value === '') return '-'
+  if (typeof value === 'string') return value
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
   const n = Number(value)
-  if (!Number.isFinite(n)) return '-'
+  if (!Number.isFinite(n)) return String(value)
   if (Number.isInteger(n)) return String(n)
   return parseFloat(n.toPrecision(6)).toString()
 }

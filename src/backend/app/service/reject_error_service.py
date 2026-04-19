@@ -20,6 +20,7 @@ from app.diagnosis.service import DiagnosisService
 from app.ods.datacenter_ods import DatacenterODS
 from app.models.reject_errors_db import RejectedDetailedRecord, get_db_session
 from app.engine.diagnosis_engine import DiagnosisEngine
+from app.utils import detail_trace
 
 logger = logging.getLogger(__name__)
 
@@ -323,9 +324,19 @@ class RejectErrorService:
             source_record: Optional[Dict[str, Any]] = None
             bypass_cache = False
 
+            detail_trace.info(
+                "Service 详情入口 | failure_id=%s page_no=%s page_size=%s request_time_ms=%s",
+                failure_id,
+                page_no,
+                page_size,
+                request_time_ms,
+            )
+
             if request_time_ms is not None:
-                source_record = DatacenterODS.get_failure_record_by_id(failure_id, db)
+                with detail_trace.span("load_source_record_for_cache_decision", failure_id=failure_id):
+                    source_record = DatacenterODS.get_failure_record_by_id(failure_id, db)
                 if not source_record:
+                    detail_trace.info("源表无此 failure_id，返回 404 元数据 | failure_id=%s", failure_id)
                     return None, empty_meta
 
                 occurred_at = source_record.get("wafer_product_start_time")
@@ -341,18 +352,39 @@ class RejectErrorService:
                     "详情缓存判定: failure_id=%s request_time_ms=%s occurred_ms=%s bypass_cache=%s",
                     failure_id, request_time_ms, occurred_ms, bypass_cache,
                 )
+                detail_trace.info(
+                    "缓存策略 | bypass_cache=%s | equipment=%s chuck=%s lot=%s wafer=%s",
+                    bypass_cache,
+                    source_record.get("equipment"),
+                    source_record.get("chuck_id"),
+                    source_record.get("lot_id"),
+                    source_record.get("wafer_index"),
+                )
 
             if not bypass_cache:
-                cached = db.query(RejectedDetailedRecord).filter(
-                    RejectedDetailedRecord.failure_id == failure_id
-                ).first()
+                with detail_trace.span("query_cache_table_rejected_detailed_records", failure_id=failure_id):
+                    cached = db.query(RejectedDetailedRecord).filter(
+                        RejectedDetailedRecord.failure_id == failure_id
+                    ).first()
                 if cached:
                     logger.info("缓存命中: failure_id=%s", failure_id)
-                    return cls._build_detail_from_cache(cached, page_no, page_size)
+                    detail_trace.info(
+                        "走缓存分支 | failure_id=%s | metrics_data条数(原始)≈%s",
+                        failure_id,
+                        len(cached.metrics_data or []),
+                    )
+                    with detail_trace.span(
+                        "build_detail_from_cache",
+                        failure_id=failure_id,
+                        page_no=page_no,
+                    ):
+                        return cls._build_detail_from_cache(cached, page_no, page_size)
 
             if source_record is None:
-                source_record = DatacenterODS.get_failure_record_by_id(failure_id, db)
+                with detail_trace.span("load_source_record_full", failure_id=failure_id):
+                    source_record = DatacenterODS.get_failure_record_by_id(failure_id, db)
                 if not source_record:
+                    detail_trace.info("源表仍无记录 | failure_id=%s", failure_id)
                     return None, empty_meta
 
             if request_time_ms is not None:
@@ -361,6 +393,12 @@ class RejectErrorService:
                 ref_dt = source_record["wafer_product_start_time"]
                 if isinstance(ref_dt, str):
                     ref_dt = datetime.fromisoformat(ref_dt)
+
+            detail_trace.info(
+                "诊断基准时间 T | reference_time=%s | reject_reason_id=%s",
+                ref_dt,
+                source_record.get("reject_reason"),
+            )
 
             # ── 运行诊断引擎 ──
             engine = cls.get_diagnosis_engine()
@@ -371,13 +409,24 @@ class RejectErrorService:
                     "运行诊断引擎: failure_id=%s, reject_reason=%s, bypass_cache=%s",
                     failure_id, reject_reason_id, bypass_cache,
                 )
-                diagnosis = engine.diagnose(source_record, reference_time=ref_dt)
+                with detail_trace.span(
+                    "diagnosis_engine.diagnose",
+                    failure_id=failure_id,
+                    reject_reason=reject_reason_id,
+                ):
+                    diagnosis = engine.diagnose(source_record, reference_time=ref_dt)
                 logger.info(
                     "诊断完成: failure_id=%s rootCause=%r system=%r errorField=%r diagnosed=%s "
                     "bypass_cache=%s reference_time=%s trace=%s",
                     failure_id, diagnosis.root_cause, diagnosis.system,
                     diagnosis.error_field, diagnosis.is_diagnosed,
                     bypass_cache, ref_dt, diagnosis.trace,
+                )
+                detail_trace.info(
+                    "诊断结果摘要 | is_diagnosed=%s | metrics条数(引擎)=%s | trace=%s",
+                    diagnosis.is_diagnosed,
+                    len(diagnosis.metrics or []),
+                    diagnosis.trace,
                 )
                 # 记录各指标的数据来源（供排障，不暴露给前端响应）
                 if hasattr(engine, '_last_fetcher') and engine._last_fetcher is not None:
@@ -388,6 +437,11 @@ class RejectErrorService:
                         logger.info(
                             "指标来源统计: failure_id=%s 真实=%s mock=%s",
                             failure_id, real_metrics, mock_metrics,
+                        )
+                        detail_trace.info(
+                            "MetricFetcher.source_log 明细 | failure_id=%s | %s",
+                            failure_id,
+                            dict(_source_log),
                         )
 
                 if not bypass_cache:
@@ -423,8 +477,19 @@ class RejectErrorService:
                     "time": datetime_to_timestamp(source_record["wafer_product_start_time"]),
                 }
                 all_metrics = []
+                detail_trace.info(
+                    "跳过诊断引擎 | reject_reason_id=%s | 仅返回基础字段",
+                    reject_reason_id,
+                )
 
-            return cls._paginate_metrics(detail_data, all_metrics, page_no, page_size)
+            with detail_trace.span(
+                "paginate_metrics",
+                failure_id=failure_id,
+                page_no=page_no,
+                page_size=page_size,
+                all_metrics_len=len(all_metrics),
+            ):
+                return cls._paginate_metrics(detail_data, all_metrics, page_no, page_size)
 
         except Exception as e:
             logger.error("获取故障详情失败: failure_id=%s, error=%s", failure_id, e, exc_info=True)
@@ -440,6 +505,15 @@ class RejectErrorService:
         page_size: int,
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """从缓存记录构建详情响应"""
+        detail_trace.info(
+            "缓存行字段 | failure_id=%s equipment=%s chuck=%s lot=%s wafer=%s metrics_raw条数=%s",
+            cached.failure_id,
+            cached.equipment,
+            cached.chuck_id,
+            cached.lot_id,
+            cached.wafer_id,
+            len(cached.metrics_data or []),
+        )
         detail_data = {
             "failureId": cached.failure_id,
             "equipment": cached.equipment,
@@ -458,16 +532,24 @@ class RejectErrorService:
         metrics_raw = cached.metrics_data or []
         all_metrics = []
         for m in metrics_raw:
+            threshold = dict(m.get("threshold", {}) or {})
+            if threshold:
+                threshold["display"] = cls.get_diagnosis_engine()._select_matched_threshold_display(
+                    m.get("value"),
+                    threshold,
+                    m.get("name", ""),
+                )
             all_metrics.append({
                 "name": m.get("name", ""),
                 "value": m.get("value", 0),
                 "unit": m.get("unit", ""),
                 "status": m.get("status", "NORMAL"),
                 "type": m.get("type", "diagnostic"),
+                "approximate": bool(m.get("approximate")),
                 "threshold": {
-                    "operator": m.get("threshold", {}).get("operator", ""),
-                    "limit": m.get("threshold", {}).get("limit", 0),
-                    "display": m.get("threshold", {}).get("display"),
+                    "operator": threshold.get("operator", ""),
+                    "limit": threshold.get("limit", 0),
+                    "display": threshold.get("display"),
                 },
             })
 
@@ -507,6 +589,15 @@ class RejectErrorService:
             paged_diagnostic = []
 
         detail_data["metrics"] = paged_diagnostic + model_param
+        detail_trace.info(
+            "分页结果 | diagnostic_total=%s | model_param_total=%s | total_all=%s | 当前页诊断数=%s | 当前页总返回=%s | total_pages=%s",
+            n_diag,
+            n_mp,
+            total_all,
+            len(paged_diagnostic),
+            len(detail_data["metrics"]),
+            total_pages,
+        )
 
         return detail_data, {
             "total": total_all,
@@ -538,12 +629,20 @@ class RejectErrorService:
         """
         fid = source_record["id"]
         try:
+            detail_trace.info(
+                "准备写缓存 | failure_id=%s | rootCause=%s | system=%s | metrics=%s",
+                fid,
+                diagnosis.root_cause,
+                diagnosis.system,
+                len(diagnosis.metrics or []),
+            )
             # 先检查是否已存在（防止并发重复写入导致唯一键冲突）
             existing = db.query(RejectedDetailedRecord).filter(
                 RejectedDetailedRecord.failure_id == fid
             ).first()
             if existing:
                 logger.debug("缓存已存在，跳过写入: failure_id=%s", fid)
+                detail_trace.warning("缓存已存在，跳过写入 | failure_id=%s", fid)
                 return
 
             reason_value = source_record.get("reject_reason_value") or ""
@@ -566,6 +665,7 @@ class RejectErrorService:
             db.add(cached_record)
             db.commit()
             logger.info("诊断结果已缓存: failure_id=%s", fid)
+            detail_trace.info("缓存写入成功 | failure_id=%s", fid)
 
         except Exception as e:
             db.rollback()
@@ -573,6 +673,12 @@ class RejectErrorService:
             err_str = str(e).lower()
             if "duplicate" in err_str or "unique" in err_str:
                 logger.debug("缓存写入冲突（并发）已忽略: failure_id=%s", fid)
+                detail_trace.warning("缓存写入冲突（并发）已忽略 | failure_id=%s", fid)
             else:
                 logger.error("缓存写入失败: failure_id=%s, error=%s", fid, e)
+                detail_trace.error(
+                    "缓存写入失败 | failure_id=%s | error=%s",
+                    fid,
+                    e,
+                )
             # 不抛出异常，缓存失败不影响当次返回

@@ -14,6 +14,7 @@ from datetime import datetime
 
 # 导入工具函数
 from app.utils.time_utils import timestamp_to_datetime
+from app.utils import detail_trace
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +183,12 @@ class DatacenterODS:
 
         try:
             logger.info("[ODS] query_chuck_lot_wafer | equipment=%s start=%s end=%s", equipment, start_time, end_time)
+            detail_trace.info(
+                "ODS metadata 查询 | equipment=%s | start=%s | end=%s",
+                equipment,
+                start_time,
+                end_time,
+            )
             reason_map = _get_reason_map(db)
             none_rejected_ids = [rid for rid, val in reason_map.items() if val == "NONE_REJECTED"]
 
@@ -209,6 +216,12 @@ class DatacenterODS:
             logger.info(
                 "[ODS] query_chuck_lot_wafer | equipment=%s -> %d distinct rows (cap=%d)",
                 equipment, len(results), METADATA_MAX_ROWS
+            )
+            detail_trace.info(
+                "ODS metadata 结果 | equipment=%s | rows=%s | none_rejected_ids=%s",
+                equipment,
+                len(results),
+                detail_trace.preview(none_rejected_ids, 200),
             )
             if len(results) >= METADATA_MAX_ROWS:
                 logger.warning(
@@ -320,6 +333,19 @@ class DatacenterODS:
                 "[ODS] query_failure_records | equipment=%s chucks=%s lots=%s wafers=%s start=%s end=%s",
                 equipment, chucks, lots, wafers, start_time, end_time
             )
+            detail_trace.info(
+                "ODS 列表查询入口 | equipment=%s | chucks=%s | lots=%s | wafers=%s | start=%s | end=%s | offset=%s | limit=%s | order=%s/%s",
+                equipment,
+                detail_trace.preview(chucks, 160),
+                detail_trace.preview(lots, 160),
+                detail_trace.preview(wafers, 160),
+                start_time,
+                end_time,
+                offset,
+                limit,
+                order_by,
+                order_dir,
+            )
 
             # 加载拒片原因缓存，找出 NONE_REJECTED 对应的 reason_id 列表
             reason_map = _get_reason_map(db)
@@ -346,6 +372,7 @@ class DatacenterODS:
             total = count_query.scalar() or 0
 
             logger.info("[ODS] query_failure_records | equipment=%s total=%d", equipment, total)
+            detail_trace.info("ODS 列表 count 完成 | equipment=%s | total=%s", equipment, total)
 
             # ── 步骤 2：无 JOIN，直接查主表，reason 从内存缓存拼接（快 2-3x） ─
             data_query = db.query(
@@ -387,6 +414,11 @@ class DatacenterODS:
                 data_query = data_query.order_by(col.desc() if order_dir == "desc" else col.asc())
 
             records = data_query.offset(offset).limit(limit).all()
+            detail_trace.info(
+                "ODS 列表 data 完成 | equipment=%s | 本页行数=%s",
+                equipment,
+                len(records),
+            )
 
             # reason value 从内存缓存拼接，避免 JOIN
             result = [
@@ -403,6 +435,13 @@ class DatacenterODS:
                 for r in records
             ]
 
+            detail_trace.info(
+                "ODS 列表返回 | equipment=%s | total=%s | page_rows=%s | sample_ids=%s",
+                equipment,
+                total,
+                len(result),
+                detail_trace.preview([r["id"] for r in result[:5]], 120),
+            )
             return result, total
         finally:
             if should_close:
@@ -430,6 +469,7 @@ class DatacenterODS:
             should_close = True
 
         try:
+            detail_trace.info("ODS 详情查询入口 | failure_id=%s", failure_id)
             record = db.query(
                 LoBatchEquipmentPerformance.id,
                 LoBatchEquipmentPerformance.equipment,
@@ -452,9 +492,10 @@ class DatacenterODS:
             ).first()
 
             if not record:
+                detail_trace.warning("ODS 详情查询未命中 | failure_id=%s", failure_id)
                 return None
 
-            return {
+            result = {
                 "id": record.id,
                 "equipment": record.equipment,
                 "chuck_id": record.chuck_id,
@@ -470,6 +511,16 @@ class DatacenterODS:
                 "recipe_id": record.recipe_id,
                 "wafer_id": str(record.wafer_index) if record.wafer_index is not None else None,
             }
+            detail_trace.info(
+                "ODS 详情查询命中 | failure_id=%s | equipment=%s | chuck=%s | lot=%s | wafer=%s | reject_reason=%s",
+                failure_id,
+                result.get("equipment"),
+                result.get("chuck_id"),
+                result.get("lot_id"),
+                result.get("wafer_index"),
+                result.get("reject_reason"),
+            )
+            return result
         finally:
             if should_close:
                 db.close()

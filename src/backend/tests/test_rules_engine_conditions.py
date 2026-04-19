@@ -62,11 +62,30 @@ def test_expression_between_without_operator():
 
 def test_boolean_condition_with_and_or():
     assert evaluate_boolean_condition_text(
-        "{Coarse Alignment Failed} == true AND {Mwx out of range,CGG6_check_parameter_ranges} == true",
+        "{trigger_reject_reason_cowa_6} == true AND {trigger_log_mwx_cgg6_range} == true",
         {
-            "Coarse Alignment Failed": True,
-            "Mwx out of range,CGG6_check_parameter_ranges": True,
+            "trigger_reject_reason_cowa_6": True,
+            "trigger_log_mwx_cgg6_range": True,
         },
+    ) is True
+
+
+def test_trigger_window_metric_list_compared_to_true():
+    """窗口指标返回 list[bool] 时，{X}==true 应表示「任一条为真」，而非 str(list)=='True'。"""
+    assert evaluate_boolean_condition_text(
+        "{trigger_reject_reason_cowa_6} == true AND {trigger_log_mwx_cgg6_range} == true",
+        {
+            "trigger_reject_reason_cowa_6": True,
+            "trigger_log_mwx_cgg6_range": [True, True],
+        },
+    ) is True
+    assert evaluate_boolean_condition_text(
+        "{trigger_log_mwx_cgg6_range} == true",
+        {"trigger_log_mwx_cgg6_range": []},
+    ) is False
+    assert evaluate_boolean_condition_text(
+        "{trigger_log_mwx_cgg6_range} == false",
+        {"trigger_log_mwx_cgg6_range": []},
     ) is True
     assert evaluate_boolean_condition_text(
         "{A} == true OR {B} == true",
@@ -197,6 +216,42 @@ def test_mwx0_status_respects_sparse_valid_ranges():
     assert engine._is_within_normal_range(1.0002, threshold["operator"], threshold["limit"]) is True
 
 
+def test_mwx0_threshold_display_shows_only_matched_branch():
+    engine = DiagnosisEngine()
+    threshold = engine._find_threshold("Mwx_0")
+    assert threshold is not None
+    assert (
+        engine._select_matched_threshold_display(1.00005, threshold)
+        == "1.00002 < {Mwx_0} < 1.0001"
+    )
+    assert (
+        engine._select_matched_threshold_display(1.0002, threshold)
+        == "{Mwx_0} > 1.0001"
+    )
+    assert (
+        engine._select_matched_threshold_display(0.99995, threshold)
+        == "0.9999 < {Mwx_0} < 0.99998"
+    )
+
+
+def test_mwx0_threshold_display_can_recover_from_legacy_cache_shape():
+    engine = DiagnosisEngine()
+    legacy_threshold = {
+        "operator": "any_of",
+        "limit": [
+            {"operator": ">", "limit": 1.0001},
+            {"operator": "<", "limit": 0.9999},
+            {"operator": "between", "limit": [1.00002, 1.0001]},
+            {"operator": "between", "limit": [0.9999, 0.99998]},
+        ],
+        "display": "{Mwx_0} > 1.0001 or {Mwx_0} < 0.9999 or 1.00002 < {Mwx_0} < 1.0001 or 0.9999 < {Mwx_0} < 0.99998",
+    }
+    assert (
+        engine._select_matched_threshold_display(1.00005, legacy_threshold, "Mwx_0")
+        == "1.00002 < {Mwx_0} < 1.0001"
+    )
+
+
 def test_between_threshold_uses_open_interval():
     engine = DiagnosisEngine()
     assert engine._is_within_normal_range(0.0, "between", [-20, 20]) is True
@@ -307,8 +362,8 @@ def test_select_scene_uses_trigger_conditions(monkeypatch):
 
     def fake_fetch_from_source_record(self, source_record, metric_ids):
         values = {
-            "Coarse Alignment Failed": True,
-            "Mwx out of range,CGG6_check_parameter_ranges": True,
+            "trigger_reject_reason_cowa_6": True,
+            "trigger_log_mwx_cgg6_range": True,
         }
         return {mid: values.get(mid) for mid in metric_ids}
 
@@ -327,8 +382,8 @@ def test_select_scene_uses_trigger_conditions(monkeypatch):
     assert scene is not None
     assert scene["id"] == 1001
     assert scene["metric_id"] == [
-        "Coarse Alignment Failed",
-        "Mwx out of range,CGG6_check_parameter_ranges",
+        "trigger_reject_reason_cowa_6",
+        "trigger_log_mwx_cgg6_range",
     ]
 
 

@@ -26,7 +26,10 @@ Action Function Registry
 import logging
 import importlib
 import pkgutil
+import time
 from typing import Any, Callable, Dict, Optional
+
+from app.utils import detail_trace
 
 logger = logging.getLogger(__name__)
 
@@ -101,16 +104,37 @@ def call_action(
     fn = _REGISTRY.get(name)
     if fn is None:
         logger.warning("[Action] '%s' 未注册，跳过（可提供实现后注册）", name)
+        detail_trace.warning("action 未注册 | name=%s", name)
         return {}
 
     # params 优先作为显式入参，context 作为额外上下文透传
     kwargs = dict(context)
     kwargs.update(_resolve_params(params, context))
 
+    t0 = time.perf_counter()
+    detail_trace.info(
+        "action 调用 | name=%s | params_keys=%s",
+        name,
+        detail_trace.preview(list((params or {}).keys()), 120),
+    )
     try:
         result = fn(**kwargs)
+        ms = (time.perf_counter() - t0) * 1000
+        detail_trace.info(
+            "action 完成 | name=%s | 耗时=%.1fms | output_keys=%s",
+            name,
+            ms,
+            detail_trace.preview(list((result or {}).keys()), 160),
+        )
         return result or {}
     except Exception as exc:
+        ms = (time.perf_counter() - t0) * 1000
+        detail_trace.error(
+            "action 异常 | name=%s | 耗时=%.1fms | error=%s",
+            name,
+            ms,
+            detail_trace.preview(exc, 220),
+        )
         logger.warning("[Action] '%s' 执行异常: %s", name, exc, exc_info=True)
         return {}
 

@@ -1,8 +1,8 @@
 {
   "version": "3.0.0",
   "metrics": {
-    "Coarse Alignment Failed": {
-      "description": "COWA拒片的识别字段",
+    "trigger_reject_reason_cowa_6": {
+      "description": "场景触发：源表 reject_reason 等于 6（COWA / Coarse Alignment Failed）。指标 id 为 snake_case，与 ws_pos_x、Mwx_0 等一致。",
       "data_type": null,
       "unit": null,
       "source_kind": "failure_record_field",
@@ -13,8 +13,8 @@
       },
       "role": "trigger_only"
     },
-    "Mwx out of range,CGG6_check_parameter_ranges": {
-      "description": "倍率超限的识别字段",
+    "trigger_log_mwx_cgg6_range": {
+      "description": "场景触发：ClickHouse 时间窗内查 LOG_EH_UNION_VIEW.detail，regex 匹配日志子串（见 extraction_rule）；取数多为 list。与 true 比较时按「任一条为真」。",
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
@@ -65,16 +65,19 @@
           {"target": "chuck_id", "source": "chuck_id"},
           {"target": "wafer_id", "source": "wafer_id"}
         ],
-        "filters": []
+        "filters": [
+          {"target": "phase", "value": "1ST_COWA"}
+        ]
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_SET_OFL",
+      "table_name": "src.RPT_WAA_SET_UNION_VIEW",
       "column_name": "WS_pos_x",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "7"
+      "duration": "7",
+      "_note": "按业务问题清单改为 src.RPT_WAA_SET_UNION_VIEW，并补 phase='1ST_COWA' 固定筛选；其余 exact_keys 先保持不变以避免误放大结果集"
     },
     "ws_pos_y": {
       "description": "cowa标记对准位置 (mark_scan) ws_pos_y",
@@ -89,16 +92,19 @@
           {"target": "chuck_id", "source": "chuck_id"},
           {"target": "wafer_id", "source": "wafer_id"}
         ],
-        "filters": []
+        "filters": [
+          {"target": "phase", "value": "1ST_COWA"}
+        ]
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_SET_OFL",
+      "table_name": "src.RPT_WAA_SET_UNION_VIEW",
       "column_name": "WS_pos_y",
       "time_column": "file_time",
       "equipment_column": "equipment",
-      "duration": "7"
+      "duration": "7",
+      "_note": "按业务问题清单改为 src.RPT_WAA_SET_UNION_VIEW，并补 phase='1ST_COWA' 固定筛选；其余 exact_keys 先保持不变以避免误放大结果集"
     },
     "mark_pos_x": {
       "description": "cowa标记名义位置 (mark_data) mark_pos_x",
@@ -254,19 +260,22 @@
       "linking": {
         "mode": "time_window_only",
         "keys": [],
-        "filters": []
+        "filters": [
+          {"target": "table_name", "value": "COMC"},
+          {"target": "env_id", "operator": "contains", "source": "equipment"}
+        ]
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
       "table_name": "datacenter.mc_config_commits_history",
       "column_name": "data",
-      "extraction_rule": "json:Sx",
+      "extraction_rule": "jsonpath:static_wafer_load_offset/chuck_message[{chuck_index0}]/static_load_offset/x",
       "time_column": "last_modify_date",
       "equipment_column": "equipment",
       "mysql_omit_equipment_filter": true,
       "duration": "7",
-      "_note": "内网表无 equipment/committed_at；用 last_modify_date(varchar) 做时间窗；与 performance 的 table_name/env_id 关联规则见 docs/intranet/linking_tbd.md"
+      "_note": "按业务问题清单补 table_name='COMC' 与 env_id contains equipment 过滤；从 data.static_wafer_load_offset.chuck_message[{chuck_index0}].static_load_offset.x 提取"
     },
     "Sy": {
       "description": "静态上片偏差y",
@@ -276,19 +285,22 @@
       "linking": {
         "mode": "time_window_only",
         "keys": [],
-        "filters": []
+        "filters": [
+          {"target": "table_name", "value": "COMC"},
+          {"target": "env_id", "operator": "contains", "source": "equipment"}
+        ]
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
       "table_name": "datacenter.mc_config_commits_history",
       "column_name": "data",
-      "extraction_rule": "json:Sy",
+      "extraction_rule": "jsonpath:static_wafer_load_offset/chuck_message[{chuck_index0}]/static_load_offset/y",
       "time_column": "last_modify_date",
       "equipment_column": "equipment",
       "mysql_omit_equipment_filter": true,
       "duration": "7",
-      "_note": "同 Sx；extraction_rule 仅 MySQL 路径支持 json:"
+      "_note": "同 Sx；从 data.static_wafer_load_offset.chuck_message[{chuck_index0}].static_load_offset.y 提取"
     },
     "动态上片偏差": {
       "description": "动态上片偏差（当前未启用）",
@@ -449,11 +461,11 @@
       "phenomenon": "倍率超限",
       "description": "COWA倍率超限，补偿建模",
       "metric_id": [
-        "Coarse Alignment Failed",
-        "Mwx out of range,CGG6_check_parameter_ranges"
+        "trigger_reject_reason_cowa_6",
+        "trigger_log_mwx_cgg6_range"
       ],
       "trigger_condition": [
-        "{Coarse Alignment Failed} == true AND {Mwx out of range,CGG6_check_parameter_ranges} == true"
+        "{trigger_reject_reason_cowa_6} == true AND {trigger_log_mwx_cgg6_range} == true"
       ],
       "start_node": "1"
     }

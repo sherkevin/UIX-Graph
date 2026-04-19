@@ -4,6 +4,7 @@ import sys
 import logging
 import traceback
 import json
+import time
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -27,12 +28,14 @@ from app.handler import (
     reject_errors, ontology, knowledge,
     diagnosis, visualization, propagation, full_graph, entity
 )
+from app.utils import detail_trace
 
 # ── 日志配置 ──────────────────────────────────────────────────────────────────
 _log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, _log_level, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    force=True,
 )
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,49 @@ app = FastAPI(
     description="光刻机拒片根因分析系统 API",
     version="1.0.0"
 )
+
+
+@app.on_event("startup")
+async def log_startup_state():
+    detail_trace.info(
+        "应用启动 | APP_ENV=%s | LOG_LEVEL=%s | UIX_DETAIL_TRACE=%s | CORS=%s",
+        os.environ.get("APP_ENV", "local"),
+        _log_level,
+        os.environ.get("UIX_DETAIL_TRACE", "1"),
+        _cors_env or "default_local",
+    )
+
+
+@app.middleware("http")
+async def request_log_middleware(request: Request, call_next):
+    t0 = time.perf_counter()
+    query_text = str(request.url.query or "")
+    detail_trace.info(
+        "HTTP 请求进入 | %s %s | query=%s",
+        request.method,
+        request.url.path,
+        detail_trace.preview(query_text, 300),
+    )
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        detail_trace.error(
+            "HTTP 请求异常 | %s %s | 耗时=%.1f ms | error=%s",
+            request.method,
+            request.url.path,
+            (time.perf_counter() - t0) * 1000,
+            detail_trace.preview(exc, 300),
+        )
+        raise
+
+    detail_trace.info(
+        "HTTP 请求完成 | %s %s | status=%s | 耗时=%.1f ms",
+        request.method,
+        request.url.path,
+        getattr(response, "status_code", "?"),
+        (time.perf_counter() - t0) * 1000,
+    )
+    return response
 
 # ── CORS 配置（由环境变量 CORS_ORIGINS 控制，逗号分隔多个来源） ───────────────
 _cors_env = os.environ.get("CORS_ORIGINS", "")

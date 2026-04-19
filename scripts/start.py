@@ -527,6 +527,7 @@ class LauncherApp:
                 f"CORS_ORIGINS=http://localhost:3000,http://localhost:8000\n"
                 f"METRIC_SOURCE_MODE={metric_mode}\n"
                 f"LOG_LEVEL=INFO\n"
+                f"UIX_DETAIL_TRACE=1\n"
             )
             ENV_FILE.write_text(content, encoding="utf-8")
             return True, None
@@ -539,10 +540,20 @@ class LauncherApp:
                 **os.environ,
                 "PYTHONIOENCODING": "utf-8",
                 "PYTHONUTF8": "1",
+                "PYTHONUNBUFFERED": "1",
             }
+            self._log(
+                "  [后端启动参数] "
+                f"APP_ENV={env.get('APP_ENV', '?')} "
+                f"LOG_LEVEL={env.get('LOG_LEVEL', '?')} "
+                f"UIX_DETAIL_TRACE={env.get('UIX_DETAIL_TRACE', '?')} "
+                f"METRIC_SOURCE_MODE={env.get('METRIC_SOURCE_MODE', '?')}"
+            )
             p = subprocess.Popen(
                 [PYTHON, "-m", "uvicorn", "app.main:app",
-                 "--host", "0.0.0.0", "--port", str(BACKEND_PORT)],
+                 "--host", "0.0.0.0", "--port", str(BACKEND_PORT),
+                 "--log-level", "info",
+                 "--access-log"],
                 cwd=str(BACKEND),
                 env=env,
                 stdout=subprocess.PIPE,
@@ -565,6 +576,7 @@ class LauncherApp:
                 **os.environ,
                 "PYTHONIOENCODING": "utf-8",
                 "PYTHONUTF8": "1",
+                "PYTHONUNBUFFERED": "1",
             }
             p = subprocess.Popen(
                 [PYTHON, str(SCRIPTS / "serve_frontend.py"), str(FRONTEND_PORT)],

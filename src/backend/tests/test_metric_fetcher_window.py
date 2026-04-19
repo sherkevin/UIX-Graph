@@ -149,6 +149,46 @@ def test_build_metric_filters_uses_exact_keys_from_source_record():
     assert params["link_2"] == "ALIGN"
 
 
+def test_build_metric_filters_supports_contains_in_and_context_sources():
+    T = datetime(2026, 3, 25, 12, 0, 0)
+    f = MetricFetcher(
+        equipment="SSB8000",
+        reference_time=T,
+        chuck_id=2,
+        fallback_duration_days=7,
+        source_record={"lot_id": "LOT-1"},
+    )
+    clauses, params, missing = f._build_metric_filters(
+        {
+            "linking": {
+                "mode": "time_window_only",
+                "keys": [],
+                "filters": [
+                    {"target": "env_id", "operator": "contains", "source": "equipment"},
+                    {"target": "mark_id", "operator": "in", "source": "mark_candidates"},
+                    {"target": "table_name", "source": "config_table"},
+                ],
+            }
+        },
+        T,
+        include_exact_keys=False,
+        include_linking_filters=True,
+        placeholder_style="mysql",
+        extra_context={
+            "mark_candidates": ["M1", "M2", "M3", "M4"],
+            "config_table": "COMC",
+        },
+    )
+    assert missing is False
+    assert "INSTR(CAST(env_id AS CHAR), CAST(:link_0 AS CHAR)) > 0" in clauses
+    assert "mark_id IN (:link_1_0, :link_1_1, :link_1_2, :link_1_3)" in clauses
+    assert "table_name = :link_2" in clauses
+    assert params["link_0"] == "SSB8000"
+    assert params["link_1_0"] == "M1"
+    assert params["link_1_3"] == "M4"
+    assert params["link_2"] == "COMC"
+
+
 def test_mysql_exact_match_returns_none_without_explicit_fallback(monkeypatch):
     T = datetime(2026, 3, 25, 12, 0, 0)
     f = MetricFetcher(
@@ -177,6 +217,64 @@ def test_mysql_exact_match_returns_none_without_explicit_fallback(monkeypatch):
     )
     assert value is None
     assert f.source_log["Sx"] == "none"
+
+
+def test_apply_extraction_rule_supports_jsonpath_with_context():
+    T = datetime(2026, 3, 25, 12, 0, 0)
+    f = MetricFetcher(
+        equipment="SSB8000",
+        reference_time=T,
+        chuck_id=2,
+        fallback_duration_days=7,
+    )
+    raw = """
+    {
+      "static_wafer_load_offset": {
+        "chuck_message": [
+          {"static_load_offset": {"x": 1.23, "y": 4.56}},
+          {"static_load_offset": {"x": 7.89, "y": 0.12}}
+        ]
+      }
+    }
+    """
+    value_x = f._apply_extraction_rule(
+        raw,
+        "jsonpath:static_wafer_load_offset/chuck_message/{chuck_index0}/static_load_offset/x",
+        {"chuck_index0": 1},
+    )
+    value_y = f._apply_extraction_rule(
+        raw,
+        "jsonpath:static_wafer_load_offset/chuck_message/{chuck_index0}/static_load_offset/y",
+        {"chuck_index0": 1},
+    )
+    assert value_x == 7.89
+    assert value_y == 0.12
+
+
+def test_fetch_all_passes_previous_metric_results_as_context(monkeypatch):
+    T = datetime(2026, 3, 25, 12, 0, 0)
+    f = MetricFetcher(equipment="SSB8000", reference_time=T, fallback_duration_days=7)
+
+    monkeypatch.setattr(
+        f.rule_loader,
+        "get_metric_meta",
+        lambda metric_id: {"source_kind": "mysql_nearest_row"},
+    )
+
+    seen_context = {}
+
+    def _fake_fetch(metric_id, extra_context=None):
+        seen_context[metric_id] = dict(extra_context or {})
+        if metric_id == "mark_candidates":
+            return ["M1", "M2", "M3", "M4"]
+        return ["final"]
+
+    monkeypatch.setattr(f, "_fetch_one", _fake_fetch)
+    values = f.fetch_all(["mark_candidates", "mark_pos_x"])
+    assert values["mark_candidates"] == ["M1", "M2", "M3", "M4"]
+    assert values["mark_candidates_window"] == ["M1", "M2", "M3", "M4"]
+    assert seen_context["mark_pos_x"]["mark_candidates"] == ["M1", "M2", "M3", "M4"]
+    assert seen_context["mark_pos_x"]["mark_candidates_window"] == ["M1", "M2", "M3", "M4"]
 
 
 def test_mysql_window_omits_equipment_predicate_when_configured(monkeypatch):
@@ -261,7 +359,11 @@ def test_fetch_all_adds_window_alias_for_query_metrics(monkeypatch):
         "get_metric_meta",
         lambda metric_id: {"source_kind": "clickhouse_window"} if metric_id == "Mwx_0" else None,
     )
-    monkeypatch.setattr(f, "_fetch_one", lambda metric_id: [1.0, 2.0] if metric_id == "Mwx_0" else None)
+    monkeypatch.setattr(
+        f,
+        "_fetch_one",
+        lambda metric_id, extra_context=None: [1.0, 2.0] if metric_id == "Mwx_0" else None,
+    )
 
     values = f.fetch_all(["Mwx_0"])
     assert values["Mwx_0"] == [1.0, 2.0]

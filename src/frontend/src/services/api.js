@@ -44,10 +44,15 @@ export function extractErrorMessage(error) {
     if (detail) return `[${status}] ${detail}`
     return `请求失败 (HTTP ${status})`
   }
+  const message = error?.message || ''
+  const code = error?.code || ''
+  if (code === 'ECONNABORTED' || /timeout/i.test(message)) {
+    return '请求超时，后端正在处理详情诊断，请稍后重试'
+  }
   if (error.request) {
     return '无法连接到服务器，请检查网络或后端服务是否运行'
   }
-  return error.message || '未知错误'
+  return message || '未知错误'
 }
 
 // 响应拦截器
@@ -92,7 +97,10 @@ export const rejectErrorsAPI = {
   getMetrics: (id, pageNo = 1, pageSize = 20, requestTime = null) => {
     const params = { pageNo, pageSize }
     if (requestTime != null) params.requestTime = requestTime
-    return apiClient.get(`/v1/reject-errors/${id}/metrics`, { params })
+    return apiClient.get(`/v1/reject-errors/${id}/metrics`, {
+      params,
+      timeout: 120000,
+    })
   },
 }
 

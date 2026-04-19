@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from app.engine.actions import has_action
 from app.engine.condition_evaluator import _extract_vars_from_definition
 from app.engine.rule_validator import validate_rules_config
+from app.utils import detail_trace
 
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,12 @@ class DiagnosisConfigStore:
             self.version,
             ",".join(self.pipeline_defs.keys()),
         )
+        detail_trace.info(
+            "诊断索引已加载 | diagnosis.json version=%s | pipelines=%s | config_dir=%s",
+            self.version,
+            list(self.pipeline_defs.keys()),
+            self.config_dir,
+        )
 
     def get_pipeline(self, pipeline_id: str) -> Dict[str, Any]:
         if pipeline_id in self.pipeline_cache:
@@ -75,6 +82,13 @@ class DiagnosisConfigStore:
             raise KeyError(f"未知诊断 pipeline: {pipeline_id}")
         bundle = self._normalize_pipeline(pipeline_id, pipeline_def)
         self.pipeline_cache[pipeline_id] = bundle
+        detail_trace.info(
+            "pipeline 装配完成 | id=%s | metrics=%s | scenes=%s | steps=%s",
+            pipeline_id,
+            len(bundle.get("metrics") or {}),
+            len(bundle.get("diagnosis_scenes") or []),
+            len(bundle.get("steps") or []),
+        )
         return bundle
 
     def has_pipeline(self, pipeline_id: str) -> bool:

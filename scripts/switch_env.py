@@ -76,6 +76,8 @@ APP_ENV={env}
 CORS_ORIGINS={cors_origins}
 METRIC_SOURCE_MODE={metric_mode}
 LOG_LEVEL=INFO
+# 拒片详情接口排障日志（前缀 [详情排障]）；设为 0/false/off 可关闭
+UIX_DETAIL_TRACE=1
 """
     BACKEND_ENV_FILE.write_text(content, encoding="utf-8")
     ok(f"后端 .env → APP_ENV={env}  ({BACKEND_ENV_FILE})")

@@ -12,9 +12,12 @@ ClickHouse 表约定（SMEE LAS 系统）：
 import clickhouse_connect
 import logging
 import re
+import time
 from typing import Optional, List, Dict, Any
 
-_CH_IDENT_SEGMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+from app.utils import detail_trace
+
+_CH_IDENT_SEGMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_\.]*$")
 import json
 import os
 from datetime import datetime
@@ -125,6 +128,7 @@ class ClickHouseODS:
             提取后的值列表（按距 reference_time 由近到远排序；窗口内无数据则为空列表）
         """
         client = get_clickhouse_client()
+        t0 = time.perf_counter()
         try:
             # ClickHouse 使用 toDateTime 处理时间参数
             ts_fmt = "%Y-%m-%d %H:%M:%S"
@@ -160,9 +164,28 @@ class ClickHouseODS:
             }
             if extra_filter_params:
                 params.update(extra_filter_params)
+            detail_trace.info(
+                "CH SQL | APP_ENV=%s | table=%s | col=%s | equipment=%s | window=[%s .. %s] | T=%s | rule=%s | extra_filters=%s",
+                os.environ.get("APP_ENV", "local"),
+                table_name,
+                column_name,
+                equipment,
+                t_start_str,
+                t_end_str,
+                t_ref_str,
+                detail_trace.preview(extraction_rule, 120),
+                detail_trace.preview(extra_filters, 200),
+            )
             result = client.query(query, parameters=params)
+            raw_rows = len(result.result_set) if result.result_set else 0
 
             if not result.result_set:
+                detail_trace.warning(
+                    "CH SQL 无行 | table=%s | equipment=%s | 耗时=%.1fms",
+                    table_name,
+                    equipment,
+                    (time.perf_counter() - t0) * 1000,
+                )
                 return []
 
             values: List[Any] = []
@@ -182,11 +205,28 @@ class ClickHouseODS:
 
                 if raw is not None:
                     values.append(float(raw))
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            detail_trace.info(
+                "CH SQL 完成 | table=%s | raw_rows=%s | extracted=%s | 耗时=%.1fms | sample=%s",
+                table_name,
+                raw_rows,
+                len(values),
+                elapsed_ms,
+                detail_trace.preview(values[:5], 160),
+            )
             return values
 
         except Exception as e:
             logger.error("ClickHouse query_metric_in_window 失败: table=%s column=%s error=%s",
                          table_name, column_name, e)
+            detail_trace.error(
+                "CH SQL 异常 | table=%s | col=%s | equipment=%s | 耗时=%.1fms | error=%s",
+                table_name,
+                column_name,
+                equipment,
+                (time.perf_counter() - t0) * 1000,
+                detail_trace.preview(e, 260),
+            )
             raise   # 由调用方决定是否降级 mock
         finally:
             client.close()

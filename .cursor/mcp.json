@@ -1,0 +1,51 @@
+{
+  "mcpServers": {
+    "persistent-chat": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\shers\\.cursor-loop\\bridge.js",
+        "--workspace=d:\\Codes\\UIX-Graph"
+      ],
+      "disabled": false,
+      "autoApprove": [
+        "wait_for_user_input",
+        "init_conversation",
+        "merge_conversation",
+        "select_conversation"
+      ]
+    },
+    "my-mcp-1": {
+      "command": "node",
+      "args": [
+        "C:/Users/shers/.cursor/my-mcp-server/index.mjs"
+      ],
+      "env": {
+        "bajie_SESSION": "1",
+        "bajie_QUEUE_ROOT": "C:\\Users\\shers\\.cursor\\my-mcp-messages"
+      },
+      "disabled": false
+    },
+    "my-mcp-2": {
+      "command": "node",
+      "args": [
+        "C:/Users/shers/.cursor/my-mcp-server/index.mjs"
+      ],
+      "env": {
+        "bajie_SESSION": "2",
+        "bajie_QUEUE_ROOT": "C:\\Users\\shers\\.cursor\\my-mcp-messages"
+      },
+      "disabled": false
+    },
+    "my-mcp-3": {
+      "command": "node",
+      "args": [
+        "C:/Users/shers/.cursor/my-mcp-server/index.mjs"
+      ],
+      "env": {
+        "bajie_SESSION": "3",
+        "bajie_QUEUE_ROOT": "C:\\Users\\shers\\.cursor\\my-mcp-messages"
+      },
+      "disabled": false
+    }
+  }
+}

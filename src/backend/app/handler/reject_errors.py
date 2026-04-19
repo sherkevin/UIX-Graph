@@ -9,6 +9,7 @@
   接口 3 (metrics) ：requestTime 作为诊断基准时间 T，影响指标时间窗 [T-duration, T]
 """
 import logging
+import time
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
@@ -25,6 +26,7 @@ from app.schemas.reject_errors import (
     DetailResponse,
 )
 from app.service.reject_error_service import RejectErrorService
+from app.utils import detail_trace
 
 router = APIRouter()
 
@@ -48,6 +50,13 @@ async def get_metadata(
     - **endTime**: 查询结束时间（可选，13 位时间戳），过滤 lot_end_time
     """
     logger.info("[Handler] GET /metadata | equipment=%s startTime=%s endTime=%s", equipment, startTime, endTime)
+    t0 = time.perf_counter()
+    detail_trace.info(
+        "HTTP 接口1 metadata | equipment=%s | startTime=%s | endTime=%s",
+        equipment,
+        startTime,
+        endTime,
+    )
     try:
         data = RejectErrorService.get_metadata(
             equipment=equipment,
@@ -55,6 +64,12 @@ async def get_metadata(
             end_time=endTime
         )
         logger.info("[Handler] GET /metadata | equipment=%s -> %d chucks", equipment, len(data))
+        detail_trace.info(
+            "HTTP 接口1 成功 | equipment=%s | chucks=%s | 耗时=%.1fms",
+            equipment,
+            len(data),
+            (time.perf_counter() - t0) * 1000,
+        )
         return MetadataResponse(data=data)
     except ValueError as e:
         logger.warning("[Handler] GET /metadata | equipment=%s ValueError: %s", equipment, e)
@@ -83,6 +98,20 @@ async def search_reject_errors(request: SearchRequest):
         request.chucks, request.lots, request.wafers,
         request.startTime, request.endTime
     )
+    t0 = time.perf_counter()
+    detail_trace.info(
+        "HTTP 接口2 search | equipment=%s | page=%s/%s | chucks=%s | lots=%s | wafers=%s | start=%s | end=%s | order=%s/%s",
+        request.equipment,
+        request.pageNo,
+        request.pageSize,
+        request.chucks,
+        request.lots,
+        request.wafers,
+        request.startTime,
+        request.endTime,
+        request.sortedBy,
+        request.orderedBy,
+    )
     try:
         records, pagination_meta = RejectErrorService.search_reject_errors(
             equipment=request.equipment,
@@ -98,6 +127,13 @@ async def search_reject_errors(request: SearchRequest):
         )
         logger.info("[Handler] POST /search | equipment=%s -> %d records total=%s",
                     request.equipment, len(records), pagination_meta.get("total"))
+        detail_trace.info(
+            "HTTP 接口2 成功 | equipment=%s | 本页条数=%s | total=%s | 耗时=%.1fms",
+            request.equipment,
+            len(records),
+            pagination_meta.get("total"),
+            (time.perf_counter() - t0) * 1000,
+        )
         return SearchResponse(data=records, meta=pagination_meta)
     except ValueError as e:
         logger.warning("[Handler] POST /search | equipment=%s ValueError: %s", request.equipment, e)
@@ -141,6 +177,14 @@ async def get_failure_metrics(
             detail=f"requestTime 超出合法范围（{_TS_MIN} ~ {_TS_MAX} 毫秒时间戳）"
         )
 
+    t0 = time.perf_counter()
+    detail_trace.info(
+        "HTTP 接口3 进入 | failure_id=%s pageNo=%s pageSize=%s requestTime_ms=%s",
+        failure_id,
+        pageNo,
+        pageSize,
+        requestTime,
+    )
     try:
         detail_data, pagination_meta = RejectErrorService.get_failure_details(
             failure_id=failure_id,
@@ -150,9 +194,27 @@ async def get_failure_metrics(
         )
     except Exception as e:
         logger.exception("接口 3 内部错误: failure_id=%s", failure_id)
+        detail_trace.error(
+            "HTTP 接口3 异常 | failure_id=%s | error=%s",
+            failure_id,
+            e,
+        )
         raise HTTPException(status_code=500, detail="诊断引擎内部错误，请查看服务日志")
 
     if detail_data is None:
+        detail_trace.info(
+            "HTTP 接口3 未找到记录 | failure_id=%s | 总耗时=%.1f ms",
+            failure_id,
+            (time.perf_counter() - t0) * 1000,
+        )
         raise HTTPException(status_code=404, detail=f"未找到故障记录：{failure_id}")
 
+    ms = (time.perf_counter() - t0) * 1000
+    detail_trace.info(
+        "HTTP 接口3 成功 | failure_id=%s | metrics条数(本页)=%s | meta.total=%s | 总耗时=%.1f ms",
+        failure_id,
+        len((detail_data or {}).get("metrics") or []),
+        (pagination_meta or {}).get("total"),
+        ms,
+    )
     return DetailResponse(data=detail_data, meta=pagination_meta)

@@ -18,6 +18,7 @@ import re
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
+from app.utils import detail_trace
 from app.engine.rule_loader import RuleLoader
 from app.engine.metric_fetcher import MetricFetcher, DEFAULT_FALLBACK_WINDOW_DAYS
 from app.engine.actions import call_action
@@ -26,6 +27,7 @@ from app.engine.condition_evaluator import (
     evaluate_boolean_condition_text,
     evaluate_condition_definition,
     evaluate_condition_text,
+    explain_top_level_and_parts,
     parse_condition_signature,
 )
 
@@ -139,11 +141,21 @@ class DiagnosisEngine:
         self._last_fetcher = fetcher
 
         reject_reason_id = source_record.get("reject_reason")
+        detail_trace.info(
+            "diagnose 入口 | failure_id=%s | equipment=%s | chuck=%s | reject_reason=%s | T=%s",
+            source_record.get("id"),
+            source_record.get("equipment"),
+            source_record.get("chuck_id"),
+            reject_reason_id,
+            ref,
+        )
 
         # 1. 匹配诊断场景（由 trigger_condition 驱动）
-        scene = self._select_scene(source_record, fetcher)
+        with detail_trace.span("diagnosis_select_scene", reject_reason=reject_reason_id):
+            scene = self._select_scene(source_record, fetcher)
         if scene is None:
             logger.info("reject_reason_id=%s 无匹配诊断场景", reject_reason_id)
+            detail_trace.info("无匹配诊断场景，提前返回 | reject_reason=%s", reject_reason_id)
             return result
         result.scene_id = scene.get("id")
         result.scene_module = scene.get("module")
@@ -158,25 +170,45 @@ class DiagnosisEngine:
 
         # 2. 获取所有相关指标值
         metric_ids = self.rule_loader.get_all_scene_metric_ids(scene)
+        detail_trace.info(
+            "场景已匹配 | scene_id=%s | phenomenon=%s | 指标数=%s | metric_ids=%s",
+            scene.get("id"),
+            detail_trace.preview(scene.get("phenomenon"), 120),
+            len(metric_ids),
+            detail_trace.preview(metric_ids, 400),
+        )
 
         # 优先从源记录直接取值（Tx, Ty, Rw）
-        metric_values = fetcher.fetch_from_source_record(source_record, metric_ids)
+        with detail_trace.span(
+            "diagnosis_resolve_metrics",
+            scene_id=scene.get("id"),
+            metric_count=len(metric_ids),
+        ):
+            metric_values = fetcher.fetch_from_source_record(source_record, metric_ids)
 
-        logger.info("获取到 %d/%d 个指标值", sum(1 for v in metric_values.values() if v is not None), len(metric_ids))
+        non_null = sum(1 for v in metric_values.values() if v is not None)
+        detail_trace.info(
+            "指标解析汇总 | 非空=%s/总计=%s | source_log=%s",
+            non_null,
+            len(metric_values),
+            detail_trace.preview(fetcher.source_log, 500),
+        )
+        logger.info("获取到 %d/%d 个指标值", non_null, len(metric_ids))
 
         # 3. 遍历决策树
         start_node = str(scene.get("start_node", "1"))
-        root_cause, system, trace, abnormal_metrics, final_context = self._walk_tree(
-            start_node,
-            metric_values,
-            base_context={
-                "equipment": source_record.get("equipment"),
-                "chuck_id": source_record.get("chuck_id"),
-                "lot_id": source_record.get("lot_id"),
-                "wafer_index": source_record.get("wafer_index"),
-                "reference_time": ref,
-            },
-        )
+        with detail_trace.span("diagnosis_walk_tree", start_node=start_node):
+            root_cause, system, trace, abnormal_metrics, final_context = self._walk_tree(
+                start_node,
+                metric_values,
+                base_context={
+                    "equipment": source_record.get("equipment"),
+                    "chuck_id": source_record.get("chuck_id"),
+                    "lot_id": source_record.get("lot_id"),
+                    "wafer_index": source_record.get("wafer_index"),
+                    "reference_time": ref,
+                },
+            )
 
         result.root_cause = root_cause
         result.system = system
@@ -197,7 +229,8 @@ class DiagnosisEngine:
             )
 
         # 4. 构建 metrics 列表（每个涉及的指标及其状态）
-        result.metrics = self._build_metrics_list(metric_ids, final_context)
+        with detail_trace.span("diagnosis_build_metrics_list"):
+            result.metrics = self._build_metrics_list(metric_ids, final_context)
 
         # 5. 构建 errorField（触发异常判断的指标）
         error_fields = [m["name"] for m in result.metrics if m["status"] == "ABNORMAL"]
@@ -216,13 +249,39 @@ class DiagnosisEngine:
         fetcher: MetricFetcher,
     ) -> Optional[Dict[str, Any]]:
         """按 diagnosis_scenes.trigger_condition 顺序返回首个匹配场景。"""
+        scene_index = 0
         for scene in self.rule_loader.diagnosis_scenes:
+            scene_index += 1
             trigger_metric_ids = scene.get("metric_id") or []
             if isinstance(trigger_metric_ids, str):
                 trigger_metric_ids = [trigger_metric_ids]
             if scene.get("default") and not trigger_metric_ids and not scene.get("trigger_condition"):
                 return scene
+            detail_trace.info(
+                "select_scene 尝试场景 | idx=%s/%s | scene_id=%s | phenomenon=%s | trigger_metrics=%s",
+                scene_index,
+                len(self.rule_loader.diagnosis_scenes),
+                scene.get("id"),
+                detail_trace.preview(scene.get("phenomenon"), 80),
+                detail_trace.preview(trigger_metric_ids, 400),
+            )
             trigger_values = fetcher.fetch_from_source_record(source_record, trigger_metric_ids)
+            detail_trace.info(
+                "select_scene 触发指标取值 | scene_id=%s | reject_reason(源表)=%s | values=%s",
+                scene.get("id"),
+                source_record.get("reject_reason"),
+                detail_trace.preview(trigger_values, 800),
+            )
+            for mid in trigger_metric_ids:
+                v = trigger_values.get(mid)
+                detail_trace.info(
+                    "select_scene 单指标 | scene_id=%s | metric_id=%s | type=%s | preview=%s | source_log=%s",
+                    scene.get("id"),
+                    mid,
+                    type(v).__name__,
+                    detail_trace.preview(v, 200),
+                    fetcher.source_log.get(mid, "?"),
+                )
 
             trigger_conditions = scene.get("trigger_condition") or []
             if isinstance(trigger_conditions, str):
@@ -234,14 +293,39 @@ class DiagnosisEngine:
                 continue
 
             for condition in trigger_conditions:
-                if evaluate_boolean_condition_definition(condition, trigger_values):
+                parts = explain_top_level_and_parts(condition, trigger_values)
+                for sub_expr, sub_ok in parts:
+                    detail_trace.info(
+                        "select_scene 子条件 | scene_id=%s | ok=%s | expr=%s",
+                        scene.get("id"),
+                        sub_ok,
+                        detail_trace.preview(sub_expr, 220),
+                    )
+                matched = evaluate_boolean_condition_definition(condition, trigger_values)
+                if matched:
                     logger.info(
                         "匹配场景 scene=%s trigger_condition=%s values=%s",
                         scene.get("id"),
                         condition,
                         trigger_values,
                     )
+                    detail_trace.info(
+                        "select_scene 命中 | scene_id=%s | trigger预览=%s | trigger_values=%s",
+                        scene.get("id"),
+                        detail_trace.preview(condition, 160),
+                        detail_trace.preview(trigger_values, 400),
+                    )
                     return scene
+                detail_trace.warning(
+                    "select_scene 本条件未满足 | scene_id=%s | expr=%s",
+                    scene.get("id"),
+                    detail_trace.preview(condition, 300),
+                )
+        detail_trace.info(
+            "select_scene 未命中 | 已检查场景数=%s | reject_reason=%s",
+            len(self.rule_loader.diagnosis_scenes),
+            source_record.get("reject_reason"),
+        )
         return None
 
     # ── 决策树遍历 ──────────────────────────────────────────────────────────
@@ -285,6 +369,12 @@ class DiagnosisEngine:
                 break
 
             trace.append(current_node)
+            desc_snip = str(step.get("description") or "")[:80]
+            detail_trace.info(
+                "决策树 | node=%s | desc=%s",
+                current_node,
+                desc_snip,
+            )
 
             # 执行 details 中的 action 函数（顺序串行），更新 context
             context = self._execute_details(step, context)
@@ -381,6 +471,12 @@ class DiagnosisEngine:
             if not action_name:
                 continue
             params = item.get("params") or {}
+            detail_trace.info(
+                "节点 action 执行 | step=%s | action=%s | params=%s",
+                step.get("id"),
+                action_name,
+                detail_trace.preview(params, 240),
+            )
             outputs = call_action(action_name, params, context)
             normalized_outputs = self._normalize_action_outputs(step, item, outputs)
             if normalized_outputs:
@@ -388,6 +484,12 @@ class DiagnosisEngine:
                 logger.debug(
                     "步骤 %s action '%s' outputs: %s",
                     step.get("id"), action_name, normalized_outputs,
+                )
+                detail_trace.info(
+                    "节点 action 输出 | step=%s | action=%s | outputs=%s",
+                    step.get("id"),
+                    action_name,
+                    detail_trace.preview(normalized_outputs, 320),
                 )
         return context
 
@@ -491,6 +593,16 @@ class DiagnosisEngine:
                 value = parsed_value
 
             if matched:
+                detail_trace.info(
+                    "分支命中候选 | step=%s | target=%s | condition=%s | var=%s | operator=%s | limit=%s | value=%s",
+                    step.get("id"),
+                    target,
+                    detail_trace.preview(condition, 180),
+                    var_name,
+                    operator,
+                    limit,
+                    detail_trace.preview(value, 120),
+                )
                 matched_branches.append((target, branch, var_name, operator, limit, value))
 
         # next 分支是独立条件：应只命中 1 条
@@ -498,6 +610,12 @@ class DiagnosisEngine:
             target, branch, var_name, operator, limit, value = matched_branches[0]
             if var_name and self._is_abnormal_branch(operator, limit, value):
                 abnormal_metrics.append(var_name)
+            detail_trace.info(
+                "分支最终选择 | step=%s | target=%s | abnormal_metric=%s",
+                step.get("id"),
+                target,
+                var_name if var_name and self._is_abnormal_branch(operator, limit, value) else None,
+            )
             return target, branch, BRANCH_OUTCOME_MATCHED_ONE
 
         # 若命中多条，说明规则配置冲突（不依赖 next 顺序），中断并回退到 else（若存在）
@@ -508,14 +626,26 @@ class DiagnosisEngine:
                 step.get("id"),
                 ",".join(matched_targets),
             )
+            detail_trace.error(
+                "分支冲突 | step=%s | matched_targets=%s | has_else=%s",
+                step.get("id"),
+                matched_targets,
+                else_branch is not None,
+            )
             if else_branch is not None:
                 return else_branch, else_branch_obj, BRANCH_OUTCOME_MATCHED_ELSE
             return None, None, BRANCH_OUTCOME_CONFLICT_NO_ELSE
 
         # 所有条件都不满足，走 else
         if else_branch is not None:
+            detail_trace.warning(
+                "无条件命中，走 else | step=%s | else_target=%s",
+                step.get("id"),
+                else_branch,
+            )
             return else_branch, else_branch_obj, BRANCH_OUTCOME_MATCHED_ELSE
 
+        detail_trace.warning("无分支命中且无 else | step=%s", step.get("id"))
         return None, None, BRANCH_OUTCOME_NO_MATCH_NO_ELSE
 
     def _is_abnormal_branch(
@@ -600,6 +730,10 @@ class DiagnosisEngine:
                 if not self._is_within_normal_range(value, op, limit_val):
                     status = "ABNORMAL"
 
+            effective_threshold = dict(threshold_info) if threshold_info else {"operator": "-", "limit": 0}
+            if threshold_info:
+                effective_threshold["display"] = self._select_matched_threshold_display(value, threshold_info, mid)
+
             metrics.append({
                 "name": mid,
                 "value": round(value, 6) if isinstance(value, (int, float)) else value,
@@ -607,7 +741,7 @@ class DiagnosisEngine:
                 "status": status,
                 "type": metric_type,
                 "approximate": bool(meta.get("approximate")),
-                "threshold": threshold_info or {"operator": "-", "limit": 0},
+                "threshold": effective_threshold,
             })
 
         # 排序：诊断指标在前，ABNORMAL 置顶，UNKNOWN 次之，建模参数在后
@@ -721,7 +855,14 @@ class DiagnosisEngine:
                 display = " or ".join(
                     str(b.get("condition", "")).strip() for b in valid_branches if b.get("condition")
                 )
-                return {"operator": "any_of", "limit": conditions, "display": display}
+                return {
+                    "operator": "any_of",
+                    "limit": conditions,
+                    "display": display,
+                    "branchDisplays": [
+                        str(b.get("condition", "")).strip() or None for b in valid_branches
+                    ],
+                }
 
             # 次优：单独 between 分支（如 output_Mw between [-20, 20]）
             for branch in valid_branches:
@@ -747,6 +888,58 @@ class DiagnosisEngine:
                     }
 
         return None
+
+    @staticmethod
+    def _format_threshold_branch_display(
+        metric_name: str,
+        operator: str,
+        limit: Any,
+    ) -> Optional[str]:
+        metric_expr = f"{{{metric_name}}}" if metric_name else "{value}"
+        if operator == "between" and isinstance(limit, list) and len(limit) == 2:
+            return f"{limit[0]} < {metric_expr} < {limit[1]}"
+        if operator in {">", "<", ">=", "<=", "==", "!="} and limit is not None:
+            return f"{metric_expr} {operator} {limit}"
+        return None
+
+    def _select_matched_threshold_display(
+        self,
+        value: Any,
+        threshold_info: Optional[Dict[str, Any]],
+        metric_name: str = "",
+    ) -> Optional[str]:
+        """
+        根据当前值挑选真正命中的阈值展示文本。
+
+        `any_of` 代表多个“满足其一即正常”的合法区间或边界。详情页应显示命中的那条，
+        而不是把所有合法分支全量拼接给用户。
+        """
+        if not threshold_info:
+            return None
+
+        display = threshold_info.get("display")
+        operator = str(threshold_info.get("operator", "")).strip()
+        limit = threshold_info.get("limit")
+
+        if operator != "any_of" or value is None or not isinstance(limit, list):
+            return display
+
+        branch_displays = threshold_info.get("branchDisplays") or []
+        if not isinstance(branch_displays, list):
+            branch_displays = []
+
+        for index, item in enumerate(limit):
+            if not isinstance(item, dict):
+                continue
+            branch_operator = str(item.get("operator", "")).strip()
+            branch_limit = item.get("limit")
+            if self._is_within_normal_range(value, branch_operator, branch_limit):
+                branch_display = branch_displays[index] if index < len(branch_displays) else None
+                if branch_display:
+                    return str(branch_display).strip() or display
+                return self._format_threshold_branch_display(metric_name, branch_operator, branch_limit) or display
+
+        return display
 
     def _is_within_normal_range(
         self, value: float, operator: str, limit: Any

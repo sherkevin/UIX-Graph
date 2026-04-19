@@ -11,6 +11,7 @@
 
 依赖 MySQL（通过 config/connections.json local 配置）。
 """
+import asyncio
 import sys
 import os
 from pathlib import Path
@@ -22,10 +23,33 @@ if sys.platform == "win32":
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from fastapi.testclient import TestClient
+import httpx
 from app.main import app
 
-client = TestClient(app)
+
+class SyncASGIClient:
+    """兼容新版本 httpx.ASGITransport（仅提供本测试需要的 get/post）。"""
+
+    def __init__(self, app, base_url="http://testserver"):
+        self.app = app
+        self.base_url = base_url
+
+    async def _request_async(self, method, url, **kwargs):
+        transport = httpx.ASGITransport(app=self.app)
+        async with httpx.AsyncClient(transport=transport, base_url=self.base_url) as client:
+            return await client.request(method, url, **kwargs)
+
+    def request(self, method, url, **kwargs):
+        return asyncio.run(self._request_async(method, url, **kwargs))
+
+    def get(self, url, **kwargs):
+        return self.request("GET", url, **kwargs)
+
+    def post(self, url, **kwargs):
+        return self.request("POST", url, **kwargs)
+
+
+client = SyncASGIClient(app)
 
 PASS_COUNT = 0
 FAIL_COUNT = 0

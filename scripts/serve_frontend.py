@@ -18,6 +18,7 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 import urllib.request
 import urllib.error
 import urllib.parse
+import time
 
 logger = logging.getLogger("serve_frontend")
 
@@ -106,6 +107,7 @@ class UIXHandler(SimpleHTTPRequestHandler):
     # ── API 反代 ─────────────────────────────────────────────────
     def _proxy(self, method):
         target = f"http://{BACKEND_HOST}:{BACKEND_PORT}{self.path}"
+        started_at = time.time()
         headers = {}
         for key in ["content-type", "accept", "authorization"]:
             val = self.headers.get(key)
@@ -118,10 +120,12 @@ class UIXHandler(SimpleHTTPRequestHandler):
             body = self.rfile.read(length) if length else b""
 
         try:
+            print(f"[Frontend][Proxy] {method} {self.path} -> {target}", flush=True)
             req = urllib.request.Request(target, data=body, headers=headers, method=method)
             # timeout 提高到 120s，应对大时间范围 metadata 查询
             with urllib.request.urlopen(req, timeout=120) as resp:
                 resp_body = resp.read()
+            elapsed_ms = int((time.time() - started_at) * 1000)
             try:
                 self.send_response(resp.status)
                 ct = resp.headers.get("Content-Type", "application/json")
@@ -129,21 +133,35 @@ class UIXHandler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(resp_body)))
                 self.end_headers()
                 self._safe_write(resp_body)
+                print(
+                    f"[Frontend][Proxy] {method} {self.path} <- {resp.status} {elapsed_ms}ms",
+                    flush=True,
+                )
             except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
                 pass  # 客户端取消请求，正常忽略
         except urllib.error.HTTPError as e:
             err_body = e.read()
+            elapsed_ms = int((time.time() - started_at) * 1000)
             try:
                 self.send_response(e.code)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(err_body)))
                 self.end_headers()
                 self._safe_write(err_body)
+                print(
+                    f"[Frontend][Proxy] {method} {self.path} <- HTTPError {e.code} {elapsed_ms}ms",
+                    flush=True,
+                )
             except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
                 pass
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
             pass  # 客户端提前断开，忽略
         except Exception as e:
+            elapsed_ms = int((time.time() - started_at) * 1000)
+            print(
+                f"[Frontend][Proxy] {method} {self.path} !! {type(e).__name__}: {e} {elapsed_ms}ms",
+                flush=True,
+            )
             msg = f'{{"detail":"前端代理错误：{e}"}}'.encode("utf-8")
             try:
                 self.send_response(502)
