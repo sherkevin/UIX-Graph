@@ -1,471 +1,107 @@
-# 图谱数据处理脚本使用说明
+# scripts/
 
-本目录包含三个用于处理和可视化图谱数据的Python脚本。
+本目录存放 UIX-Graph 项目的所有命令行工具。**本目录不做物理子目录划分**,
+原因:[`start_UIX.bat`](../start_UIX.bat) 与 [`start_UIX.command`](../start_UIX.command)
+直接 `python scripts/start.py`,而 `start.py` 又用相对路径调
+[`scripts/serve_frontend.py`](./serve_frontend.py) 与 [`scripts/switch_env.py`](./switch_env.py),
+物理移动会断引用。本文件用**5 类分组**做软标注。
 
-## 目录
-
-- [脚本概述](#脚本概述)
-- [环境准备](#环境准备)
-- [脚本详细说明](#脚本详细说明)
-  - [1. 数据合并脚本 (merge_data.py)](#1-数据合并脚本-merge_datapy)
-  - [2. 图谱处理脚本 (process_data.py)](#2-图谱处理脚本-process_datapy)
-  - [3. 可视化脚本 (visualize_graph.py)](#3-可视化脚本-visualize_graphpy)
-- [完整工作流程](#完整工作流程)
-- [常见问题](#常见问题)
+> 想了解每个脚本对应主线/历史的整体定位,见 [`docs/STRUCTURE.md`](../docs/STRUCTURE.md) §6。
 
 ---
 
-## 脚本概述
+## 1. 主入口(用户日常用)
 
-| 脚本名称 | 功能 | 输入 | 输出 |
-|---------|------|------|------|
-| `merge_data.py` | 合并多个数据集 | data/1-8目录 | node.json, compute.json, id_mapping.json |
-| `process_data.py` | 解析逻辑表达式，构建图谱 | node.json, compute.json | graph_data.json, graph_mapping.json |
-| `visualize_graph.py` | 生成交互式HTML图谱 | graph_data.json | graph_visualization.html |
+仅这两项是面向最终用户的入口,**改其他文件前先确认不影响这两条链路**。
 
----
+| 脚本 | 用途 | 谁在调它 | 备注 |
+|------|------|---------|------|
+| [`start.py`](./start.py) | **唯一推荐启动方式**:Tkinter GUI,环境切换 + 后端 + 前端 + 浏览器 | [`start_UIX.bat`](../start_UIX.bat)、[`start_UIX.command`](../start_UIX.command) | 主流程,不要随便改函数签名 |
+| [`serve_frontend.py`](./serve_frontend.py) | 前端静态服务 + `/api/*` 反代到后端 :8000 | `start.py` 子进程拉起 | **路径固定,不能改名/移位** |
 
-## 环境准备
-
-### 1. Python环境
-
-需要 Python 3.6 或更高版本。
-
-### 2. 安装依赖
+启动方式:
 
 ```bash
-pip install pyvis
-```
-
-### 3. 验证安装
-
-```bash
-python --version
-python -c "import pyvis; print('pyvis安装成功')"
+# Windows: 双击 start_UIX.bat
+# macOS:   双击 start_UIX.command
+# Linux/CLI: python scripts/start.py
 ```
 
 ---
 
-## 脚本详细说明
+## 2. 环境管理
 
-### 1. 数据合并脚本 (merge_data.py)
+| 脚本 | 用途 | 谁在调它 |
+|------|------|---------|
+| [`switch_env.py`](./switch_env.py) | 切换 `APP_ENV`(local/test/prod),生成 `src/backend/.env`、`src/frontend/.env` | `start.py` 自动调,也可独立用 `python scripts/switch_env.py local` |
 
-将多个数据集（data/1, data/2, ...）合并为一个统一的数据集，自动处理ID冲突。
-
-#### 功能特点
-
-- 自动扫描data目录下所有包含node.json和compute.json的子目录
-- 重新分配唯一ID，保证所有节点ID全局唯一
-- 自动更新compute中的ID引用
-- 同名节点保持独立，不进行合并
-- 保留原始节点属性（subsystem、attribute等）
-
-#### 使用方法
-
-```bash
-# 基本用法（默认处理data目录，输出到data/merged）
-python scripts/merge_data.py
-
-# 指定数据目录
-python scripts/merge_data.py -d /path/to/data
-
-# 指定输出目录
-python scripts/merge_data.py -o /path/to/output
-
-# 组合使用
-python scripts/merge_data.py -d data -o data/merged_output
-```
-
-#### 参数说明
-
-| 参数 | 短参数 | 说明 | 默认值 |
-|-----|-------|------|--------|
-| `--data-dir` | `-d` | 数据集根目录 | `data` |
-| `--output` | `-o` | 输出目录路径 | `data/merged` |
-
-#### 输出文件
-
-执行后在输出目录生成三个文件：
-
-- **node.json**: 合并后的节点数据
-  ```json
-  {
-    "1": {
-      "name": "节点名称",
-      "type": "节点类型",
-      "subsystem": "WS",
-      "_dataset": "2",         // 来源数据集
-      "_original_id": "1"       // 原始ID
-    }
-  }
-  ```
-
-- **compute.json**: 合并后的计算逻辑
-  ```json
-  {
-    "1": {
-      "target": "{14}",
-      "operator": "{15}||{16}",
-      "_dataset": "2",
-      "_original_id": "1"
-    }
-  }
-  ```
-
-- **id_mapping.json**: ID映射关系表
-  ```json
-  {
-    "2": {
-      "node_id_map": {
-        "1": "14",      // 数据集2的ID1 → 全局ID14
-        "2": "15"       // 数据集2的ID2 → 全局ID15
-      }
-    }
-  }
-  ```
+环境配置源头:[`config/connections.json`](../config/connections.json)。
 
 ---
 
-### 2. 图谱处理脚本 (process_data.py)
+## 3. 数据库初始化(本地 docker)
 
-解析compute.json中的逻辑表达式，构建图谱的节点和边。
+外网开发用 docker 起 MySQL + ClickHouse 时执行,内网部署不用。
 
-#### 功能特点
+| 脚本 | 用途 | 关键说明 |
+|------|------|---------|
+| [`init_docker_db.sql`](./init_docker_db.sql) | MySQL `datacenter` 库:建表 + 注入 COARSE 锚点样例 | 详细 schema 见 [`docs/intranet/databases/mysql_datacenter.md`](../docs/intranet/databases/mysql_datacenter.md) |
+| [`init_clickhouse_local.sql`](./init_clickhouse_local.sql) | ClickHouse `las` + `src` 库:建表 + 1 行最小 mock | 详细 schema 见 [`docs/intranet/databases/clickhouse_las.md`](../docs/intranet/databases/clickhouse_las.md) 与 [`clickhouse_src.md`](../docs/intranet/databases/clickhouse_src.md) |
+| [`create_indexes.sql`](./create_indexes.sql) | MySQL 补充索引(可选) | 仅当性能不达标时再补 |
 
-- 解析复杂的逻辑表达式（括号、||、&&、+等）
-- 自动创建虚拟节点和算子节点
-- 保留原始节点的所有属性
-- 生成标准的图谱数据格式（nodes + edges）
-- 分离映射信息到独立文件
-
-#### 使用方法
-
-```bash
-# 基本用法（输出到脚本目录）
-python scripts/process_data.py -n data/2/node.json -c data/2/compute.json
-
-# 指定输出目录
-python scripts/process_data.py -n data/2/node.json -c data/2/compute.json -o data/2/output
-
-# 处理合并后的数据
-python scripts/process_data.py -n data/merged/node.json -c data/merged/compute.json -o data/merged/processed
-```
-
-#### 参数说明
-
-| 参数 | 短参数 | 说明 | 是否必填 | 默认值 |
-|-----|-------|------|---------|--------|
-| `--node` | `-n` | node.json文件路径 | 必填 | - |
-| `--compute` | `-c` | compute.json文件路径 | 必填 | - |
-| `--output` | `-o` | 输出目录路径 | 可选 | 脚本所在目录 |
-
-#### 输出文件
-
-- **graph_data.json**: 主数据文件
-  ```json
-  {
-    "nodes": {
-      "1": {
-        "name": "节点名",
-        "type": "类型",
-        "subsystem": "WS",
-        "attribute": []
-      }
-    },
-    "edges": [
-      {
-        "source": "1",
-        "target": "2"
-      }
-    ]
-  }
-  ```
-
-- **graph_mapping.json**: 映射信息文件
-  ```json
-  {
-    "virtual_to_id": {
-      "{12}||{13}||{14}": "10001"
-    },
-    "id_ranges": {
-      "virtual_nodes_start": 10001,
-      "operator_nodes_start": 20001
-    }
-  }
-  ```
-
-#### ID分配规则
-
-| 节点类型 | ID范围 | 说明 |
-|---------|--------|------|
-| 原始节点 | 1 - 10000 | 来自node.json |
-| 虚拟分组 | 10001 - 20000 | 括号表达式生成的虚拟节点 |
-| 算子节点 | 20001+ ||, &&, +等算子 |
+执行步骤见 [`docs/deployment/docker_local_e2e.md`](../docs/deployment/docker_local_e2e.md)。
 
 ---
 
-### 3. 可视化脚本 (visualize_graph.py)
+## 4. 打包 / 部署 / 烟测
 
-将graph_data.json转换为交互式HTML图谱。
+| 脚本 | 平台 | 用途 |
+|------|------|------|
+| [`package_intranet.ps1`](./package_intranet.ps1) | Windows | 把外网开发产物打包成 `UIX-Graph-intranet-package*.zip`,供内网迁移 |
+| [`verify_docker_e2e.ps1`](./verify_docker_e2e.ps1) | Windows | docker MySQL/CH 起来后跑端到端烟测 |
 
-#### 功能特点
-
-- 不同类型节点使用不同颜色
-- 虚拟分组节点显示ID，其他节点显示名称
-- 所有节点使用圆形
-- 支持拖拽、缩放、悬停提示
-- 有向箭头显示边的方向
-- 物理引擎自动布局
-
-#### 节点颜色方案
-
-| 节点类型 | 颜色代码 | 颜色 |
-|---------|---------|------|
-| 故障状态 | #FF6B6B | 红色 |
-| 数据前置 | #4ECDC4 | 青色 |
-| 数据表征 | #45B7D1 | 蓝色 |
-| 虚拟分组 | #FFA07A | 橙色 |
-| 算子 | #95E1D3 | 绿色 |
-| 默认 | #CCCCCC | 灰色 |
-
-#### 使用方法
-
-```bash
-# 基本用法（使用默认路径）
-python scripts/visualize_graph.py
-
-# 指定输入文件
-python scripts/visualize_graph.py -i data/2/output/graph_data.json
-
-# 指定输出文件
-python scripts/visualize_graph.py -o my_graph.html
-
-# 调整画布大小
-python scripts/visualize_graph.py --height "1200px" --width "1200px"
-
-# 组合使用
-python scripts/visualize_graph.py -i data/merged/processed/graph_data.json -o merged.html --height "1000px"
-```
-
-#### 参数说明
-
-| 参数 | 短参数 | 说明 | 默认值 |
-|-----|-------|------|--------|
-| `--input` | `-i` | 输入的graph_data.json路径 | `scripts/graph_data.json` |
-| `--output` | `-o` | 输出的HTML文件路径 | `scripts/graph_visualization.html` |
-| `--height` | - | 画布高度 | `900px` |
-| `--width` | - | 画布宽度 | `100%` |
-
-#### 交互操作
-
-- **拖拽节点**：点击并拖动节点调整位置
-- **缩放**：鼠标滚轮缩放图谱
-- **平移**：点击空白处拖动
-- **查看详情**：鼠标悬停在节点上显示详细信息
-- **高亮**：点击节点高亮显示其连接
+打包产物 `*.zip` 已在 [`.gitignore`](../.gitignore) 中拦截,不会入仓。
 
 ---
 
-## 完整工作流程
+## 5. 调试工具(开发期)
 
-### 场景1：处理单个数据集
-
-以处理 `data/2` 为例：
-
-```bash
-# 步骤1: 处理数据
-python scripts/process_data.py \
-  -n data/2/node.json \
-  -c data/2/compute.json \
-  -o data/2/processed
-
-# 步骤2: 生成可视化
-python scripts/visualize_graph.py \
-  -i data/2/processed/graph_data.json \
-  -o data/2/processed/graph.html
-
-# 步骤3: 在浏览器中打开
-start data/2/processed/graph.html  # Windows
-# 或
-open data/2/processed/graph.html   # macOS/Linux
-```
-
-### 场景2：合并所有数据集并可视化
-
-```bash
-# 步骤1: 合并所有数据集
-python scripts/merge_data.py
-
-# 步骤2: 处理合并后的数据
-python scripts/process_data.py \
-  -n data/merged/node.json \
-  -c data/merged/compute.json \
-  -o data/merged/processed
-
-# 步骤3: 生成总图谱
-python scripts/visualize_graph.py \
-  -i data/merged/processed/graph_data.json \
-  -o data/merged/processed/total_graph.html
-
-# 步骤4: 打开浏览器查看
-start data/merged/processed/total_graph.html
-```
-
-### 场景3：批量处理所有数据集
-
-```bash
-# 批量处理每个数据集
-for dir in data/*/; do
-  if [ -f "$dir/node.json" ] && [ -f "$dir/compute.json" ]; then
-    echo "Processing $dir"
-    python scripts/process_data.py \
-      -n "$dir/node.json" \
-      -c "$dir/compute.json" \
-      -o "$dir/processed"
-
-    python scripts/visualize_graph.py \
-      -i "$dir/processed/graph_data.json" \
-      -o "$dir/processed/graph.html"
-  fi
-done
-```
+| 脚本 | 用途 |
+|------|------|
+| [`debug_engine.py`](./debug_engine.py) | 单步调试诊断引擎(命令行,不依赖 HTTP) |
+| [`debug_rules.py`](./debug_rules.py) | 校验 `config/reject_errors.diagnosis.json` 规则文件 |
 
 ---
 
-## 常见问题
+## 6. 历史(legacy,prefer alternatives below)
 
-### Q1: 脚本报错"未安装pyvis"
+这一类**仍在仓库**但**不推荐再用**;留着是因为可能被遗留的 muscle memory 调用,删掉风险大于收益。
 
-**解决方案：**
-```bash
-pip install pyvis
-```
+| 脚本 | 替代方案 | 备注 |
+|------|---------|------|
+| [`start_backend.ps1`](./start_backend.ps1)、[`start_backend.sh`](./start_backend.sh) | 改用 [`start.py`](./start.py) | 仅启动后端,无环境切换/前端构建/端口检测;`start.py` 把这些都做了 |
+| [`start_frontend.ps1`](./start_frontend.ps1)、[`start_frontend.sh`](./start_frontend.sh) | 改用 [`start.py`](./start.py) | 同上,仅启动前端 |
+| [`flow2data.py`](./flow2data.py) | (无活跃替代) | 老:流程 JSON → 图谱数据;**stage3 主线已不依赖** |
+| [`merge_data.py`](./merge_data.py) | (无活跃替代) | 老:多 case 数据合并;**stage3 主线已不依赖** |
+| [`process_data.py`](./process_data.py) | (无活跃替代) | 老:数据预处理;**stage3 主线已不依赖** |
+| [`api_response.json`](./api_response.json) | (无替代) | 老:某次接口响应的快照;**已无引用方,可在下一轮清理删除** |
 
-### Q2: Windows下输出文件名乱码
+**未来清理建议**(独立 PR):
 
-这是终端编码问题，不影响文件内容。文件实际保存正常。
-
-### Q3: 可视化图谱布局混乱
-
-可以调整物理引擎参数，编辑 `visualize_graph.py` 中的物理配置：
-
-```python
-net.set_options("""
-{
-  "physics": {
-    "barnesHut": {
-      "gravitationalConstant": -8000,  # 调整引力
-      "springLength": 150,             # 调整弹簧长度
-      "springConstant": 0.04           # 调整弹簧强度
-    }
-  }
-}
-""")
-```
-
-### Q4: 想自定义节点颜色
-
-编辑 `visualize_graph.py` 中的 `TYPE_COLORS` 字典：
-
-```python
-TYPE_COLORS = {
-    "故障状态": "#FF0000",  # 改为纯红色
-    "数据前置": "#00FF00",  # 改为纯绿色
-    # ...
-}
-```
-
-### Q5: 如何验证ID映射是否正确？
-
-检查 `id_mapping.json` 文件，它记录了所有ID的转换关系。
-
-### Q6: 虚拟节点的ID为什么从10001开始？
-
-这是为了避免与原始节点ID冲突。可以在 `process_data.py` 中修改：
-
-```python
-VIRTUAL_ID_START = 10001  # 修改为其他值
-OPERATOR_ID_START = 20001  # 修改为其他值
-```
+- 4 个 `start_{backend,frontend}.{sh,ps1}` 在 [`docs/STRUCTURE.md`](../docs/STRUCTURE.md) 公示「6 个月不维护后下线」
+- `flow2data.py` / `merge_data.py` / `process_data.py` / `api_response.json` 4 项,如确认 stage3/stage4 不用,可一起 `git rm`
 
 ---
 
-## 数据格式说明
+## 命名约定
 
-### node.json 格式
+- 跨平台脚本:同名 `.ps1`(Windows PowerShell)+ `.sh`(*nix Bash)
+- Python 脚本:`*.py`,UTF-8,首行 `# -*- coding: utf-8 -*-`(已隐式)
+- SQL 脚本:`init_*.sql`(初始化)、`create_*.sql`(增量)、`migration_*.sql`(迁移,目前无)
 
-```json
-{
-  "1": {
-    "name": "节点名称",
-    "type": "节点类型",
-    "subsystem": "WS",      // 可选
-    "attribute": []         // 可选
-  }
-}
-```
+## 增加新脚本时
 
-### compute.json 格式
-
-```json
-{
-  "1": {
-    "target": "{1}",                    // 目标节点ID
-    "operator": "{2}||{3}||({4}&&{5})"  // 逻辑表达式
-  }
-}
-```
-
-#### 逻辑表达式语法
-
-| 符号 | 说明 | 示例 |
-|-----|------|------|
-| `\{id\}` | 引用节点ID | `{1}` |
-| `\|\|` | 或运算 | `{1}||{2}` |
-| `&&` | 与运算 | `{1}&&{2}` |
-| `+` | 加运算 | `{1}+{2}` |
-| `()` | 分组/虚拟节点 | `({1}||{2})` |
-| `{do}` | 动作算子 | `{do}{action}` |
-
----
-
-## 文件结构示例
-
-```
-UIX/
-├── data/
-│   ├── 1/
-│   │   ├── node.json
-│   │   └── compute.json
-│   ├── 2/
-│   │   ├── node.json
-│   │   └── compute.json
-│   └── ...
-├── scripts/
-│   ├── merge_data.py
-│   ├── process_data.py
-│   ├── visualize_graph.py
-│   └── README.md (本文件)
-└── data/merged/
-    ├── node.json
-    ├── compute.json
-    ├── id_mapping.json
-    └── processed/
-        ├── graph_data.json
-        ├── graph_mapping.json
-        └── total_graph.html
-```
-
----
-
-## 技术支持
-
-如有问题，请检查：
-1. Python版本是否 >= 3.6
-2. pyvis是否正确安装
-3. 输入文件路径是否正确
-4. JSON文件格式是否合法
-
----
-
-**最后更新：** 2026-01-29
+1. 归入上述 5 类之一,在本 README 对应表格里加一行
+2. 如果是新主入口,**禁止**直接改 `start.py` 的入口签名(会断 `start_UIX.{bat,command}`)
+3. 如果脚本被另一个脚本调用,在「谁在调它」列写明
+4. 新增依赖写到 [`src/backend/requirements.txt`](../src/backend/requirements.txt) 而不是这里
