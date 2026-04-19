@@ -361,8 +361,10 @@ class DiagnosisEngine:
     ) -> Tuple[Optional[str], Optional[str], List[str], List[str], Dict[str, Any]]:
         """执行单条子路径；若 target 为列表，则按独立分支顺序依次执行并共享 context。"""
         current_node = start_node
+        completed_iterations = 0
 
-        for _ in range(max_steps):
+        for iteration in range(1, max_steps + 1):
+            completed_iterations = iteration
             step = self.rule_loader.get_step(current_node)
             if step is None:
                 logger.warning("步骤 %s 不存在，诊断中断", current_node)
@@ -448,6 +450,20 @@ class DiagnosisEngine:
             else:
                 current_node = str(next_node)
 
+        # for 循环正常结束(没 break / return)= 走满了 max_steps,通常是配置形成循环。
+        # post-stage4 Bug #6 fix:专门日志区分「max_steps 截断」与「分支真没命中」,
+        # 让排障时能直接定位是规则循环还是别的问题。
+        if completed_iterations >= max_steps:
+            logger.warning(
+                "_walk_subtree: 从 step=%s 起达到 max_steps=%d 上限被强制截断;"
+                "通常意味着 next.target 形成回路且无终止条件;trace=%s",
+                start_node, max_steps, trace,
+            )
+            detail_trace.warning(
+                "max_steps 截断 | start_node=%s | max_steps=%d | trace=%s | "
+                "排障建议:检查 trace 中是否出现重复 step_id(回路特征);用 set 注入计数器 + condition 限制循环次数",
+                start_node, max_steps, trace,
+            )
         return (None, None, trace, abnormal_metrics, context)
 
     def _execute_details(
