@@ -20,6 +20,7 @@
 | `docker/` | 容器化(`docker-compose.yml` 配套) | 部署 | 偶尔改 |
 | `Dockerfile`、`docker-compose.yml` | 本地 docker 一键起 MySQL+ClickHouse | 部署 | 偶尔改 |
 | `start_UIX.bat`、`start_UIX.command` | 跨平台一键启动入口(包装 `scripts/start.py`) | 部署 | 偶尔改 |
+| `archive/` | **冻结的历史代码**(只读快照,不在任何运行路径上) | 历史 | 不改 |
 | `README.md` | 仓库门面 + 快速启动 | 必读 | ✅ 是 |
 | `.cursor/`、`.vscode/` | IDE 配置(rules/mcp.json 等团队共享) | 工具 | 偶尔改 |
 | `.gitignore`、`.uvrc`、`.dockerignore` | 仓库级配置 | 工具 | 偶尔改 |
@@ -131,7 +132,7 @@ src/frontend/
 └── package.json
 ```
 
-> ⚠️ **历史遗留:仓库根目录的 `frontend/` 是「老的多页面 UI」**(知识录入/本体/全图谱等 6 个老页面),与 `src/frontend/` **不是同一份代码**。后续清理需用户决策是否物理删除,见 [`docs/HANDOVER.md`](./HANDOVER.md) §9.5。
+> **历史 UI 已归档**:原仓库根目录的 `frontend/`(老的多页面 UI,含知识录入/本体/全图谱等 6 个页面)已 `git mv` 到 [`archive/frontend-legacy/`](../archive/frontend-legacy/),不再在主线维护。详见 [`archive/README.md`](../archive/README.md);如需复活某老页面,按其中流程操作。
 
 ---
 
