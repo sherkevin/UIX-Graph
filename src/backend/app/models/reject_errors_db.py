@@ -150,6 +150,13 @@ class RejectedDetailedRecord(Base):
     system = Column(String(50), nullable=True, comment="所属分系统")
     error_field = Column(String(255), nullable=True, comment="报错字段")
     metrics_data = Column(JSON, nullable=True, comment="指标数据（含 status）")
+    config_version = Column(
+        String(50),
+        nullable=True,
+        comment="写入时的 pipeline.version（来自 reject_errors.diagnosis.json）;"
+                "用于按配置版本失效缓存:配置改了但 version 未升时,旧缓存仍可用;"
+                "version 升了 → 视为 cache miss 重新走诊断引擎",
+    )
     created_at = Column(DateTime(6), server_default=func.now(), comment="创建时间")
     updated_at = Column(DateTime(6), server_default=func.now(), onupdate=func.now(), comment="更新时间")
 
@@ -160,6 +167,7 @@ class RejectedDetailedRecord(Base):
         Index("IDX_occurred_at", "occurred_at"),
         Index("IDX_chuck_lot_wafer", "chuck_id", "lot_id", "wafer_id"),
         Index("IDX_reject_reason", "reject_reason"),
+        Index("IDX_config_version", "config_version"),
     )
 
     def to_dict(self) -> dict:

@@ -119,6 +119,37 @@ class RejectErrorService:
         return cls._diagnosis_engine
 
     @classmethod
+    def _current_pipeline_version(cls) -> str:
+        """
+        当前 reject_errors pipeline 的版本号(来自 reject_errors.diagnosis.json 的 version 字段)。
+        post-stage4 Bug #4 fix:用于按配置版本失效缓存。
+        """
+        try:
+            from app.diagnosis.config_store import DiagnosisConfigStore
+            store = DiagnosisConfigStore()
+            pipeline = store.get_pipeline("reject_errors")
+            return str(pipeline.get("version", "unknown"))
+        except Exception as exc:
+            logger.warning("读取 pipeline version 失败: %s;使用 'unknown'", exc)
+            return "unknown"
+
+    @classmethod
+    def _cache_version_matches(cls, cached: RejectedDetailedRecord) -> bool:
+        """
+        判断缓存行是否仍然符合当前 pipeline 版本。
+        - 缓存行的 config_version 为 NULL/空 → 视为旧数据,匹配(向后兼容,不强制使旧缓存全部失效)
+        - 当前 pipeline.version 为 'unknown'(读不到)→ 不做版本比较,视为匹配
+        - 其他情况 → 严格相等才匹配
+        """
+        cached_ver = (cached.config_version or "").strip()
+        if not cached_ver:
+            return True
+        current_ver = cls._current_pipeline_version()
+        if current_ver == "unknown":
+            return True
+        return cached_ver == current_ver
+
+    @classmethod
     def validate_equipment(cls, equipment: str) -> bool:
         """验证机台名称是否合法"""
         return equipment in cls._load_equipments()
@@ -436,11 +467,12 @@ class RejectErrorService:
                     cached = db.query(RejectedDetailedRecord).filter(
                         RejectedDetailedRecord.failure_id == failure_id
                     ).first()
-                if cached:
-                    logger.info("缓存命中: failure_id=%s", failure_id)
+                if cached and cls._cache_version_matches(cached):
+                    logger.info("缓存命中: failure_id=%s config_version=%s", failure_id, cached.config_version)
                     detail_trace.info(
-                        "走缓存分支 | failure_id=%s | metrics_data条数(原始)≈%s",
+                        "走缓存分支 | failure_id=%s | config_version=%s | metrics_data条数(原始)≈%s",
                         failure_id,
+                        cached.config_version,
                         len(cached.metrics_data or []),
                     )
                     with detail_trace.span(
@@ -449,6 +481,23 @@ class RejectErrorService:
                         page_no=page_no,
                     ):
                         return cls._build_detail_from_cache(cached, page_no, page_size)
+                elif cached:
+                    # 命中但版本失配:删旧缓存行,fall through 到诊断引擎重算
+                    current_ver = cls._current_pipeline_version()
+                    logger.info(
+                        "缓存版本失配,丢弃旧行: failure_id=%s cached_version=%r current=%r",
+                        failure_id, cached.config_version, current_ver,
+                    )
+                    detail_trace.warning(
+                        "缓存版本失配 | failure_id=%s | cached_version=%s | current_version=%s | 丢弃后重算",
+                        failure_id, cached.config_version, current_ver,
+                    )
+                    try:
+                        db.delete(cached)
+                        db.commit()
+                    except Exception as exc:
+                        db.rollback()
+                        logger.warning("删除失配缓存行失败,忽略: %s", exc)
 
             if source_record is None:
                 with detail_trace.span("load_source_record_full", failure_id=failure_id):
@@ -730,6 +779,7 @@ class RejectErrorService:
                 system=diagnosis.system,
                 error_field=diagnosis.error_field or None,
                 metrics_data=diagnosis.metrics,
+                config_version=cls._current_pipeline_version(),
             )
 
             db.add(cached_record)

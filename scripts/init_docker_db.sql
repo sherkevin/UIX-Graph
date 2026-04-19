@@ -112,13 +112,15 @@ CREATE TABLE IF NOT EXISTS `rejected_detailed_records` (
   `system` VARCHAR(50) DEFAULT NULL COMMENT '所属分系统',
   `error_field` VARCHAR(255) DEFAULT NULL COMMENT '报错字段',
   `metrics_data` JSON DEFAULT NULL COMMENT '指标数据（含 status）',
+  `config_version` VARCHAR(50) DEFAULT NULL COMMENT '写入时的 pipeline.version,用于按配置版本失效缓存',
   `created_at` DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',
   `updated_at` DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新时间',
   UNIQUE KEY `UK_failure_id` (`failure_id`),
   INDEX `IDX_equipment` (`equipment`),
   INDEX `IDX_occurred_at` (`occurred_at`),
   INDEX `IDX_chuck_lot_wafer` (`chuck_id`, `lot_id`, `wafer_id`),
-  INDEX `IDX_reject_reason` (`reject_reason`)
+  INDEX `IDX_reject_reason` (`reject_reason`),
+  INDEX `IDX_config_version` (`config_version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='拒片详细记录表';
 
 -- ============================================================
