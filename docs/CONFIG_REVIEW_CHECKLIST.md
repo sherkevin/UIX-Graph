@@ -103,6 +103,21 @@ python -m pytest tests/test_rule_validator_metric.py tests/test_rules_validator.
 ### 3.3 action 评审
 
 - `action` 名必须**已注册**(`rule_validator` 会校验);如果是新 action,先在 [`src/backend/app/engine/actions/`](../src/backend/app/engine/actions/) 里加 `@register("name")` 装饰器
+- **优先用 `safe_eval` 而不是写新 Python action**:简单算术/比较/布尔可以直接在配置里写表达式,例如:
+
+  ```json
+  {
+    "action": "safe_eval",
+    "description": "综合偏差(平方和)",
+    "params": {"expr": "Tx ** 2 + Ty ** 2", "out": "tx_ty_sum_sq"},
+    "results": {"tx_ty_sum_sq": ""}
+  }
+  ```
+
+  `safe_eval` 白名单:四则运算 / 比较 / 布尔 / 三目 / `abs / min / max / round / int / float / sqrt / log / log10 / exp / sin / cos / tan / floor / ceil` / 数学常量 `pi e inf nan` / 链式比较 `0 < x < 100` / 字符串 == 比较。
+  禁止:属性访问、订阅、列表/字典字面量、推导式、lambda、`exec/eval/import`。
+  详见 [`src/backend/app/engine/actions/safe_eval.py`](../src/backend/app/engine/actions/safe_eval.py)。
+
 - `params` 绑定规则:
   - 字面量:`"chuck_id": 1` → 直接传 1
   - 显式占位符:`"Tx": "{Tx_history}"` → 从 ctx 取 `Tx_history`
@@ -121,9 +136,11 @@ python -m pytest tests/test_rule_validator_metric.py tests/test_rules_validator.
 每次评审问自己一遍:
 
 - [ ] 这次改动是否**只修改了 JSON**,没动 Python?如果动了 Python,是不是「新 action」「修 bug」「新 source_kind」这种**正当**理由?
+- [ ] 计算类逻辑是否优先尝试了 `safe_eval` action(§3.3)而不是新写 Python 函数?
 - [ ] 新增 metric 时,是否同步更新了 [`docs/intranet/databases/`](intranet/databases/) 对应表的「诊断引擎引用」段?
 - [ ] 新增叶子 `rootCause` 时,是否在 [`docs/data_source.md`](data_source.md) 或对应业务文档里有迹可循?
 - [ ] 是否考虑了**生产环境**:`duration` 是否合理(过长会扫整张表)?`linking.keys` 是否走索引?
+- [ ] **加新机台**:是否只改了 [`config/equipments.json`](../config/equipments.json),没动 `service/reject_error_service.py`?(stage4 落地后此项强制)
 
 ---
 

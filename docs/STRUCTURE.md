@@ -228,6 +228,8 @@ scripts/
 | 加一个新的诊断指标(已有表的列) | `config/reject_errors.diagnosis.json` 加 `metrics.<id>` | 如指标依赖前序值,要在 metric_id 列表上保持顺序 |
 | 加一个新的 DB 表作指标源 | 1. `docs/intranet/databases/<db>.md` 加表小节<br>2. `scripts/init_docker_db.sql` 或 `init_clickhouse_local.sql` 建表+mock<br>3. `config/reject_errors.diagnosis.json` 加 metric | **顺序重要**:文档先于代码 |
 | 加一个新的 action 函数 | `src/backend/app/engine/actions/<新文件>.py`(用 `@register("name")` 装饰) | 自动加载,不用改 `__init__.py` |
+| **用配置写一个新的中间量计算**(无需 Python) | 在 `details[]` 里用 `{"action": "safe_eval", "params": {"expr": "Tx**2 + Ty**2", "out": "tx_sq_plus_ty_sq"}, "results": {"tx_sq_plus_ty_sq": ""}}` | 安全 AST 求值,见 [`src/backend/app/engine/actions/safe_eval.py`](../src/backend/app/engine/actions/safe_eval.py);白名单允许:四则、比较、布尔、三目、`abs/min/max/round/sqrt/log` 等 |
+| 加一个新机台 | 改 `config/equipments.json` 的 `equipments` 数组 | stage4 落地前 service 仍读硬编码常量;切换 patch 见 [`docs/plans/post-stage4-bugfix-patches.md`](./plans/post-stage4-bugfix-patches.md) §Bug-2 |
 | 加一个新接口 | `src/backend/app/handler/<新文件>.py` + `service/` + `schemas/` + `main.py` 注册 | 参考 `handler/reject_errors.py` |
 | 改前端筛选 / 表格 | `src/frontend/src/pages/FaultRecords.jsx` | 主页面单文件 |
 | 加一个前端页面 | `src/frontend/src/pages/<新文件>.jsx` + `App.jsx` 加路由 | 注意根目录 `frontend/` 不是这里 |

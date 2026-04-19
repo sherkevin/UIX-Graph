@@ -1,0 +1,41 @@
+{
+  "$schema_doc": [
+    "光刻机机台白名单 — 配置驱动入口。",
+    "",
+    "目标:加新机台只改本 JSON,不改 Python 代码。",
+    "",
+    "当前消费方:",
+    "  - src/backend/app/service/reject_error_service.py 的 EQUIPMENT_WHITELIST 常量",
+    "    (stage4 in-progress 期间 service 仍读硬编码常量;",
+    "     stage4 落地后,按 docs/plans/post-stage4-bugfix-patches.md §Bug-2 的 patch",
+    "     一次切换为读取本文件)",
+    "",
+    "  - 前端 src/frontend/src/pages/FaultRecords.jsx 的 availableMachines 列表",
+    "    (后续按同一 patch 一并切换为通过接口 1 metadata 拉取)",
+    "",
+    "格式:",
+    "  - equipments: 字符串数组,每项为机台名(必须与内网 datacenter.lo_batch_equipment_performance.equipment 列值一致)",
+    "  - 命名约定: SSB / SSC + 4 位机台编号(8000~8999)",
+    "",
+    "加新机台流程:",
+    "  1. 在 equipments 数组追加新机台名(保持字典序便于 review)",
+    "  2. 跑 python scripts/check_config.py 确认其他配置无新增引用问题",
+    "  3. 提 PR;评审者按 docs/CONFIG_REVIEW_CHECKLIST.md 第 4 节验证",
+    "",
+    "删除机台流程:",
+    "  1. 先确认数据库 datacenter.lo_batch_equipment_performance 里该机台的历史数据是否仍需访问",
+    "  2. 删除前在 PR 描述里写明业务背景与历史数据归宿"
+  ],
+  "equipments": [
+    "SSB8000",
+    "SSB8001",
+    "SSB8002",
+    "SSB8005",
+    "SSC8001",
+    "SSC8002",
+    "SSC8003",
+    "SSC8004",
+    "SSC8005",
+    "SSC8006"
+  ]
+}
