@@ -86,13 +86,35 @@ $staging = Join-Path $stagingParent "UIX-Graph"
 New-Item -ItemType Directory -Path $staging -Force | Out-Null
 
 $excludeDirs = @(
+    # 运行时垃圾 / 虚拟环境
     "node_modules", "__pycache__", ".git", ".venv", "venv", "env", "ENV",
-    ".pytest_cache", ".cursor", ".vscode", ".idea", "build",
-    ".vite", ".claude", "_intranet_pack_staging"
+    ".pytest_cache", ".mypy_cache", ".ruff_cache", "htmlcov",
+    # IDE / 工具私有
+    ".cursor", ".vscode", ".idea", ".fleet",
+    # Vite / 构建临时
+    ".vite", "build",
+    # 插件本地状态
+    ".claude", ".codex", ".specstory",
+    # 老 UI 归档(不在运行路径上,内网不需要)
+    "archive",
+    # 打包历史 / 临时 staging
+    "_intranet_pack_staging"
 )
 $xd = ($excludeDirs | ForEach-Object { "/XD"; $_ })
 $xf = @(
-    "/XF", "*.pyc", "Thumbs.db", ".DS_Store", "*.zip"
+    "/XF",
+    # Python / 编译产物
+    "*.pyc", "*.pyo",
+    # OS 噪音
+    "Thumbs.db", ".DS_Store", "desktop.ini",
+    # 历史打包 zip(避免打包到上一轮 zip)
+    "*.zip",
+    # Cursor 聊天导出(防御性)
+    "cursor_*.md",
+    # 备份 / 草稿
+    "*.bak", "*.tmp", "*.orig", "*.rej",
+    # 本地 log / env(env 示例文件不匹配 .env.example,安全)
+    "*.log", ".env", ".env.local"
 )
 
 try {
