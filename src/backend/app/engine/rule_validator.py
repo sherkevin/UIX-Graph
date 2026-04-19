@@ -264,6 +264,26 @@ def _validate_one_metric(metric_id: str, meta: Any) -> List[str]:
                 f"(对应{'故障记录' if normalized_kind == 'failure_record_field' else '请求 params'}中的键名)"
             )
 
+    # 10. mock_range 字段校验(post-stage4 Bug #5 fix)
+    #     mock_value 类型不限(任何 JSON 字面量都可),不强校验。
+    if "mock_range" in meta:
+        mock_range = meta.get("mock_range")
+        if not isinstance(mock_range, list) or len(mock_range) != 2:
+            errors.append(
+                f"metric({metric_id}) mock_range 必须是长度为 2 的数组 [low, high]"
+            )
+        else:
+            try:
+                low, high = float(mock_range[0]), float(mock_range[1])
+                if low > high:
+                    errors.append(
+                        f"metric({metric_id}) mock_range[0]={low} > [1]={high},应为 [low, high]"
+                    )
+            except (TypeError, ValueError):
+                errors.append(
+                    f"metric({metric_id}) mock_range 元素必须是数字,实际: {mock_range}"
+                )
+
     return errors
 
 

@@ -117,7 +117,8 @@ class MetricFetcher:
     def _fetch_one(self, metric_id: str, extra_context: Optional[Dict[str, Any]] = None) -> Any:
         meta = self.rule_loader.get_metric_meta(metric_id)
         if meta is None:
-            value = self._mock_intermediate_value(metric_id, {})
+            # post-stage4 Bug #5 fix:统一走 _mock_value(空 meta 时返回通用随机)
+            value = self._mock_value(metric_id, {})
             self.source_log[metric_id] = "intermediate"
             return value
 
@@ -138,7 +139,11 @@ class MetricFetcher:
         if source_kind == "clickhouse_window":
             return self._fetch_from_clickhouse(metric_id, meta, extra_context=extra_context)
         if source_kind == "intermediate":
-            value = self._mock_intermediate_value(metric_id, meta)
+            # post-stage4 Bug #5 fix:intermediate 类也统一走 _mock_value
+            # (action 没写 results 时,mock_value/mock_range 给出占位值;否则 action
+            #  覆盖之)。新增 intermediate metric 无需改 Python,只需在配置里写
+            #  mock_value 或 mock_range。
+            value = self._mock_value(metric_id, meta)
             self.source_log[metric_id] = "intermediate"
             return value
         dynamic_handler = getattr(self, f"_fetch_from_{source_kind}", None)
@@ -973,43 +978,21 @@ class MetricFetcher:
             return [value] if value is not None else []
 
     def _mock_value(self, metric_id: str, meta: Dict[str, Any]) -> Any:
+        """
+        统一的 mock 取值入口,替代 stage4 期前的硬编码 legacy_ranges 和
+        _mock_intermediate_value 字典。
+
+        优先级:
+          1. meta.mock_value      → 固定常量(适合中间量、布尔触发指标)
+          2. meta.mock_range      → 闭区间随机(适合数值型 metric,如 [0.99985, 1.00015])
+          3. fallback             → [-10, 10] 通用随机(避免任何 metric 没 mock 时崩溃)
+
+        post-stage4 Bug #5 fix:加新指标只需在 reject_errors.diagnosis.json 里给
+        该 metric 配 mock_value 或 mock_range,**无需改 Python**。
+        """
         if "mock_value" in meta:
             return meta["mock_value"]
         if isinstance(meta.get("mock_range"), list) and len(meta["mock_range"]) == 2:
             low, high = meta["mock_range"]
             return round(random.uniform(float(low), float(high)), 6)
-
-        legacy_ranges = {
-            "Mwx_0": (0.99985, 1.00015),
-            "ws_pos_x": (-5.0, 5.0),
-            "ws_pos_y": (-5.0, 5.0),
-            "mark_pos_x": (-3.0, 3.0),
-            "mark_pos_y": (-3.0, 3.0),
-            "Msx": (0.9999, 1.0001),
-            "Msy": (0.9999, 1.0001),
-            "e_ws_x": (-2.0, 2.0),
-            "e_ws_y": (-2.0, 2.0),
-            "Sx": (-1.0, 1.0),
-            "Sy": (-1.0, 1.0),
-            "D_x": (-0.5, 0.5),
-            "D_y": (-0.5, 0.5),
-        }
-        if metric_id == "trigger_log_mwx_cgg6_range":
-            return True
-        if metric_id in legacy_ranges:
-            low, high = legacy_ranges[metric_id]
-            return round(random.uniform(low, high), 6)
         return round(random.uniform(-10.0, 10.0), 4)
-
-    def _mock_intermediate_value(self, metric_id: str, meta: Dict[str, Any]) -> Any:
-        if "mock_value" in meta:
-            return meta["mock_value"]
-        values = {
-            "n_88um": 3.0,
-            "output_Mw": 5.0,
-            "output_Tx": None,
-            "output_Ty": None,
-            "output_Rw": None,
-            "normal_count": 0.0,
-        }
-        return values.get(metric_id)

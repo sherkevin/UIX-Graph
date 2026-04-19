@@ -419,3 +419,43 @@ def test_alias_of_rejected_when_circular():
     }
     errs = validate_metrics_metadata(metrics)
     assert any("\u5faa\u73af" in e for e in errs)
+
+
+# ── post-stage4 Bug #5 fix: mock_value / mock_range 校验 ─────────────
+
+
+def test_mock_range_valid_passes():
+    metrics = {
+        "X": {"source_kind": "intermediate", "mock_range": [-1.0, 1.0]},
+        "Y": {"source_kind": "intermediate", "mock_range": [0, 100]},
+    }
+    assert validate_metrics_metadata(metrics) == []
+
+
+def test_mock_value_any_type_passes():
+    """mock_value 不限制类型(任何 JSON 字面量都允许)。"""
+    metrics = {
+        "Bool": {"source_kind": "clickhouse_window", "table_name": "t.x", "column_name": "v", "mock_value": True},
+        "Int": {"source_kind": "intermediate", "mock_value": 42},
+        "Str": {"source_kind": "intermediate", "mock_value": "fixed_str"},
+        "Null": {"source_kind": "intermediate", "mock_value": None},
+    }
+    assert validate_metrics_metadata(metrics) == []
+
+
+def test_mock_range_rejected_when_not_list_of_two():
+    metrics = {"X": {"source_kind": "intermediate", "mock_range": [1.0]}}
+    errs = validate_metrics_metadata(metrics)
+    assert any("mock_range" in e and "\u957f\u5ea6\u4e3a 2" in e for e in errs)
+
+
+def test_mock_range_rejected_when_low_greater_than_high():
+    metrics = {"X": {"source_kind": "intermediate", "mock_range": [10, 1]}}
+    errs = validate_metrics_metadata(metrics)
+    assert any("mock_range" in e and ">" in e for e in errs)
+
+
+def test_mock_range_rejected_when_elements_not_numeric():
+    metrics = {"X": {"source_kind": "intermediate", "mock_range": ["a", "b"]}}
+    errs = validate_metrics_metadata(metrics)
+    assert any("mock_range" in e and "\u6570\u5b57" in e for e in errs)

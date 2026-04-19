@@ -31,7 +31,8 @@
       "time_column": "file_time",
       "extraction_rule": "regex:Mwx out of range,CGG6_check_parameter_ranges",
       "duration": "7",
-      "role": "trigger_only"
+      "role": "trigger_only",
+      "mock_value": true
     },
     "Mwx_0": {
       "description": "倍率实测值",
@@ -50,7 +51,8 @@
       "column_name": "detail",
       "time_column": "file_time",
       "extraction_rule": "regex:Mwx\\s*\\(\\s*([\\d\\.]+)\\s*\\)",
-      "duration": "7"
+      "duration": "7",
+      "mock_range": [0.99985, 1.00015]
     },
     "ws_pos_x": {
       "description": "cowa标记对准位置 (mark_scan) ws_pos_x",
@@ -409,13 +411,15 @@
       "description": "88微米建模次数",
       "data_type": "int",
       "unit": "次",
-      "source_kind": "intermediate"
+      "source_kind": "intermediate",
+      "mock_value": 3
     },
     "output_Mw": {
       "description": "COWA建模输出倍率Mw",
       "data_type": null,
       "unit": "ppm",
-      "source_kind": "intermediate"
+      "source_kind": "intermediate",
+      "mock_value": 5.0
     },
     "output_Tx": {
       "description": "COWA建模输出上片偏差Tx",
