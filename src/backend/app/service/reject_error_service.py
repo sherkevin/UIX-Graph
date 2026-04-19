@@ -11,6 +11,8 @@ Service 层 - 拒片故障管理业务逻辑
 """
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
+from pathlib import Path
+from threading import Lock
 import json
 import os
 import logging
@@ -25,6 +27,24 @@ from app.utils import detail_trace
 logger = logging.getLogger(__name__)
 
 
+# ── 配置驱动机台白名单 ────────────────────────────────────────────────────────
+# 历史:之前是 service.EQUIPMENT_WHITELIST 硬编码常量,加机台必须改 Python。
+# 现在:从 config/equipments.json 读,加机台只改 JSON。
+# fallback:配置文件缺失或解析错误时,回退到内置默认列表保证服务不挂。
+_DEFAULT_EQUIPMENTS = [
+    "SSB8000", "SSB8001", "SSB8002", "SSB8005",
+    "SSC8001", "SSC8002", "SSC8003", "SSC8004", "SSC8005", "SSC8006",
+]
+
+
+def _resolve_equipments_config_path() -> Path:
+    """优先 UIX_ROOT 环境变量,否则用相对当前文件的位置算到 repo 根。"""
+    uix_root = os.environ.get("UIX_ROOT")
+    if uix_root:
+        return Path(uix_root) / "config" / "equipments.json"
+    return Path(__file__).resolve().parents[4] / "config" / "equipments.json"
+
+
 class RejectErrorService:
     """
     拒片故障管理服务类
@@ -32,14 +52,64 @@ class RejectErrorService:
     提供拒片故障相关的业务逻辑处理
     """
 
-    # 机台枚举白名单
-    EQUIPMENT_WHITELIST = [
-        "SSB8000", "SSB8001", "SSB8002", "SSB8005",
-        "SSC8001", "SSC8002", "SSC8003", "SSC8004", "SSC8005", "SSC8006"
-    ]
+    # 配置驱动机台白名单(懒加载 + 进程内缓存,线程安全)
+    _equipments_cache: Optional[List[str]] = None
+    _equipments_lock: Lock = Lock()
 
     # 诊断引擎（每次模块重载后重新初始化）
     _diagnosis_engine: Optional[DiagnosisEngine] = None
+
+    @classmethod
+    def _load_equipments(cls) -> List[str]:
+        """
+        从 config/equipments.json 读取机台白名单。
+        - 进程内缓存,无并发开销
+        - 文件缺失或解析失败时回退到 _DEFAULT_EQUIPMENTS,只 log error 不挂
+        """
+        with cls._equipments_lock:
+            if cls._equipments_cache is not None:
+                return cls._equipments_cache
+            config_path = _resolve_equipments_config_path()
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                items = data.get("equipments") or []
+                cleaned = [str(x).strip() for x in items if str(x).strip()]
+                if not cleaned:
+                    raise ValueError("equipments 列表为空")
+                cls._equipments_cache = cleaned
+                logger.info(
+                    "机台白名单已从 %s 加载,共 %d 项: %s",
+                    config_path, len(cleaned), cleaned,
+                )
+            except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
+                logger.error(
+                    "加载 %s 失败 (%s);回退到内置默认机台列表 %s",
+                    config_path, exc, _DEFAULT_EQUIPMENTS,
+                )
+                cls._equipments_cache = list(_DEFAULT_EQUIPMENTS)
+            return cls._equipments_cache
+
+    @classmethod
+    def reload_equipments(cls) -> List[str]:
+        """供热更新使用:JSON 改完后调用以刷新进程内缓存。"""
+        with cls._equipments_lock:
+            cls._equipments_cache = None
+        return cls._load_equipments()
+
+    @classmethod
+    def equipment_whitelist(cls) -> List[str]:
+        """返回当前生效的机台白名单(副本,调用方无法 mutate 内部 state)。"""
+        return list(cls._load_equipments())
+
+    # ── BC alias:旧代码引用 service.EQUIPMENT_WHITELIST 仍然能工作 ──
+    # 注意:这是 class-level 描述符,首次访问触发 _load_equipments;
+    # 之后用 reload_equipments() 刷新即可。
+    class _EquipmentWhitelistDescriptor:
+        def __get__(self, instance, owner):
+            return owner._load_equipments()
+
+    EQUIPMENT_WHITELIST = _EquipmentWhitelistDescriptor()
 
     @classmethod
     def get_diagnosis_engine(cls) -> DiagnosisEngine:
@@ -51,7 +121,7 @@ class RejectErrorService:
     @classmethod
     def validate_equipment(cls, equipment: str) -> bool:
         """验证机台名称是否合法"""
-        return equipment in cls.EQUIPMENT_WHITELIST
+        return equipment in cls._load_equipments()
 
     @classmethod
     def validate_wafer_ids(cls, wafer_ids) -> Tuple[bool, Optional[str]]:
