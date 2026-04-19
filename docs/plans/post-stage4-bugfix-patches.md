@@ -1,10 +1,32 @@
 # Stage4 落地后待 apply 的 bug 修复 patch
 
-> **触发条件**:你 commit 完当前 stage4 in-progress 的 25 个 modified + 4 个 untracked 改动后,本文档里的 patch 就可以 apply。
+> ## ✅ 全部已 apply(2026-04-19,K1–K7,共 7 笔 commit)
 >
-> **为什么不能现在 apply**:这 6 个 bug 都位于你 stage4 改动的代码区域(`metric_fetcher.py` +273 行、`diagnosis_engine.py` +231 行、`service/reject_error_service.py` +128 行、`config/reject_errors.diagnosis.json` 改动等)。提前修会让我的 commit 跟你的 stage4 工作纠缠在一起,污染你的 commit 历史。
+> stage4 wip 已 commit `13cf121`,本文档计划的 7 个 bug 已全部修复并通过 190 个非 DB 测试:
 >
-> **怎么 apply**:你说一声"stage4 commit 完了",我会按本文档逐项做。每项都是独立 commit,失败可单独 revert。
+> | Bug | Commit | 测试 |
+> |-----|--------|------|
+> | #1 jsonpath name[N] | `5e9d274` | +6 |
+> | #2 EQUIPMENT_WHITELIST 配置化 | `56beaae` | +8 |
+> | #3 _METRIC_ALIAS_MAP → metric.alias_of | `e6d97b5` | +5 |
+> | #4 rejected_detailed_records.config_version 失效 | `94f5280` | +8 |
+> | #5 删 legacy_ranges/_mock_intermediate_value 改为 mock_value/mock_range | `741702e` | +5 |
+> | #6 max_steps 截断专门日志 | `44ef155` | (纯日志增强) |
+> | #7 _render_extraction_template list 边界 | `f376c27` | +4 |
+>
+> **共 +36 个测试**,零回归。`python scripts/check_config.py` 仍 [OK]。
+>
+> 本文档保留作为历史档案,记录每个 bug 的设计决策与 patch 思路。
+
+---
+
+## 历史触发条件
+
+> ~~你 commit 完当前 stage4 in-progress 的 25 个 modified + 4 个 untracked 改动后,本文档里的 patch 就可以 apply。~~
+>
+> ~~**为什么不能现在 apply**:这 6 个 bug 都位于你 stage4 改动的代码区域...~~
+>
+> 已不适用。stage4 wip 已 `13cf121` commit,所有 patch 已 apply。
 
 ---
 

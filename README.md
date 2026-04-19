@@ -3,6 +3,8 @@
 光刻机拒片根因分析系统(Reject Cause Analysis)。
 
 > **30 秒导航**:[`docs/STRUCTURE.md`](docs/STRUCTURE.md) — 项目目录与「我想做 X 件事改哪儿」对照表
+> **配置驱动达成度**:[`docs/CONFIG_DRIVEN_STATUS.md`](docs/CONFIG_DRIVEN_STATUS.md) — 项目目标对照表 + 已达成 / 仍需改代码清单
+> **PR 评审清单**:[`docs/CONFIG_REVIEW_CHECKLIST.md`](docs/CONFIG_REVIEW_CHECKLIST.md) — 改诊断配置时按 8 节自查
 > **新人交接**:[`docs/HANDOVER.md`](docs/HANDOVER.md) — 当前主线 + 已知边界排坑
 > **内网数据库 schema**:[`docs/intranet/databases/`](docs/intranet/databases/) — 外网开发 mock 的权威参考(每个 db 一个文件)
 
