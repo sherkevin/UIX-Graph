@@ -267,6 +267,61 @@ def _validate_one_metric(metric_id: str, meta: Any) -> List[str]:
     return errors
 
 
+def _validate_alias_references(metrics: Dict[str, Any]) -> List[str]:
+    """
+    跨 metric 校验 alias_of 引用关系:
+    
+    - alias_of 必须是字符串
+    - 不能自指 (alias_of != 自身 metric_id)
+    - 引用的目标必须存在于本 pipeline 的 metrics 字典中
+    - 不允许形成循环(A alias_of B, B alias_of A)
+    
+    用于 post-stage4 Bug #3 fix(_METRIC_ALIAS_MAP 配置化)的字段校验。
+    """
+    errors: List[str] = []
+    metric_ids = set(metrics.keys())
+
+    # 1. 类型 + 自指 + 目标存在
+    alias_pairs: List[tuple] = []
+    for mid, meta in metrics.items():
+        if not isinstance(meta, dict):
+            continue
+        if "alias_of" not in meta:
+            continue
+        target = meta.get("alias_of")
+        if not isinstance(target, str) or not target.strip():
+            errors.append(
+                f"metric({mid}) alias_of 必须是非空字符串,实际: {target!r}"
+            )
+            continue
+        target = target.strip()
+        if target == mid:
+            errors.append(f"metric({mid}) alias_of 不能自指")
+            continue
+        if target not in metric_ids:
+            errors.append(
+                f"metric({mid}) alias_of 指向 {target!r},但该 metric 不存在"
+            )
+            continue
+        alias_pairs.append((mid, target))
+
+    # 2. 简单循环检测(每条 alias 链跳一次,看是否回到起点)
+    alias_dict = {a: b for a, b in alias_pairs}
+    for start in alias_dict:
+        seen = {start}
+        cur = alias_dict.get(start)
+        while cur is not None and cur in alias_dict:
+            if cur in seen:
+                errors.append(
+                    f"metric alias 形成循环: {' -> '.join(list(seen) + [cur])}"
+                )
+                break
+            seen.add(cur)
+            cur = alias_dict.get(cur)
+
+    return errors
+
+
 def validate_metrics_metadata(metrics: Optional[Dict[str, Any]]) -> List[str]:
     """
     校验 metrics{} 字典(每个 metric 的元数据)。
@@ -288,6 +343,10 @@ def validate_metrics_metadata(metrics: Optional[Dict[str, Any]]) -> List[str]:
             errors.append(f"metric_id 必须是非空字符串,实际: {metric_id!r}")
             continue
         errors.extend(_validate_one_metric(metric_id, meta))
+
+    # 跨 metric 校验:alias_of 引用一致性
+    errors.extend(_validate_alias_references(metrics))
+
     return errors
 
 

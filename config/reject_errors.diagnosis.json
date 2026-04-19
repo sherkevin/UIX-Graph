@@ -423,6 +423,7 @@
       "unit": "um",
       "source_kind": "intermediate",
       "role": "diagnostic",
+      "alias_of": "Tx",
       "approximate": true
     },
     "output_Ty": {
@@ -431,6 +432,7 @@
       "unit": "um",
       "source_kind": "intermediate",
       "role": "diagnostic",
+      "alias_of": "Ty",
       "approximate": true
     },
     "output_Rw": {
@@ -439,6 +441,7 @@
       "unit": "urad",
       "source_kind": "intermediate",
       "role": "diagnostic",
+      "alias_of": "Rw",
       "approximate": true
     },
     "D_x": {

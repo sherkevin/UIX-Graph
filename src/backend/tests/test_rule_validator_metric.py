@@ -375,3 +375,47 @@ def test_public_enum_sets_are_non_empty():
     assert len(VALID_LINKING_OPERATORS) >= 7
     assert len(VALID_FALLBACK_POLICIES) >= 2
     assert len(VALID_TRANSFORM_TYPES) >= 5
+
+
+# ── post-stage4 Bug #3 fix: alias_of 字段校验 ─────────────────────────
+
+
+def test_alias_of_passes_when_target_exists():
+    metrics = {
+        "Tx": {"source_kind": "failure_record_field", "field": "wafer_translation_x"},
+        "output_Tx": {
+            "source_kind": "intermediate",
+            "alias_of": "Tx",
+            "approximate": True,
+        },
+    }
+    assert validate_metrics_metadata(metrics) == []
+
+
+def test_alias_of_rejected_when_target_missing():
+    metrics = {
+        "output_Tx": {"source_kind": "intermediate", "alias_of": "non_existent_metric"},
+    }
+    errs = validate_metrics_metadata(metrics)
+    assert any("alias_of" in e and "non_existent_metric" in e for e in errs)
+
+
+def test_alias_of_rejected_when_self_referencing():
+    metrics = {"X": {"source_kind": "intermediate", "alias_of": "X"}}
+    errs = validate_metrics_metadata(metrics)
+    assert any("alias_of" in e for e in errs)
+
+
+def test_alias_of_rejected_when_not_string():
+    metrics = {"X": {"source_kind": "intermediate", "alias_of": 123}}
+    errs = validate_metrics_metadata(metrics)
+    assert any("alias_of" in e for e in errs)
+
+
+def test_alias_of_rejected_when_circular():
+    metrics = {
+        "A": {"source_kind": "intermediate", "alias_of": "B"},
+        "B": {"source_kind": "intermediate", "alias_of": "A"},
+    }
+    errs = validate_metrics_metadata(metrics)
+    assert any("\u5faa\u73af" in e for e in errs)

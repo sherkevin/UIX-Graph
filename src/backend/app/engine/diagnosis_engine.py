@@ -754,13 +754,31 @@ class DiagnosisEngine:
 
         return metrics
 
-    # output_* 是 MetricFetcher 的内部别名，pipeline steps 中用的是原始名
-    _METRIC_ALIAS_MAP = {
-        "output_Tx": "Tx",
-        "output_Ty": "Ty",
-        "output_Rw": "Rw",
-        # output_Mw 不做别名映射，pipeline step 21 直接用 "output_Mw" 作为 metric_id
-    }
+    def _build_alias_map(self) -> Dict[str, str]:
+        """
+        从 metrics 元数据反查 alias 映射:metric.alias_of 字段声明 alias。
+        
+        历史:之前是硬编码 _METRIC_ALIAS_MAP = {output_Tx: Tx, ...},
+        加新别名必须改 Python。post-stage4 Bug #3 fix 改为配置驱动:
+        
+            "output_Tx": {
+              "source_kind": "intermediate",
+              "alias_of": "Tx",     <- 这里声明
+              "approximate": true
+            }
+        
+        Returns:
+            { alias_metric_id: target_metric_id } 字典
+        """
+        alias_map: Dict[str, str] = {}
+        metrics = getattr(self.rule_loader, "metrics", None) or {}
+        for mid, meta in metrics.items():
+            if not isinstance(meta, dict):
+                continue
+            alias = meta.get("alias_of")
+            if alias:
+                alias_map[str(mid)] = str(alias).strip()
+        return alias_map
 
     def _find_threshold(self, metric_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -770,7 +788,8 @@ class DiagnosisEngine:
         1. 优先返回 between 条件（正常范围，如 -20 < Tx < 20）
         2. 其次返回第一个有 operator+limit 的分支（如 n_88um ≤ 8）
 
-        对于 output_Tx/Ty/Rw/Mw 等别名，自动映射到 pipeline 中的原始名。
+        对于 output_Tx/Ty/Rw/Mw 等别名,通过 metric 配置的 alias_of 字段
+        映射到 pipeline 中的原始名(post-stage4 Bug #3 fix:从硬编码改为配置驱动)。
 
         Args:
             metric_id: 指标 ID
@@ -778,8 +797,9 @@ class DiagnosisEngine:
         Returns:
             {"operator": str, "limit": float/list} 或 None
         """
-        # 别名映射：output_Tx → Tx 等
-        lookup_id = self._METRIC_ALIAS_MAP.get(metric_id, metric_id)
+        # 别名映射:metric.alias_of 字段反查;新增别名只需在 metrics 里加 alias_of
+        alias_map = self._build_alias_map()
+        lookup_id = alias_map.get(metric_id, metric_id)
 
         for step in self.rule_loader.steps:
             step_metric_id = step.get("metric_id")
