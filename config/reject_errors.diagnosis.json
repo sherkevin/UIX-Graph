@@ -1044,7 +1044,14 @@
         {
           "result": {
             "rootCause": "上片工艺适应性问题",
-            "system": null
+            "system": null,
+            "category": "工艺适应性",
+            "confidence": 75,
+            "reasoning": [
+              "本次 Tx 超出正常区间 [-20, 20] um",
+              "30 天窗口内 Tx 月均值 mean_Tx 同样超出 [-2, 2] um",
+              "持续偏差 → 工艺适应性问题(非偶发硬件抖动);具体 system 待业务进一步细分"
+            ]
           }
         }
       ],
@@ -1057,7 +1064,14 @@
         {
           "result": {
             "rootCause": "上片偏差异常",
-            "system": "WS与WH分系统"
+            "system": "WS与WH分系统",
+            "category": "机械精度",
+            "confidence": 85,
+            "reasoning": [
+              "本次 Tx 超出正常区间 [-20, 20] um",
+              "30 天窗口内 Tx 月均值 mean_Tx 在正常区间 [-2, 2] um 内",
+              "历史正常 + 当前异常 → 偶发性问题,定位 WS/WH(Wafer Station / Wafer Handler)分系统"
+            ]
           }
         }
       ],
@@ -1070,7 +1084,14 @@
         {
           "result": {
             "rootCause": "上片工艺适应性问题",
-            "system": null
+            "system": null,
+            "category": "工艺适应性",
+            "confidence": 75,
+            "reasoning": [
+              "本次 Ty 超出正常区间 [-20, 20] um",
+              "30 天窗口内 Ty 月均值 mean_Ty 同样超出 [-2, 2] um",
+              "持续偏差 → 工艺适应性问题(非偶发硬件抖动);具体 system 待业务进一步细分"
+            ]
           }
         }
       ],
@@ -1083,7 +1104,14 @@
         {
           "result": {
             "rootCause": "上片偏差异常",
-            "system": "WS与WH分系统"
+            "system": "WS与WH分系统",
+            "category": "机械精度",
+            "confidence": 85,
+            "reasoning": [
+              "本次 Ty 超出正常区间 [-20, 20] um",
+              "30 天窗口内 Ty 月均值 mean_Ty 在正常区间 [-2, 2] um 内",
+              "历史正常 + 当前异常 → 偶发性问题,定位 WS/WH(Wafer Station / Wafer Handler)分系统"
+            ]
           }
         }
       ],
@@ -1096,7 +1124,14 @@
         {
           "result": {
             "rootCause": "上片工艺适应性问题",
-            "system": null
+            "system": null,
+            "category": "工艺适应性",
+            "confidence": 75,
+            "reasoning": [
+              "本次 Rw 超出正常区间 [-300, 300] urad",
+              "30 天窗口内 Rw 月均值 mean_Rw 同样超出 [-30, 30] urad",
+              "持续旋转偏差 → 工艺适应性问题;具体 system 待业务进一步细分"
+            ]
           }
         }
       ],
@@ -1109,7 +1144,14 @@
         {
           "result": {
             "rootCause": "上片旋转异常",
-            "system": "WS与WH分系统"
+            "system": "WS与WH分系统",
+            "category": "机械精度",
+            "confidence": 85,
+            "reasoning": [
+              "本次 Rw 超出正常区间 [-300, 300] urad",
+              "30 天窗口内 Rw 月均值 mean_Rw 在正常区间 [-30, 30] urad 内",
+              "历史正常 + 当前异常 → 偶发性旋转抖动,定位 WS/WH 分系统"
+            ]
           }
         }
       ],
@@ -1131,12 +1173,19 @@
     },
     {
       "id": "99",
-      "description": "需要人工综合判定(无法自动归因到单一根因)",
+      "description": "需要人工综合判定(无法自动归因到单一根因);本叶子也是合法的诊断终态,前端按普通根因展示即可",
       "details": [
         {
           "result": {
             "rootCause": "人工处理",
-            "system": null
+            "system": null,
+            "category": "需人工处理",
+            "confidence": 50,
+            "reasoning": [
+              "进入本叶子的可能路径: (a) Mwx_0 落在所有规则盲区 [0.99998, 1.00002];(b) 88um 建模超过 8 次仍未收敛;(c) Tx/Ty/Rw 同时正常但场景已触发(normal_count == 3);(d) 任意中间步 metric 缺失走了 else 兜底",
+              "对应业务含义: 自动诊断决策树未能给出单一明确归因,需要工艺/设备工程师结合上下文综合判断",
+              "建议下一步: 查看本次 metrics 列表中标记 ABNORMAL 的指标 + 该机台 30 天历史均值,人工判定是工艺漂移还是机械精度问题"
+            ]
           }
         }
       ],
