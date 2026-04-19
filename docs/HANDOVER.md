@@ -227,9 +227,13 @@ python tests/test_diagnosis_prd1.py
 - 表 **`rejected_detailed_records`** 上 **`failure_id` 唯一**。同一 `failure_id` **首次**打开详情时，若两个请求并发都未命中缓存，可能两次都尝试 `INSERT`，**其中一个会因唯一约束失败**。
 - [reject_error_service.py](../src/backend/app/service/reject_error_service.py) 中 **`_save_to_cache`** 已对写入失败做 **try/except + rollback**，**不向上抛出**，因此 **用户仍能拿到正确诊断结果**，只是该瞬间可能未写入缓存；后续再请求会重新计算或依赖另一方写入成功。高并发下若需更强保证，可改为 **upsert** 或分布式锁（与 [feature_todo.md](stage3/feature_todo.md) 中长期方案一致）。
 
-### 9.5 双前端目录（再次强调）
+### 9.5 双前端目录(已解决)
 
-- **唯一约定入口**：**[src/frontend/](../src/frontend/)**。根目录若存在 **`frontend/`**，且未同步 `rejectErrorsAPI`、`FaultRecords` 等 Stage3 代码，会出现「有人改 A 目录、有人跑 B 目录」的分叉。**新需求只改 `src/frontend`，并计划淘汰或合并根目录 `frontend/`**。
+- **唯一约定入口**:**[src/frontend/](../src/frontend/)**。
+- **历史:** 根目录原本存在 `frontend/`(老的多页面 UI,含知识录入/本体/全图谱等 6 个老页面),与 `src/frontend/` 是**两份独立代码**,长期并存导致分叉风险。
+- **现状(2026-04-19 起):** 根 `frontend/` 已 `git mv` 到 [`archive/frontend-legacy/`](../archive/frontend-legacy/),**不在任何运行路径上**(后端/前端构建/启动器/docker 都不会扫到它),分叉风险已消除。
+- **如需复活某老页面到主线:** 见 [`archive/README.md`](../archive/README.md) 「复活某个老页面到主线」段落。
+- **新需求依然只改 `src/frontend`**,不要去改 `archive/frontend-legacy/`(那里是冻结快照)。
 
 ### 9.6 测试与根 README
 

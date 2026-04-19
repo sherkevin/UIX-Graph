@@ -267,3 +267,85 @@ scripts/
 | ClickHouse `file_time` | `[T - 7 天, T]`,推荐 `08:44:30 ~ 08:44:58` |
 
 详见 [`docs/intranet/databases/README.md`](./intranet/databases/README.md) §2.3。
+
+---
+
+## 10. 请求级数据流(接口 3 为例)
+
+接口 3 `/api/v1/reject-errors/{id}/metrics` 是项目里逻辑最重的一条链路,把所有核心模块都串起来了。
+
+```mermaid
+flowchart LR
+    Browser[Browser] -->|"GET .../metrics?requestTime=T"| Vite["vite proxy or serve_frontend.py"]
+    Vite -->|forward /api| Handler["handler/reject_errors.py"]
+    Handler --> Service["service/reject_error_service.py"]
+    Service -->|"check requestTime vs occurred_ms"| CacheDecide{cache?}
+    CacheDecide -->|hit| CacheRead["query rejected_detailed_records"]
+    CacheRead --> Response[detail JSON]
+    CacheDecide -->|miss / bypass| Engine["engine/diagnosis_engine.py"]
+    Engine --> ConfigStore["diagnosis/config_store.py<br/>reads reject_errors.diagnosis.json"]
+    Engine --> Fetcher["engine/metric_fetcher.py"]
+    Fetcher -->|failure_record_field| Source[source_record dict]
+    Fetcher -->|mysql_nearest_row| MysqlOds["ods/datacenter_ods.py"]
+    Fetcher -->|clickhouse_window| ChOds["ods/clickhouse_ods.py"]
+    MysqlOds --> MySQL[(MySQL datacenter)]
+    ChOds --> CH[(ClickHouse las/src)]
+    Engine --> Walker["_walk_subtree<br/>condition_evaluator + actions"]
+    Walker --> LeafResult["leaf rootCause + system"]
+    LeafResult --> Service
+    Service -->|"if not bypass_cache"| CacheWrite["INSERT rejected_detailed_records"]
+    Service --> Response
+```
+
+**模块依赖速查**:
+
+```mermaid
+flowchart LR
+    handler --> service
+    service --> engine_diagnosis["engine/diagnosis_engine"]
+    service --> models
+    service --> ods
+    engine_diagnosis --> engine_fetcher["engine/metric_fetcher"]
+    engine_diagnosis --> engine_eval["engine/condition_evaluator"]
+    engine_diagnosis --> engine_actions["engine/actions"]
+    engine_diagnosis --> diagnosis_store["diagnosis/config_store"]
+    engine_fetcher --> ods
+    engine_fetcher --> diagnosis_store
+    diagnosis_store --> rule_validator["engine/rule_validator"]
+    ods --> mysql_db[(MySQL)]
+    ods --> ch_db[(ClickHouse)]
+    handler -.->|legacy LEGACY_ROUTES_ENABLED| core_old["app/core (legacy)"]
+```
+
+老路由 `app/core/` 这一支用虚线表示——只有在 `LEGACY_ROUTES_ENABLED=true`(默认)时才进入运行图。
+
+---
+
+## 11. 内网表 ↔ 本地资源完整对照(供 mock / 联调 / 排障)
+
+**用法**:你在内网看到一张表,想知道「外网本地仓库里它对应在哪、字段长什么样、谁在用」,就查下表。
+
+| 内网真实表 | 本地 mock SQL(精确行号) | 本地 ORM 类 | 本地 metric_id 引用 | Schema 文档 |
+|-----------|---------------------------|-------------|---------------------|------------|
+| `datacenter.lo_batch_equipment_performance` | [`scripts/init_docker_db.sql`](../scripts/init_docker_db.sql) L13–L98(建表)+ L146–L250(数据) | [`src/backend/app/models/reject_errors_db.py`](../src/backend/app/models/reject_errors_db.py) `LoBatchEquipmentPerformance` | `Tx`、`Ty`、`Rw`、`Tx_history`、`Ty_history`、`Rw_history`、`trigger_reject_reason_cowa_6` | [`docs/intranet/databases/mysql_datacenter.md`](./intranet/databases/mysql_datacenter.md) |
+| `datacenter.reject_reason_state` | [`scripts/init_docker_db.sql`](../scripts/init_docker_db.sql) L8–L11 + L127–L138 | `RejectReasonState` | (接口 2 `rejectReason` 文案,非 metric)| [`docs/intranet/databases/mysql_datacenter.md`](./intranet/databases/mysql_datacenter.md) |
+| `datacenter.mc_config_commits_history` | [`scripts/init_docker_db.sql`](../scripts/init_docker_db.sql) §`mc_config_commits_history`(commit F 已修为 nested JSON) | (无 ORM,SQL 直查) | `Sx`、`Sy` | [`docs/intranet/databases/mysql_datacenter.md`](./intranet/databases/mysql_datacenter.md) |
+| `datacenter.rejected_detailed_records` | [`scripts/init_docker_db.sql`](../scripts/init_docker_db.sql) L101–L122(只建表,运行时由应用写入) | `RejectedDetailedRecord` | (应用缓存表,非 metric 源)| [`docs/intranet/databases/mysql_datacenter.md`](./intranet/databases/mysql_datacenter.md) |
+| `las.LOG_EH_UNION_VIEW` | [`scripts/init_clickhouse_local.sql`](../scripts/init_clickhouse_local.sql) L8–L52(建表 + 倍率行 + 触发场景行) | (无 ORM,通过 [`src/backend/app/ods/clickhouse_ods.py`](../src/backend/app/ods/clickhouse_ods.py) `ClickHouseODS.query_metric_in_window` 直查) | `trigger_log_mwx_cgg6_range`、`Mwx_0` | [`docs/intranet/databases/clickhouse_las.md`](./intranet/databases/clickhouse_las.md) |
+| `src.RPT_WAA_SET_OFL` | [`scripts/init_clickhouse_local.sql`](../scripts/init_clickhouse_local.sql) L54–L80 | (同上)| (历史)| [`docs/intranet/databases/clickhouse_src.md`](./intranet/databases/clickhouse_src.md) |
+| `src.RPT_WAA_LOT_MARK_INFO_OFL_KAFKA` | [`scripts/init_clickhouse_local.sql`](../scripts/init_clickhouse_local.sql) L82–L106 | (同上)| (历史 mark_pos_x/y,**已被 stage4 重路由**) | [`docs/intranet/databases/clickhouse_src.md`](./intranet/databases/clickhouse_src.md) |
+| `src.RPT_WAA_SA_RESULT_OFL` | [`scripts/init_clickhouse_local.sql`](../scripts/init_clickhouse_local.sql) L108–L134 | (同上) | `Msx`、`Msy`、`e_ws_x`、`e_ws_y` | [`docs/intranet/databases/clickhouse_src.md`](./intranet/databases/clickhouse_src.md) |
+| `src.RPT_WAA_SET_UNION_VIEW` | [`scripts/init_clickhouse_local.sql`](../scripts/init_clickhouse_local.sql) 末尾 §RPT_WAA_SET_UNION_VIEW(commit F 新增,带 `phase` 列)| (同上)| **`ws_pos_x`、`ws_pos_y`(当前主力)** | [`docs/intranet/databases/clickhouse_src.md`](./intranet/databases/clickhouse_src.md) |
+| `datacenter.LO_wafer_result` *(计划)* | **未 mock** | (无)| `D_x`、`D_y`(目前 `source_kind: intermediate`) | [`docs/intranet/databases/mysql_datacenter.md`](./intranet/databases/mysql_datacenter.md) §LO_wafer_result *(计划接入)* |
+| `datacenter.lo_batch_equipment_performance_temp` *(计划)* | **未 mock** | (无)| (计划替代 `Tx/Ty/Rw` 直读源记录)| [`docs/intranet/databases/mysql_datacenter.md`](./intranet/databases/mysql_datacenter.md) §lo_batch_equipment_performance_temp *(计划接入)* |
+| `las.RPT_WAA_RESULT_OFL` *(stage4 候选)* | **未 mock** | (无)| (stage4 设计的 `mark_id` 解析路径,**当前未启用**) | [`docs/intranet/databases/clickhouse_las.md`](./intranet/databases/clickhouse_las.md) §RPT_WAA_RESULT_OFL *(Stage4 计划接入)* |
+| `las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW` *(stage4 候选)* | **未 mock** | (无)| (stage4 设计的 `mark_pos_x/y` 替代源)| [`docs/intranet/databases/clickhouse_las.md`](./intranet/databases/clickhouse_las.md) §RTP_WAA_LOT_MARK_INFO_UNION_VIEW |
+| `src.RPT_WAA_V2_SET_OFL` *(stage4 候选)* | **未 mock** | (无)| (stage4 给的 V2 路径,与 union_view 路径并列待业务定夺)| [`docs/intranet/databases/clickhouse_src.md`](./intranet/databases/clickhouse_src.md) §RPT_WAA_V2_SET_OFL |
+
+**外网开发 mock 流程**(从一行表到一份能跑的 fixture):
+
+1. 在本表找内网表 → 跳到对应 [`docs/intranet/databases/`](./intranet/databases/) 文档的表小节
+2. 抄列定义 → 改 [`scripts/init_docker_db.sql`](../scripts/init_docker_db.sql) 或 [`scripts/init_clickhouse_local.sql`](../scripts/init_clickhouse_local.sql)
+3. 锚点对齐 §9 锚点(`SSB8000 / chuck=1 / lot=101 / wafer=7 / T=2026-01-10 08:45`)
+4. 重启 docker MySQL/CH:`docker-compose down && docker-compose up -d`
+5. 浏览器跑接口 3 详情页验证 `metrics_data`
