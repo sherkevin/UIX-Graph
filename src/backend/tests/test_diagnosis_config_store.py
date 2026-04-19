@@ -37,9 +37,12 @@ def test_store_loads_structured_ontology_pipeline():
 def test_store_backfills_rule_metrics_and_meta_notes():
     store = DiagnosisConfigStore()
     pipeline = store.get_pipeline("reject_errors")
+    # D_x / D_y 保留作为 stage4 计划接入的 intermediate 占位(带 _status / _planned_source 标注)
     assert "D_x" in pipeline["metrics"]
     assert pipeline["metrics"]["D_x"]["source_kind"] == "intermediate"
-    assert "动态上片偏差" in pipeline["metrics"]
+    assert pipeline["metrics"]["D_x"].get("_status") == "stage4-planned"
+    # \u300a动态上片偏差\u300b orphan 中文 id 已删除(L2 清理)
+    assert "\u52a8\u6001\u4e0a\u7247\u504f\u5dee" not in pipeline["metrics"]
     assert "notes" not in pipeline["metrics"]["Tx"]
     assert pipeline["metrics"]["Tx"]["linking"]["mode"] == "time_window_only"
     assert pipeline["metrics"]["Tx"]["fallback"]["policy"] == "none"

@@ -304,13 +304,6 @@
       "duration": "7",
       "_note": "同 Sx；从 data.static_wafer_load_offset.chuck_message[{chuck_index0}].static_load_offset.y 提取"
     },
-    "动态上片偏差": {
-      "description": "动态上片偏差（当前未启用）",
-      "data_type": null,
-      "unit": "um",
-      "source_kind": "intermediate",
-      "enabled": false
-    },
     "Tx": {
       "description": "上片偏差Tx",
       "data_type": null,
@@ -449,16 +442,22 @@
       "approximate": true
     },
     "D_x": {
-      "description": "建模中间量 D_x",
+      "description": "动态上片偏差 X(stage4 计划接入 datacenter.LO_wafer_result.wafer_load_offset_x;未接入前 build_model 取值为 None,内部 _first_numeric 默认按 0 处理)",
       "data_type": null,
       "unit": "um",
-      "source_kind": "intermediate"
+      "source_kind": "intermediate",
+      "_status": "stage4-planned",
+      "_planned_source": "datacenter.LO_wafer_result.wafer_load_offset_x",
+      "_planned_linking": "lot_id + wafer_id + chuck_id"
     },
     "D_y": {
-      "description": "建模中间量 D_y",
+      "description": "动态上片偏差 Y(stage4 计划接入 datacenter.LO_wafer_result.wafer_load_offset_y;未接入前 build_model 取值为 None,内部 _first_numeric 默认按 0 处理)",
       "data_type": null,
       "unit": "um",
-      "source_kind": "intermediate"
+      "source_kind": "intermediate",
+      "_status": "stage4-planned",
+      "_planned_source": "datacenter.LO_wafer_result.wafer_load_offset_y",
+      "_planned_linking": "lot_id + wafer_id + chuck_id"
     }
   },
   "diagnosis_scenes": [
@@ -686,14 +685,6 @@
       "id": 22,
       "description": "检查上片偏差Tx",
       "metric_id": "Tx",
-      "details": [
-        {
-          "action": null,
-          "description": "判断Tx是否在正常范围内",
-          "params": null,
-          "results": null
-        }
-      ],
       "next": [
         {
           "target": "221",
@@ -887,14 +878,10 @@
     },
     {
       "id": 40,
-      "description": "输出异常Tx的mean值",
+      "description": "Tx 月均值异常 → 上片工艺适应性问题(待 system 细分)",
       "details": [
         {
-          "action": null,
-          "description": "输出异常的Tx的mean值、根因及定位分系统",
-          "params": null,
           "result": {
-            "mean_Tx": "",
             "rootCause": "上片工艺适应性问题",
             "system": null
           }
@@ -904,14 +891,10 @@
     },
     {
       "id": 41,
-      "description": "输出正常Tx的mean值",
+      "description": "Tx 月均值正常但本次 Tx 异常 → WS/WH 分系统问题",
       "details": [
         {
-          "action": null,
-          "description": "输出正常的Tx的mean值、根因及定位分系统",
-          "params": null,
           "result": {
-            "mean_Tx": "",
             "rootCause": "上片偏差异常",
             "system": "WS与WH分系统"
           }
@@ -921,14 +904,10 @@
     },
     {
       "id": 42,
-      "description": "输出异常的Ty的mean值",
+      "description": "Ty 月均值异常 → 上片工艺适应性问题(待 system 细分)",
       "details": [
         {
-          "action": null,
-          "description": "输出异常的Ty的mean值、根因及定位分系统",
-          "params": null,
           "result": {
-            "mean_Ty": "",
             "rootCause": "上片工艺适应性问题",
             "system": null
           }
@@ -938,14 +917,10 @@
     },
     {
       "id": 43,
-      "description": "输出正常的Ty的mean值",
+      "description": "Ty 月均值正常但本次 Ty 异常 → WS/WH 分系统问题",
       "details": [
         {
-          "action": null,
-          "description": "输出正常的Ty的mean值、根因及定位分系统",
-          "params": null,
           "result": {
-            "mean_Ty": "",
             "rootCause": "上片偏差异常",
             "system": "WS与WH分系统"
           }
@@ -955,14 +930,10 @@
     },
     {
       "id": 44,
-      "description": "输出异常的Rw的mean值",
+      "description": "Rw 月均值异常 → 上片工艺适应性问题(待 system 细分)",
       "details": [
         {
-          "action": null,
-          "description": "输出异常的Rw的mean值、根因及定位分系统",
-          "params": null,
           "result": {
-            "mean_Rw": "",
             "rootCause": "上片工艺适应性问题",
             "system": null
           }
@@ -972,14 +943,10 @@
     },
     {
       "id": 45,
-      "description": "输出正常的Rw的mean值",
+      "description": "Rw 月均值正常但本次 Rw 异常 → WS/WH 分系统问题",
       "details": [
         {
-          "action": null,
-          "description": "输出正常的Rw的mean值、根因及定位分系统",
-          "params": null,
           "result": {
-            "mean_Rw": "",
             "rootCause": "上片旋转异常",
             "system": "WS与WH分系统"
           }
@@ -989,15 +956,7 @@
     },
     {
       "id": 50,
-      "description": "汇总上片偏差、上片旋转正常情况",
-      "details": [
-        {
-          "action": null,
-          "description": "检查Tx、Ty、Rw是否全部正常",
-          "params": null,
-          "results": null
-        }
-      ],
+      "description": "汇总 Tx/Ty/Rw 三项判断结果(normal_count 由 step 221/231/241 累加);无论是否全正常,均收敛到 99 由人工综合判定",
       "next": [
         {
           "target": "99",
@@ -1011,14 +970,12 @@
     },
     {
       "id": "99",
-      "description": "需要人工处理",
+      "description": "需要人工综合判定(无法自动归因到单一根因)",
       "details": [
         {
-          "action": null,
-          "description": "前端报需人工处理",
-          "params": null,
-          "results": {
-            "rootCause": "人工处理"
+          "result": {
+            "rootCause": "人工处理",
+            "system": null
           }
         }
       ],
