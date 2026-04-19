@@ -34,14 +34,14 @@ src/backend/
 ├── app/
 │   ├── main.py                      # FastAPI 入口 + 路由注册 + 全局异常处理
 │   ├── handler/                     # API 层(Controller),只做 HTTP 解析+响应封装
-│   │   ├── reject_errors.py         # ★ Stage3 主接口(拒片故障管理 1/2/3)
-│   │   ├── ontology.py              # 老路由(本体)— 待评估是否保留
-│   │   ├── knowledge.py             # 老路由(知识)— 待评估
-│   │   ├── diagnosis.py             # 老路由(通用诊断)— 用 app/core/
-│   │   ├── visualization.py         # 老路由(可视化)
-│   │   ├── propagation.py           # 老路由(传播)
-│   │   ├── full_graph.py            # 老路由(全图)
-│   │   └── entity.py                # 老路由(实体)
+│   │   ├── reject_errors.py         # ★ Stage3 主接口(拒片故障管理 1/2/3),始终注册
+│   │   ├── ontology.py              # 老路由(本体)── feature-flagged,LEGACY_ROUTES_ENABLED 默认 true
+│   │   ├── knowledge.py             # 老路由(知识)── 同上
+│   │   ├── diagnosis.py             # 老路由(通用诊断)── 同上;实现仍在 app/core/
+│   │   ├── visualization.py         # 老路由(可视化)── 同上
+│   │   ├── propagation.py           # 老路由(传播)── 同上
+│   │   ├── full_graph.py            # 老路由(全图)── 同上
+│   │   └── entity.py                # 老路由(实体)── 同上
 │   │
 │   ├── service/                     # 业务逻辑层(本应是主要业务沉淀地)
 │   │   └── reject_error_service.py  # ★ Stage3 业务主线

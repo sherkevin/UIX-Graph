@@ -79,14 +79,25 @@ app.add_middleware(
 )
 
 # ── 路由注册 ──────────────────────────────────────────────────────────────────
+# 主线(stage3/stage4):拒片故障管理始终注册
 app.include_router(reject_errors.router, prefix="/api/v1/reject-errors", tags=["拒片故障管理"])
-app.include_router(ontology.router,      prefix="/api/ontology",          tags=["本体管理"])
-app.include_router(knowledge.router,     prefix="/api/knowledge",          tags=["知识库"])
-app.include_router(diagnosis.router,     prefix="/api/diagnosis",          tags=["诊断"])
-app.include_router(visualization.router, prefix="/api/visualization",      tags=["可视化"])
-app.include_router(propagation.router,   prefix="/api/propagation",        tags=["传播分析"])
-app.include_router(entity.router,        prefix="/api/entity",             tags=["实体"])
-app.include_router(full_graph.router,    prefix="/api/graph",              tags=["全图"])
+
+# 老路由(图谱 / 本体 / 传播):前端 src/frontend/ 已不再调用,但内网可能存在
+# 第三方客户端、Postman 集合或运维脚本仍在使用。默认 LEGACY_ROUTES_ENABLED=true
+# 保持向后兼容;内网部署若已确认无人调用,可在 .env 设 LEGACY_ROUTES_ENABLED=false
+# 关闭它们,30 天观察访问日志,确认无 404 后再在后续 PR 中物理删除 handler/core/测试。
+_legacy_enabled = os.environ.get("LEGACY_ROUTES_ENABLED", "true").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+logger.info("Legacy routes enabled: %s", _legacy_enabled)
+if _legacy_enabled:
+    app.include_router(ontology.router,      prefix="/api/ontology",      tags=["本体管理"])
+    app.include_router(knowledge.router,     prefix="/api/knowledge",     tags=["知识库"])
+    app.include_router(diagnosis.router,     prefix="/api/diagnosis",     tags=["诊断"])
+    app.include_router(visualization.router, prefix="/api/visualization", tags=["可视化"])
+    app.include_router(propagation.router,   prefix="/api/propagation",   tags=["传播分析"])
+    app.include_router(entity.router,        prefix="/api/entity",        tags=["实体"])
+    app.include_router(full_graph.router,    prefix="/api/graph",         tags=["全图"])
 
 
 # ── 全局错误 Handler（所有报错实时打印到日志/启动窗口） ───────────────────────
