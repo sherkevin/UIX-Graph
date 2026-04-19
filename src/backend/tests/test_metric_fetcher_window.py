@@ -1,5 +1,5 @@
-"""
-MetricFetcher 时间窗与窗口列表行为测试。
+﻿"""
+MetricFetcher 鏃堕棿绐椾笌绐楀彛鍒楄〃琛屼负娴嬭瘯銆?
 """
 import sys
 from pathlib import Path
@@ -383,3 +383,61 @@ if __name__ == "__main__":
     test_window_uses_duration_days_from_meta()
     test_window_fallback_when_no_duration_uses_days()
     print("OK: test_metric_fetcher_window")
+
+# ── post-stage4 Bug #1 fix: jsonpath name[N] segment 支持 ─────────────────
+
+
+def test_extract_json_path_value_supports_name_bracket_index():
+    """jsonpath segment 形如 'chuck_message[0]' 应当被识别为 dict.chuck_message → list[0]。
+
+    这是 reject_errors.diagnosis.json Sx/Sy 的实际写法,
+    extraction_rule = jsonpath:static_wafer_load_offset/chuck_message[{chuck_index0}]/static_load_offset/x
+    """
+    data = {
+        "static_wafer_load_offset": {
+            "chuck_message": [
+                {"static_load_offset": {"x": 1.234, "y": -5.678}},
+                {"static_load_offset": {"x": 2.0, "y": -3.0}},
+            ]
+        }
+    }
+    assert MetricFetcher._extract_json_path_value(
+        data, "static_wafer_load_offset/chuck_message[0]/static_load_offset/x"
+    ) == 1.234
+    assert MetricFetcher._extract_json_path_value(
+        data, "static_wafer_load_offset/chuck_message[1]/static_load_offset/y"
+    ) == -3.0
+
+
+def test_extract_json_path_value_name_bracket_index_out_of_range_returns_none():
+    data = {"chuck_message": [{"x": 1}]}
+    assert MetricFetcher._extract_json_path_value(data, "chuck_message[5]/x") is None
+    assert MetricFetcher._extract_json_path_value(data, "chuck_message[10]") is None
+
+
+def test_extract_json_path_value_name_bracket_with_non_list_value_returns_none():
+    """如果 dict.name 不是 list,name[N] 形式应返回 None(类型不匹配)。"""
+    data = {"chuck_message": "not a list"}
+    assert MetricFetcher._extract_json_path_value(data, "chuck_message[0]") is None
+
+
+def test_extract_json_path_value_old_slash_index_still_works():
+    """向后兼容:'chuck_message/0/x' 写法(纯 / 分段)与 'chuck_message[0]/x' 等价。"""
+    data = {"chuck_message": [{"x": 42}, {"x": 100}]}
+    assert MetricFetcher._extract_json_path_value(data, "chuck_message/0/x") == 42
+    assert MetricFetcher._extract_json_path_value(data, "chuck_message/1/x") == 100
+
+
+def test_extract_json_path_value_dict_key_lookup_unaffected():
+    """普通 dict key 访问仍然正常,bug fix 不应影响这条路径。"""
+    data = {"static_wafer_load_offset": {"chuck_message": {"first": {"x": 1.0}}}}
+    assert MetricFetcher._extract_json_path_value(
+        data, "static_wafer_load_offset/chuck_message/first/x"
+    ) == 1.0
+
+
+def test_extract_json_path_value_name_bracket_root_data_must_be_dict():
+    """如果当前 current 是 list,name[N] 形式应返回 None(name 不存在于 list)。"""
+    data = [{"x": 1}, {"x": 2}]
+    # 第一段 'name[0]' 期待 current 是 dict,实际是 list,返回 None
+    assert MetricFetcher._extract_json_path_value(data, "name[0]") is None

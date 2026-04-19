@@ -644,10 +644,40 @@ class MetricFetcher:
             return None
         return rendered
 
+    # 兼容 jsonpath segment 形如 'chuck_message[0]' (剥离方括号、N 当数组下标)。
+    # 模块级编译一次,避免每次调用重新编译。
+    _NAME_INDEX_RE = re.compile(r"^(\w+)\[(\d+)\]$")
+
     @staticmethod
     def _extract_json_path_value(data: Any, path: str) -> Any:
+        """
+        按 '/' 分段解析 jsonpath。每段支持以下三种形式:
+          - 'foo'        : dict key
+          - '0'/'1'/...  : 数组下标(当前 current 必须是 list)
+          - 'foo[0]'     : 等价于 'foo/0',先在 dict 取 foo,再在结果 list 取下标
+        
+        最后一种形式是为 reject_errors.diagnosis.json 中:
+          jsonpath:static_wafer_load_offset/chuck_message[{chuck_index0}]/static_load_offset/x
+        渲染后 'chuck_message[0]' 这种 segment 设计的。
+        与 'foo/0' 的写法**双向兼容**。
+        """
         current = data
         for segment in [part for part in str(path or "").split("/") if part]:
+            # 形式 3: 'name[N]' 复合 segment(dict.name → list[N])
+            m = MetricFetcher._NAME_INDEX_RE.match(segment)
+            if m:
+                key, idx_str = m.group(1), m.group(2)
+                if not isinstance(current, dict):
+                    return None
+                current = current.get(key)
+                if not isinstance(current, list):
+                    return None
+                idx = int(idx_str)
+                if idx < 0 or idx >= len(current):
+                    return None
+                current = current[idx]
+                continue
+            # 形式 2: 数组下标
             if isinstance(current, list):
                 if not segment.isdigit():
                     return None
@@ -656,6 +686,7 @@ class MetricFetcher:
                     return None
                 current = current[index]
                 continue
+            # 形式 1: dict key
             if not isinstance(current, dict):
                 return None
             current = current.get(segment)

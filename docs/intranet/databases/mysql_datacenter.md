@@ -246,7 +246,7 @@ VALUES
 
 > `chuck_index0 = chuck_id - 1`,用于 JSON 数组下标。`MetricFetcher._resolve_context_value` 会在解析 jsonpath 模板时自动算这个值。
 
-### Mock 数据形态(Docker MySQL 已注入 1 行,已修复)
+### Mock 数据形态(Docker MySQL 已注入 1 行)
 
 ```sql
 INSERT INTO `mc_config_commits_history`
@@ -255,25 +255,23 @@ VALUES
 ('COMC',                                  -- 匹配 linking.filters table_name='COMC'
  'docker_seed', '2026-01-10 08:40:00', 'seed1',
  'local_SSB8000',                         -- 匹配 linking.filters env_id contains equipment(SSB8000)
- '{"static_wafer_load_offset":{"chuck_message[0]":{"static_load_offset":{"x":0.001234,"y":-0.005678}},"chuck_message[1]":{"static_load_offset":{"x":0.002000,"y":-0.003000}}}}');
+ '{"static_wafer_load_offset":{"chuck_message":[{"static_load_offset":{"x":0.001234,"y":-0.005678}},{"static_load_offset":{"x":0.002000,"y":-0.003000}}]}}');
 ```
 
-> **重点**:`table_name` 与 `env_id` 都对齐了 diagnosis.json 的 filter 条件,`data` 是 nested JSON,本地 jsonpath 能命中。
+> **重点**:`table_name` 与 `env_id` 都对齐了 diagnosis.json 的 filter 条件,`data` 是标准 nested array JSON(与内网真实结构一致)。
 
-### ⚠ 已知 issue:jsonpath 模板与 fetcher 实现不兼容
+### jsonpath `name[N]` 与 fetcher 实现的兼容性(已修复)
 
 诊断配置 `extraction_rule = jsonpath:static_wafer_load_offset/chuck_message[{chuck_index0}]/static_load_offset/x`
 
-`MetricFetcher._render_extraction_template` 渲染后变成 `static_wafer_load_offset/chuck_message[0]/static_load_offset/x`,按 `/` split 后第二段 `"chuck_message[0]"` 既不是纯数字(无法走数组下标分支),也不会自动剥离方括号——`_extract_json_path_value` 会到 dict 里找名为 `"chuck_message[0]"` 的字符串 key。
+`MetricFetcher._render_extraction_template` 渲染 `{chuck_index0}` 后变成 `static_wafer_load_offset/chuck_message[0]/static_load_offset/x`,按 `/` split 后段 `'chuck_message[0]'` **既不是**纯数字也不是 dict key。
 
-**两条出路**(stage4 选一):
+**post-stage4 Bug #1 fix** 在 [`src/backend/app/engine/metric_fetcher.py`](../../../src/backend/app/engine/metric_fetcher.py) `_extract_json_path_value` 加了 `_NAME_INDEX_RE` 分支:识别到 `name[N]` 形式时,先在 `current` 里 dict 取 `name`,再在结果 list 取下标 `N`。**两种写法双向兼容**:
 
-1. **改 fetcher**:让 `_extract_json_path_value` 识别 `name[N]` 这种 segment(剥离方括号、N 当数组下标)。改 [`src/backend/app/engine/metric_fetcher.py`](../../../src/backend/app/engine/metric_fetcher.py) `_extract_json_path_value`。
-2. **改 jsonpath**:把 `chuck_message[{chuck_index0}]` 改成 `chuck_message/{chuck_index0}`(去掉方括号)——这跟 [`docs/stage4/reject_errors_config_mapping.md`](../../stage4/reject_errors_config_mapping.md) §2.7「路径中纯数字段表示 JSON 数组下标」的官方约定一致。改 [`config/reject_errors.diagnosis.json`](../../../config/reject_errors.diagnosis.json) 的 `metrics.Sx.extraction_rule` 和 `metrics.Sy.extraction_rule`。
+- `chuck_message[0]/static_load_offset/x`(reject_errors.diagnosis.json 当前用的)
+- `chuck_message/0/static_load_offset/x`(等价写法,纯 `/` 分段)
 
-**当前 mock 用 `"chuck_message[0]"` 字符串 key**(不是 array)是为了**适配现状下 fetcher 实际行为**——本地能跑通,等 stage4 二选一落地后再把 mock 改回 array 形式。
-
-### 真实内网 JSON 结构(预期,待 SHOW + 业务确认)
+### 真实内网 JSON 结构(已与 mock 对齐)
 
 ```json
 {
