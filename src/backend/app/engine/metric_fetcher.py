@@ -633,15 +633,37 @@ class MetricFetcher:
         template: str,
         extra_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
+        """
+        渲染 extraction_rule 模板里的 {var} 占位符。
+
+        post-stage4 Bug #7 fix:如果 var 解析到 list(window 类指标常态),
+        过去会 str([1.0, 2.0]) 拼成 '[1.0, 2.0]' 塞进 jsonpath/regex,
+        导致后续 _extract_json_path_value / re.search **静默失败**(返回 None,
+        无任何 warning,排障极困难)。
+        现在:取 list 中第一个非 None 元素 + warning;全空则视为缺失。
+        """
         resolved_context = extra_context or {}
         missing = False
 
         def _replace(match: re.Match[str]) -> str:
             nonlocal missing
-            value = self._resolve_context_value(match.group(1), self.reference_time, resolved_context)
+            var_name = match.group(1)
+            value = self._resolve_context_value(var_name, self.reference_time, resolved_context)
             if value is None:
                 missing = True
                 return ""
+            if isinstance(value, list):
+                non_null = [v for v in value if v is not None]
+                if not non_null:
+                    missing = True
+                    return ""
+                logger.warning(
+                    "extraction template 变量 %s 解析为 list(len=%d),"
+                    "取第一个非空元素 %r 拼到模板;若需完整列表语义,请在 jsonpath 中"
+                    "避免引用 window 类指标(改用其标量派生)",
+                    var_name, len(value), non_null[0],
+                )
+                return str(non_null[0])
             return str(value)
 
         rendered = re.sub(r"\{(\w+)\}", _replace, str(template or ""))

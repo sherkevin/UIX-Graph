@@ -441,3 +441,55 @@ def test_extract_json_path_value_name_bracket_root_data_must_be_dict():
     data = [{"x": 1}, {"x": 2}]
     # 第一段 'name[0]' 期待 current 是 dict,实际是 list,返回 None
     assert MetricFetcher._extract_json_path_value(data, "name[0]") is None
+
+
+# ── post-stage4 Bug #7 fix: _render_extraction_template list 变量边界 ─────
+
+
+def _make_fetcher_with_ctx(ctx: dict) -> MetricFetcher:
+    """构造一个最小 MetricFetcher,把 ctx 透传到 _resolve_context_value。"""
+    fetcher = MetricFetcher.__new__(MetricFetcher)
+    fetcher.equipment = "X"
+    fetcher.reference_time = datetime(2026, 1, 1)
+    fetcher.chuck_id = 1
+    fetcher.params = {}
+    fetcher.source_record = {}
+
+    # 注入 ctx 到 _resolve_context_value:用 monkeypatch-style 替换
+    def _resolve(name, time_filter, extra):
+        if name in extra:
+            return extra[name]
+        if name in ctx:
+            return ctx[name]
+        return None
+    fetcher._resolve_context_value = _resolve  # type: ignore[assignment]
+    return fetcher
+
+
+def test_render_template_with_list_var_picks_first_non_null():
+    """list 类型变量应取第一个非 None 元素,而不是 str([...]) 拼出错误模板。"""
+    fetcher = _make_fetcher_with_ctx({"chuck_index0": [0, 1, 2]})
+    rendered = fetcher._render_extraction_template(
+        "static_wafer_load_offset/chuck_message[{chuck_index0}]/x"
+    )
+    assert rendered == "static_wafer_load_offset/chuck_message[0]/x"
+
+
+def test_render_template_with_list_var_skips_leading_nones():
+    """list 中前几个为 None 时应取第一个非 None。"""
+    fetcher = _make_fetcher_with_ctx({"chuck_index0": [None, None, 5]})
+    rendered = fetcher._render_extraction_template("foo/{chuck_index0}/bar")
+    assert rendered == "foo/5/bar"
+
+
+def test_render_template_with_all_none_list_returns_none():
+    """list 全 None → 视为变量缺失,整体返回 None(让后续逻辑 fall through)。"""
+    fetcher = _make_fetcher_with_ctx({"v": [None, None]})
+    assert fetcher._render_extraction_template("foo/{v}/bar") is None
+
+
+def test_render_template_scalar_var_unchanged():
+    """标量变量行为不变(确保 fix 不破坏现有路径)。"""
+    fetcher = _make_fetcher_with_ctx({"chuck_index0": 1})
+    rendered = fetcher._render_extraction_template("foo/chuck_message[{chuck_index0}]/x")
+    assert rendered == "foo/chuck_message[1]/x"
