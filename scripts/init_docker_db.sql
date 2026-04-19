@@ -251,7 +251,18 @@ VALUES
 
 -- ============================================================
 -- mc_config_commits_history（Sx/Sy 诊断取数；与内网 DDL 对齐）
--- last_modify_date 落在 COARSE 样例 T 的 [T-1000min, T] 窗口内
+-- last_modify_date 落在 COARSE 样例 T 的 [T-7d, T] 窗口内
+--
+-- 关键 mock 约定(与 reject_errors.diagnosis.json 的 Sx/Sy 配置对齐):
+--   table_name = 'COMC'                     ← linking.filters target=table_name value=COMC
+--   env_id     contains 'SSB8000'           ← linking.filters target=env_id contains source=equipment
+--   data       是 nested JSON,内层 key 名以"chuck_message[N]"字符串形式
+--                                            匹配当前 jsonpath: chuck_message[{chuck_index0}]
+--                                            渲染后 segment 不是纯数字,_extract_json_path_value
+--                                            走 dict.get 路径,所以 mock 用字符串 key
+--                                            (内网真实结构应该是 array,需要 stage4 改 jsonpath
+--                                             为 chuck_message/{chuck_index0}/ 去掉方括号,
+--                                             见 docs/intranet/databases/mysql_datacenter.md 已知 issue)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `mc_config_commits_history` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -263,8 +274,11 @@ CREATE TABLE IF NOT EXISTS `mc_config_commits_history` (
   `data` LONGTEXT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='MC 配置提交历史';
 
+-- 一行 nested JSON,table_name='COMC' 让 filter 命中,env_id 含 SSB8000 让 contains 命中,
+-- data 内层用 "chuck_message[0]"/"chuck_message[1]" 作字符串 key 适配当前 jsonpath 实现。
 INSERT INTO `mc_config_commits_history` (`table_name`, `last_modifier`, `last_modify_date`, `commit`, `env_id`, `data`) VALUES
-('chuck_static_offset', 'docker_seed', '2026-01-10 08:40:00', 'seed1', 'local', '{"Sx": 0.001234, "Sy": -0.005678}');
+('COMC', 'docker_seed', '2026-01-10 08:40:00', 'seed1', 'local_SSB8000',
+ '{"static_wafer_load_offset":{"chuck_message[0]":{"static_load_offset":{"x":0.001234,"y":-0.005678}},"chuck_message[1]":{"static_load_offset":{"x":0.002000,"y":-0.003000}}}}');
 
 SELECT 'Tables created and data inserted successfully!' AS status;
 SELECT COUNT(*) AS total_records FROM lo_batch_equipment_performance;

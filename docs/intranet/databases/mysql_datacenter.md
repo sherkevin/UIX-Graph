@@ -246,34 +246,45 @@ VALUES
 
 > `chuck_index0 = chuck_id - 1`,用于 JSON 数组下标。`MetricFetcher._resolve_context_value` 会在解析 jsonpath 模板时自动算这个值。
 
-### Mock 数据形态(Docker MySQL 已注入 1 行)
+### Mock 数据形态(Docker MySQL 已注入 1 行,已修复)
 
 ```sql
 INSERT INTO `mc_config_commits_history`
   (`table_name`, `last_modifier`, `last_modify_date`, `commit`, `env_id`, `data`)
 VALUES
-('chuck_static_offset', 'docker_seed', '2026-01-10 08:40:00', 'seed1', 'local',
- '{"Sx": 0.001234, "Sy": -0.005678}');  -- 注意:这是简化版 JSON,内网真实结构是 nested
+('COMC',                                  -- 匹配 linking.filters table_name='COMC'
+ 'docker_seed', '2026-01-10 08:40:00', 'seed1',
+ 'local_SSB8000',                         -- 匹配 linking.filters env_id contains equipment(SSB8000)
+ '{"static_wafer_load_offset":{"chuck_message[0]":{"static_load_offset":{"x":0.001234,"y":-0.005678}},"chuck_message[1]":{"static_load_offset":{"x":0.002000,"y":-0.003000}}}}');
 ```
 
-**真实内网 JSON 结构**(从 `extraction_rule` 反推):
+> **重点**:`table_name` 与 `env_id` 都对齐了 diagnosis.json 的 filter 条件,`data` 是 nested JSON,本地 jsonpath 能命中。
+
+### ⚠ 已知 issue:jsonpath 模板与 fetcher 实现不兼容
+
+诊断配置 `extraction_rule = jsonpath:static_wafer_load_offset/chuck_message[{chuck_index0}]/static_load_offset/x`
+
+`MetricFetcher._render_extraction_template` 渲染后变成 `static_wafer_load_offset/chuck_message[0]/static_load_offset/x`,按 `/` split 后第二段 `"chuck_message[0]"` 既不是纯数字(无法走数组下标分支),也不会自动剥离方括号——`_extract_json_path_value` 会到 dict 里找名为 `"chuck_message[0]"` 的字符串 key。
+
+**两条出路**(stage4 选一):
+
+1. **改 fetcher**:让 `_extract_json_path_value` 识别 `name[N]` 这种 segment(剥离方括号、N 当数组下标)。改 [`src/backend/app/engine/metric_fetcher.py`](../../../src/backend/app/engine/metric_fetcher.py) `_extract_json_path_value`。
+2. **改 jsonpath**:把 `chuck_message[{chuck_index0}]` 改成 `chuck_message/{chuck_index0}`(去掉方括号)——这跟 [`docs/stage4/reject_errors_config_mapping.md`](../../stage4/reject_errors_config_mapping.md) §2.7「路径中纯数字段表示 JSON 数组下标」的官方约定一致。改 [`config/reject_errors.diagnosis.json`](../../../config/reject_errors.diagnosis.json) 的 `metrics.Sx.extraction_rule` 和 `metrics.Sy.extraction_rule`。
+
+**当前 mock 用 `"chuck_message[0]"` 字符串 key**(不是 array)是为了**适配现状下 fetcher 实际行为**——本地能跑通,等 stage4 二选一落地后再把 mock 改回 array 形式。
+
+### 真实内网 JSON 结构(预期,待 SHOW + 业务确认)
 
 ```json
 {
   "static_wafer_load_offset": {
     "chuck_message": [
-      {
-        "static_load_offset": { "x": 0.001234, "y": -0.005678 }
-      },
-      {
-        "static_load_offset": { "x": ..., "y": ... }
-      }
+      { "static_load_offset": { "x": 0.001234, "y": -0.005678 } },
+      { "static_load_offset": { "x": 0.002000, "y": -0.003000 } }
     ]
   }
 }
 ```
-
-如果要让 `Sx`/`Sy` 在本地真正能 jsonpath 提取到,**应改 `init_docker_db.sql` 里这条 INSERT,让 `data` 列变成上面的 nested 结构**。当前简化版会被 `_apply_extraction_rule` 当成 jsonpath 失败 → 回退到 `mock` 区间。
 
 ### 引用位置
 

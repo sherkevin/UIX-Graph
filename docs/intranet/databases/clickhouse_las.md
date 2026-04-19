@@ -107,16 +107,17 @@ INSERT INTO las.LOG_EH_UNION_VIEW (
 );
 ```
 
-> ⚠️ **当前 mock 不会触发场景 1001**,因为 `trigger_log_mwx_cgg6_range` 需要 `detail` 包含 `'Mwx out of range,CGG6_check_parameter_ranges'`,但当前 mock 只放了 `'Mwx ( 1.00003 )'`。要让 stage3 端到端走通,需要再插一行:
+> **已修复**:`scripts/init_clickhouse_local.sql` 现在同时插入两行,既给 `Mwx_0` 提供值,也给场景 1001 的 trigger 提供必要的 `'Mwx out of range,CGG6_check_parameter_ranges'` 日志行。`select_scene` 在本地 docker 环境下能正常命中 COWA 场景,接口 3 会走完整诊断路径。
 
 ```sql
--- 触发 COWA 场景的日志样本
-INSERT INTO las.LOG_EH_UNION_VIEW (env_id, equipment, file_time, detail)
-VALUES ('local', 'SSB8000', '2026-01-10 08:44:35.000',
-        'Mwx out of range,CGG6_check_parameter_ranges (Mwx=1.00012)');
-```
+-- Mwx_0 倍率值样本(regex 捕获 1.00003)
+INSERT INTO las.LOG_EH_UNION_VIEW (..., detail, ..., file_time)
+VALUES (..., 'Mwx ( 1.00003 )', ..., '2026-01-10 08:44:30.000');
 
-> 否则 `select_scene` 永远拿不到 `trigger_log_mwx_cgg6_range == true`,COWA 诊断不会启动,接口 3 会返回 `rootCause: null`(只是 `metrics_data` 里有 mock 出来的占位值)。
+-- 触发场景 1001 的关键日志(regex 子串匹配)
+INSERT INTO las.LOG_EH_UNION_VIEW (..., detail, ..., file_time)
+VALUES (..., 'Mwx out of range,CGG6_check_parameter_ranges (Mwx=1.00012)', ..., '2026-01-10 08:44:35.000');
+```
 
 ### 引用位置
 

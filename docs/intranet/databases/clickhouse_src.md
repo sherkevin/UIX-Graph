@@ -20,7 +20,7 @@
 | [`RPT_WAA_SET_OFL`](#rpt_waa_set_ofl) | **View** | `ws_pos_x` / `ws_pos_y` 来源(列名是 `WS_pos_x` 大写)+ 当前业务口径下也作为 `mark_pos_x/y` 来源 | 1 行 mock,与 docker-mysql 锚点对齐 |
 | [`RPT_WAA_LOT_MARK_INFO_OFL_KAFKA`](#rpt_waa_lot_mark_info_ofl_kafka) | Table | 旧版 `mark_pos_x` / `mark_pos_y` 来源(已被 stage4 重路由)| 1 行 mock,但 diagnosis.json 已不指向 |
 | [`RPT_WAA_SA_RESULT_OFL`](#rpt_waa_sa_result_ofl) | Table(Replicated*) | `Msx`、`Msy`、`e_ws_x`、`e_ws_y` 来源(SA = Stage Alignment) | 1 行 mock |
-| `RPT_WAA_SET_UNION_VIEW` *(Stage4 候选)* | View | stage4 计划用作 `WS_pos_x/y` 的实际表(替代 `RPT_WAA_SET_OFL`) | **未 mock** |
+| [`RPT_WAA_SET_UNION_VIEW`](#rpt_waa_set_union_view) | View | **stage4 当前 `ws_pos_x/y` 的实际目标表**(列结构同 OFL,但额外有 `phase` 列)| 已建表 + 1 行 mock(本地 MergeTree 仿真) |
 | `RPT_WAA_V2_SET_OFL` *(Stage4 候选)* | Table | stage4 计划用作 `WS_pos_x/y` 的另一可选源 | **未 mock** |
 
 ---
@@ -76,13 +76,11 @@
 | `mark_pos_x` | `mark_pos_x` | `equipment`+`lot_id`+`chuck_id`+`wafer_id` | 7 天 | — |
 | `mark_pos_y` | `mark_pos_y` | 同上 | 7 天 | — |
 
-> ⚠️ **当前配置中存在不一致**:`config/reject_errors.diagnosis.json` 的 `ws_pos_x / ws_pos_y` 在 `linking.filters` 里加了 `phase = '1ST_COWA'`,但本表的内网列定义里**没有 `phase` 列**(SA 表才有)。这意味着:
-> - **要么**目标表应改为 `RPT_WAA_SET_UNION_VIEW`(stage4 候选,有 phase 列)
-> - **要么**这条 filter 在内网 SQL 里会触发 `Unknown identifier: phase` 报错,只能靠 mock 兜底
->
-> 见 `linking_tbd.md` 与 `docs/plans/2026-04-13-cowa-metric-source-fixes.md` Task 2。
+> **已部分解决**(`ws_pos_x/y`):diagnosis.json 的 `ws_pos_x / ws_pos_y` 实际目标已切到 [`RPT_WAA_SET_UNION_VIEW`](#rpt_waa_set_union_view)(本表上方那段),那张表才有 `phase` 列;本表保留是为了向后兼容 / 历史回归测试。
 
-> ⚠️ **`mark_pos_x / mark_pos_y` 引用了本表 `mark_pos_x / mark_pos_y` 列**,但内网视图 schema 没有这两列。要么是配置写错(应使用 `RPT_WAA_LOT_MARK_INFO_*` 表的 `mark_pos_x/y`),要么内网视图实际有这两列(本地 mock 没建)。**强烈建议在内网 `SHOW CREATE VIEW` 一次以确认**。
+> ⚠️ **未解决**(`mark_pos_x / mark_pos_y`):diagnosis.json 让 `mark_pos_x / mark_pos_y` 引用本表的 `mark_pos_x / mark_pos_y` 列,但内网真实视图 schema 没有这两列。**强烈建议在内网 `SHOW CREATE VIEW` 一次确认**:
+> - 若内网视图有这两列 → 在 `init_clickhouse_local.sql` 给本表 mock 加上(本地才能跑出真值)
+> - 若没有 → diagnosis.json 应改回 [`RPT_WAA_LOT_MARK_INFO_OFL_KAFKA`](#rpt_waa_lot_mark_info_ofl_kafka) 或 stage4 设计的 `las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW`
 
 ### Mock 数据形态
 
@@ -241,30 +239,66 @@ INSERT INTO src.RPT_WAA_SA_RESULT_OFL (
 
 ---
 
-## `RPT_WAA_SET_UNION_VIEW` *(Stage4 候选)*
+## `RPT_WAA_SET_UNION_VIEW`
 
-### 来源
+### 元信息
 
-`docs/plans/2026-04-13-cowa-metric-source-fixes.md` Task 2:
-> 把 `WS_pos_x/y` 的 `table_name` 改为 `src.RPT_WAA_SET_UNION_VIEW`,加 `phase = '1ST_COWA'` 固定 filter。
+| 项 | 值 |
+|---|---|
+| 全名 | `src.RPT_WAA_SET_UNION_VIEW` |
+| 类型 | **View**(内网,union 多个分表),本地 mock 用 MergeTree 表仿真 |
+| 引擎(本地) | `MergeTree ORDER BY (equipment, file_time)` |
+| 主要时间列 | `file_time` |
+| 主要关联键 | `equipment`、`lot_id`、`chuck_id`、`wafer_id` |
+| 拒片诊断中的角色 | **stage4 当前 `ws_pos_x/y` 的实际目标表**;diagnosis.json 已切至此 |
+| **关键差异** | 比 [`RPT_WAA_SET_OFL`](#rpt_waa_set_ofl) **多一列 `phase`**(diagnosis.json 用 `phase = '1ST_COWA'` 固定 filter,这正是 stage4 把目标切到 union view 的根本原因)|
 
-### 与 `RPT_WAA_SET_OFL` 的关系
+### 列定义
 
-- 一般是 `*_UNION_VIEW` 是 `*_OFL` 的聚合视图(union 多个分表),列结构应基本一致
-- **多了一列 `phase`**(关键!这就是为什么 stage4 把目标表切到 union view)
+列结构与 [`RPT_WAA_SET_OFL`](#rpt_waa_set_ofl) 完全一致,**额外多 1 列**:
 
-### 现状
+| 列名 | 类型 | 业务说明 |
+|------|------|---------|
+| `phase` | `Nullable(String)` | 诊断阶段(如 `1ST_COWA`、`2ND_COWA`)— diagnosis.json `linking.filters` 用它做固定过滤 |
 
-- 未在 `init_clickhouse_local.sql` 建表
-- diagnosis.json 当前 `ws_pos_x / ws_pos_y` 的 `table_name` 已经是 `src.RPT_WAA_SET_UNION_VIEW`(见 `_note`),但本地 mock 是 `RPT_WAA_SET_OFL` ⚠️ **本地诊断会查到空集**,只能靠 `mock_value` 兜底
-- 待业务给出 DDL 后,在本目录与 `init_clickhouse_local.sql` 同步补全
+其他 16 列(`lot_id`、`wafer_id`、`chuck_id`、`scan_id`、`mark_id`、`x_enable`、`y_enable`、`WS_pos_x`、`WS_pos_y`、`mark_pos_x`、`mark_pos_y`、`env_id`、`equipment`、`file_id`、`row_id`、`file_time`、`insert_time`、`partition_time`)详见 [`RPT_WAA_SET_OFL`](#rpt_waa_set_ofl) 段落,**不再重复**。
 
-### 建议下一步
+> **注意**:本地 mock 同时建了 `mark_pos_x` / `mark_pos_y` 列(`Nullable(String)`),内网真实视图列单**待业务确认**(可能仅有 ws_pos 列;`SHOW CREATE VIEW` 一次以最终对齐)。
 
-1. 内网 `SHOW CREATE VIEW src.RPT_WAA_SET_UNION_VIEW`
-2. 把 DDL 复刻到 `init_clickhouse_local.sql`
-3. 在本文件加完整列定义
-4. 把 mock INSERT 锚点对齐到 `(SSB8000, lot=101, chuck=1, wafer=7, phase='1ST_COWA', file_time=2026-01-10 08:44:50)`
+### 诊断引擎引用
+
+| metric_id | column_name | linking | filter |
+|-----------|-------------|---------|--------|
+| `ws_pos_x` | `WS_pos_x` | `equipment`+`lot_id`+`chuck_id`+`wafer_id` | `phase = '1ST_COWA'` ✅ 此表才有 phase 列 |
+| `ws_pos_y` | `WS_pos_y` | 同上 | 同上 |
+
+### Mock 数据形态(本地 docker)
+
+```sql
+-- 锚点:SSB8000, chuck=1, lot=101, wafer=7, phase='1ST_COWA', file_time 接近 T
+INSERT INTO src.RPT_WAA_SET_UNION_VIEW (
+    lot_id, wafer_id, chuck_id, scan_id, mark_id, x_enable, y_enable,
+    `WS_pos_x`, `WS_pos_y`, mark_pos_x, mark_pos_y, phase,
+    env_id, equipment, file_id, row_id, file_time, insert_time, partition_time
+) VALUES (
+    101, 7, 1, 0, 0, 1, 1,
+    '0.11', '-0.22', '0.055', '-0.063', '1ST_COWA',
+    'local', 'SSB8000', 'seed-union', 'row-1',
+    '2026-01-10 08:44:50.000', '2026-01-10 08:44:50.000', ''
+);
+```
+
+### 引用位置
+
+| 文件 | 位置 |
+|------|------|
+| `scripts/init_clickhouse_local.sql` | 末尾 RPT_WAA_SET_UNION_VIEW 段(`CREATE TABLE` + 1 行 INSERT) |
+| `config/reject_errors.diagnosis.json` | `metrics.ws_pos_x` / `metrics.ws_pos_y` 的 `table_name` 已切至此 |
+
+### 待业务下一步
+
+- 内网 `SHOW CREATE VIEW src.RPT_WAA_SET_UNION_VIEW` 拿到真实 DDL,确认本地 mock 的列单是否需要扩充
+- 决定 `mark_pos_x/y` 的最终源是本表还是 [`RPT_WAA_LOT_MARK_INFO_*`](#rpt_waa_lot_mark_info_ofl_kafka),消除 diagnosis.json 当前的「mark_pos_x/y 取本表但本表无此列」歧义
 
 ---
 
