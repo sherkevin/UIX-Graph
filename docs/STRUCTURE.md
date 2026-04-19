@@ -224,7 +224,7 @@ scripts/
 
 | 想做的事 | 改哪些文件 | 备注 |
 |---------|-----------|------|
-| 改诊断规则(加个分支/调阈值) | `config/reject_errors.diagnosis.json` | 改完跑 `pytest tests/test_rules_validator.py` |
+| 改诊断规则(加个分支/调阈值) | `config/reject_errors.diagnosis.json` | 改完跑 `python scripts/check_config.py`(本地自助检查)+ `pytest tests/test_rules_validator.py tests/test_rule_validator_metric.py`;PR 按 [`CONFIG_REVIEW_CHECKLIST.md`](./CONFIG_REVIEW_CHECKLIST.md) 自查 |
 | 加一个新的诊断指标(已有表的列) | `config/reject_errors.diagnosis.json` 加 `metrics.<id>` | 如指标依赖前序值,要在 metric_id 列表上保持顺序 |
 | 加一个新的 DB 表作指标源 | 1. `docs/intranet/databases/<db>.md` 加表小节<br>2. `scripts/init_docker_db.sql` 或 `init_clickhouse_local.sql` 建表+mock<br>3. `config/reject_errors.diagnosis.json` 加 metric | **顺序重要**:文档先于代码 |
 | 加一个新的 action 函数 | `src/backend/app/engine/actions/<新文件>.py`(用 `@register("name")` 装饰) | 自动加载,不用改 `__init__.py` |

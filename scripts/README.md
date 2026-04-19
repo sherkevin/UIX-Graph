@@ -68,8 +68,21 @@
 
 | 脚本 | 用途 |
 |------|------|
+| [`check_config.py`](./check_config.py) | **★ 配置自检**(rule_validator + 软检查 + 摘要)。专家改完配置先跑这个;CI 也可加这一步 |
 | [`debug_engine.py`](./debug_engine.py) | 单步调试诊断引擎(命令行,不依赖 HTTP) |
-| [`debug_rules.py`](./debug_rules.py) | 校验 `config/reject_errors.diagnosis.json` 规则文件 |
+| [`debug_rules.py`](./debug_rules.py) | 老版规则结构 dump(简单 print,功能已被 `check_config.py` 覆盖,可逐步淘汰) |
+
+**check_config.py 用法**:
+
+```bash
+python scripts/check_config.py                  # 检查所有 pipeline
+python scripts/check_config.py reject_errors    # 仅检查指定 pipeline
+python scripts/check_config.py --json           # 机器可读输出(供 CI / hook)
+python scripts/check_config.py --strict         # warning 也算失败(退出码 2)
+```
+
+退出码:`0` 全过 / `1` 有 error(必须修)/ `2` 仅 warning + `--strict`。
+配套 [`docs/CONFIG_REVIEW_CHECKLIST.md`](../docs/CONFIG_REVIEW_CHECKLIST.md) 是 PR 评审的检查清单。
 
 ---
 
