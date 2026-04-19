@@ -337,6 +337,9 @@
         ],
         "filters": []
       },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
       "table_name": "datacenter.lo_batch_equipment_performance",
       "column_name": "wafer_translation_x",
       "time_column": "wafer_product_start_time",
@@ -356,6 +359,9 @@
         ],
         "filters": []
       },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
       "table_name": "datacenter.lo_batch_equipment_performance",
       "column_name": "wafer_translation_y",
       "time_column": "wafer_product_start_time",
@@ -374,6 +380,9 @@
           {"target": "chuck_id", "source": "chuck_id"}
         ],
         "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
       },
       "table_name": "datacenter.lo_batch_equipment_performance",
       "column_name": "wafer_rotation",
@@ -613,9 +622,8 @@
     },
     {
       "id": 20,
-      "description": "检查补偿建模次数",
+      "description": "检查补偿建模次数(若 n_88um 缺失会落 else,送人工处理)",
       "metric_id": "n_88um",
-      "details": null,
       "next": [
         {
           "target": "21",
@@ -624,6 +632,10 @@
         {
           "target": "99",
           "condition": "{n_88um} > 8"
+        },
+        {
+          "target": "99",
+          "condition": "else"
         }
       ]
     },
