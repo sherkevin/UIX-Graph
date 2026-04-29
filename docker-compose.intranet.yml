@@ -1,0 +1,49 @@
+services:
+  backend-api:
+    image: ${UIX_IMAGE_NAMESPACE}/uix-graph-backend:${UIX_IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-prod}
+      - METRIC_SOURCE_MODE=${METRIC_SOURCE_MODE:-real}
+      - REJECTED_DETAILED_CACHE=${REJECTED_DETAILED_CACHE:-0}
+      - UIX_ROOT=/app
+      - UIX_DETAIL_TRACE=${UIX_DETAIL_TRACE:-0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://172.16.70.160}
+    volumes:
+      - type: bind
+        source: ${UIX_PROJECT_DIR}/config
+        target: /app/config
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "${BACKEND_EXTERNAL_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - uix-graph
+
+  frontend-webapp:
+    image: ${UIX_IMAGE_NAMESPACE}/uix-graph-frontend:${UIX_IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      - backend-api
+    ports:
+      - "${FRONTEND_EXTERNAL_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - uix-graph
+
+networks:
+  uix-graph:
+    driver: bridge

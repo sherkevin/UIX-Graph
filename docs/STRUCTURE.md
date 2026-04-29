@@ -34,19 +34,12 @@ src/backend/
 ├── app/
 │   ├── main.py                      # FastAPI 入口 + 路由注册 + 全局异常处理
 │   ├── handler/                     # API 层(Controller),只做 HTTP 解析+响应封装
-│   │   ├── reject_errors.py         # ★ Stage3 主接口(拒片故障管理 1/2/3),始终注册
-│   │   ├── ontology.py              # 老路由(本体)── feature-flagged,LEGACY_ROUTES_ENABLED 默认 true
-│   │   ├── knowledge.py             # 老路由(知识)── 同上
-│   │   ├── diagnosis.py             # 老路由(通用诊断)── 同上;实现仍在 app/core/
-│   │   ├── visualization.py         # 老路由(可视化)── 同上
-│   │   ├── propagation.py           # 老路由(传播)── 同上
-│   │   ├── full_graph.py            # 老路由(全图)── 同上
-│   │   └── entity.py                # 老路由(实体)── 同上
+│   │   └── reject_errors.py         # ★ 拒片故障管理 1/2/3 接口(唯一业务入口)
 │   │
-│   ├── service/                     # 业务逻辑层(本应是主要业务沉淀地)
-│   │   └── reject_error_service.py  # ★ Stage3 业务主线
+│   ├── service/                     # 业务逻辑层
+│   │   └── reject_error_service.py  # ★ 主业务流水:元数据 / 搜索 / 详情 + 缓存
 │   │
-│   ├── engine/                      # ★ 当前主诊断引擎(配置驱动 stage3/stage4)
+│   ├── engine/                      # ★ 配置驱动诊断引擎
 │   │   ├── diagnosis_engine.py      # 决策树遍历器
 │   │   ├── metric_fetcher.py        # 指标取数(MySQL/ClickHouse/intermediate/failure_record_field)
 │   │   ├── condition_evaluator.py   # 条件表达式 DSL
@@ -54,62 +47,65 @@ src/backend/
 │   │   ├── rule_validator.py        # 规则静态校验
 │   │   └── actions/                 # 内置 action 函数(@register 装饰器)
 │   │       ├── __init__.py          # 注册器 + 自动加载
-│   │       └── builtin.py           # COWA 建模、Tx/Ty/Rw 均值计算等
+│   │       ├── builtin.py           # COWA 建模、Tx/Ty/Rw 均值计算等
+│   │       └── safe_eval.py         # 配置驱动 AST 求值
 │   │
 │   ├── diagnosis/                   # 诊断配置层(单例 store)
 │   │   ├── config_store.py          # 加载 config/diagnosis.json + 各 pipeline 文件
 │   │   └── service.py               # 引擎工厂
-│   │
-│   ├── core/                        # ⚠️ 老引擎(图谱/本体/传播)— 跟 engine/ 平行存在
-│   │   ├── diagnosis_engine.py      #   被 handler/diagnosis.py 用
-│   │   ├── diagnosis_engine_prd1.py #   PRD1 老版本(可能可删)
-│   │   ├── graph_builder.py
-│   │   ├── full_graph_builder.py
-│   │   ├── path_finder.py
-│   │   ├── operators.py
-│   │   └── test_data.py
 │   │
 │   ├── ods/                         # 数据访问层(MySQL / ClickHouse 直连)
 │   │   ├── datacenter_ods.py        # MySQL datacenter
 │   │   └── clickhouse_ods.py        # ClickHouse las/src
 │   │
 │   ├── models/                      # SQLAlchemy ORM
-│   │   ├── reject_errors_db.py      # ★ 拒片相关 ORM
-│   │   └── database.py              # 引擎/会话(老路由用)
+│   │   └── reject_errors_db.py      # ★ 拒片主表 + 缓存表 ORM
 │   │
 │   ├── schemas/                     # Pydantic Schema(API 请求/响应)
-│   │   ├── reject_errors.py         # ★
-│   │   ├── diagnosis.py             # 老路由
-│   │   └── ontology.py              # 老路由
+│   │   └── reject_errors.py         # ★ 接口 1/2/3 请求/响应模型
 │   │
 │   └── utils/
 │       ├── time_utils.py            # 时间戳互转
 │       └── detail_trace.py          # 接口 3 排障日志(`[详情排障]` 前缀)
 │
-├── tests/                           # 13 个测试文件,见 §2.1
+├── tests/                           # 15 个测试文件,见 §2.1
 ├── requirements.txt
 └── README.md
 ```
 
-### 2.1 后端测试现状
+> **2026-04-20 大重构**:彻底清除 legacy 栈,**后端总文件数从 40+ 降到 24**:
+> - 删 7 个 legacy handlers(ontology / knowledge / diagnosis / visualization / propagation / entity / full_graph)
+> - 删 `app/core/`(7 个文件:老图谱/本体/PRD1 引擎)
+> - 删 `schemas/{ontology,diagnosis}.py`(只给 legacy 用)
+> - 删 `models/database.py`(0 字节 SQLite ORM,无引用)
+> - 删 2 个对应的测试(test_diagnosis_prd1.py / test_core_diagnosis_adapter.py)
+> - 删 `LEGACY_ROUTES_ENABLED` 开关(开关消失=永远关闭)
+>
+> 从此后端**只有**主线,不再有「历史兼容路径」。
 
-| 测试文件 | 是否依赖 DB | 跟主线关系 |
-|---------|-------------|-----------|
-| `test_metric_fetcher_window.py` | ❌ | 主线 |
-| `test_rules_validator.py` | ❌ | 主线 |
-| `test_rules_engine_conditions.py` | ❌ | 主线 |
-| `test_rules_actions_implementation.py` | ❌ | 主线 |
-| `test_rules_actions_binding.py` | ❌ | 主线 |
-| `test_diagnosis_config_store.py` | ❌ | 主线 |
-| `test_reject_error_detail.py` | 部分 | 主线 |
-| `test_reject_errors.py` | ✅ MySQL | 主线集成 |
-| `test_reject_errors_api.py` | ✅ MySQL | 主线集成 |
-| `test_docker_seed_alignment.py` | ✅ MySQL+CH | 主线集成 |
-| `test_docker_e2e_extend.py` | ✅ MySQL+CH | 主线集成 |
-| `test_diagnosis_prd1.py` | ❌ | **老 PRD1 引擎**,跟 `app/core/diagnosis_engine_prd1.py` 一起待评估 |
-| `test_core_diagnosis_adapter.py` | ❌ | **老 core 引擎适配测试**,同上待评估 |
+### 2.1 后端测试现状(15 个文件)
 
-**CI 推荐跑**:不带 ✅ 的 9 个文件。带 ✅ 的需要本地起 docker-compose 后才能跑(`docs/deployment/docker_local_e2e.md`)。
+| 测试文件 | 是否依赖 DB | 关注点 |
+|---------|-------------|-------|
+| `test_metric_fetcher_window.py` | ❌ | 时间窗 `[T-duration, T]` 计算 |
+| `test_rules_validator.py` | ❌ | 规则结构静态校验 |
+| `test_rules_engine_conditions.py` | ❌ | 条件表达式求值 + 分支 outcome |
+| `test_rules_actions_implementation.py` | ❌ | 内置 action 实现 |
+| `test_rules_actions_binding.py` | ❌ | action 参数绑定规则 |
+| `test_diagnosis_config_store.py` | ❌ | 配置加载 + pipeline 装配 |
+| `test_safe_eval_action.py` | ❌ | safe_eval AST 白名单(32 个 case) |
+| `test_rule_validator_metric.py` | ❌ | 指标元数据 fail-fast(28+ 个 case) |
+| `test_cache_config_version.py` | ❌ | 缓存按 config 版本失效 |
+| `test_equipment_whitelist_config.py` | ❌ | 机台白名单配置驱动 |
+| `test_reject_error_detail.py` | 部分(有 skip 保护) | 接口 3 详情 + 指标诊断 |
+| `test_reject_errors.py` | ✅ MySQL | 接口 1/2 集成 |
+| `test_reject_errors_api.py` | ✅ MySQL | API 契约集成 |
+| `test_docker_seed_alignment.py` | ✅ MySQL+CH | 锚点数据一致性 |
+| `test_docker_e2e_extend.py` | ✅ MySQL+CH | 端到端扩展用例 |
+
+**一行跑**:`python -m pytest tests/ -q` → `190 passed, 8 skipped`(skipped 是 DB 不可达用例,有 skip guard)。
+
+**仅无 DB 依赖**(CI 离线):11 个文件,约 160 个用例;带 ✅ 的 4 个文件需要 `docker-compose up -d` 后再跑,参考 [`docs/deployment/docker_local_e2e.md`](./deployment/docker_local_e2e.md)。
 
 ---
 
@@ -121,16 +117,19 @@ src/frontend/
 │   ├── pages/
 │   │   ├── FaultRecords.jsx       # ★ 唯一业务页面(故障记录管理)
 │   │   └── FaultRecords.css
-│   ├── components/                # 9 个通用组件(其中 ErrorBoundary/CustomSelect 实际在用)
-│   ├── hooks/                     # useApi / useCache(部分组件已不再使用)
-│   ├── services/api.js            # ★ 统一 API 层
-│   ├── config/index.js            # 环境变量配置
+│   ├── components/
+│   │   ├── CustomSelect.jsx       # ★ 多选下拉组件(唯一被 FaultRecords 引用)
+│   │   └── CustomSelect.css
+│   ├── services/api.js            # ★ 统一 API 层(仅 rejectErrorsAPI + extractErrorMessage)
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css
+├── .env.example                   # 前端环境变量示例(VITE_API_BASE_URL / VITE_ENABLE_DEBUG)
 ├── vite.config.js                 # /api → :8000 代理
 └── package.json
 ```
+
+> **2026-04-20 大幅清理**:删除 6 个未被使用的组件(EntityMetrics / EntityPopover / FaultPropagationGraph / FullGraphView / GraphSkeleton / LoadingProgress / ErrorBoundary)、2 个未被使用的 hooks(useApi / useCache)、冗余的 `config/index.js`,以及 package.json 里对应的重型依赖(@antv/g6、cytoscape、react-cytoscapejs、recharts、@ant-design/pro-components、@ant-design/pro-layout)。前端只保留实际跑的代码路径,bundle 体积显著下降。
 
 > **历史 UI 已归档**:原仓库根目录的 `frontend/`(老的多页面 UI,含知识录入/本体/全图谱等 6 个页面)已 `git mv` 到 [`archive/frontend-legacy/`](../archive/frontend-legacy/),不再在主线维护。详见 [`archive/README.md`](../archive/README.md);如需复活某老页面,按其中流程操作。
 
@@ -142,7 +141,7 @@ src/frontend/
 config/
 ├── diagnosis.json                       # pipeline 索引(version=3.0.0)
 ├── reject_errors.diagnosis.json         # ★ Stage3 主诊断规则(28KB)
-├── ontology_api.diagnosis.json          # 老 pipeline(配 handler/ontology)
+├── ontology_api.diagnosis.json          # 通用 pipeline 示例(request_param 类型,test fixture 用)
 ├── connections.json                     # MySQL/ClickHouse 连接(local/test/prod 三档)
 ├── metrics_meta.yaml                    # 指标元数据(config_store 启动时合并进 metrics)
 └── CONFIG_GUIDE.md                      # ★ 诊断规则编写权威说明
@@ -156,6 +155,7 @@ config/
 
 ```
 docs/
+├── README.md                            # ★ 文档中心索引(按角色导航)
 ├── STRUCTURE.md                         # ★ 本文件
 ├── HANDOVER.md                          # 交接说明 + 已知边界排坑
 ├── data_source.md                       # API 字段 → DB 字段映射
@@ -191,9 +191,10 @@ docs/
 
 ```
 scripts/
-├── start.py                  # ★ Tkinter GUI 一键启动器(主入口)
-├── switch_env.py             # 切换 APP_ENV(local/test/prod)
-├── serve_frontend.py         # 静态前端服务(start.py 调它)
+├── start.py                  # ★ Tkinter GUI 一键启动器(主入口,也带 --console 模式)
+├── switch_env.py             # 切换 APP_ENV(local/test/prod)+ 连通性自检
+├── serve_frontend.py         # 静态前端服务 + /api 反代(start.py 调它)
+├── check_config.py           # ★ 诊断配置自检器(rule_validator + 软警告)
 ├── package_intranet.ps1      # ★ 内网迁移打包(产出根目录 zip,zip 自动 .gitignore)
 ├── verify_docker_e2e.ps1     # docker e2e 烟测
 │
@@ -201,22 +202,18 @@ scripts/
 ├── init_clickhouse_local.sql # ★ ClickHouse docker 初始化
 ├── create_indexes.sql        # 索引补全(可选)
 │
-├── start_backend.ps1         # 仅后端启动(不走 start.py)
+├── start_backend.ps1         # 仅后端启动(legacy,不走 start.py,可选)
 ├── start_frontend.ps1
 ├── start_backend.sh          # *nix 版
 ├── start_frontend.sh
 │
 ├── debug_engine.py           # 单步调试诊断引擎(命令行)
-├── debug_rules.py            # 校验规则文件(命令行)
-│
-├── flow2data.py              # 老:流程 JSON → 图谱数据
-├── merge_data.py             # 老:多 case 数据合并
-├── process_data.py           # 老:数据预处理
-├── api_response.json         # 老:接口响应快照
+├── debug_rules.py            # 查看规则结构(命令行;check_config.py 已覆盖大部分场景)
 └── README.md
 ```
 
-> 当前**用户操作主入口**:`scripts/start.py`(GUI)。其他 .sh / .ps1 是历史保留,后续清理时建议合并到 `scripts/dev/` 子目录。
+> 当前**用户操作主入口**:`scripts/start.py`(GUI / --console)。其他 .sh / .ps1 是历史保留,后续清理时建议合并到 `scripts/dev/` 子目录。
+> **2026-04-20 本轮重构已删除**:`flow2data.py` / `merge_data.py` / `process_data.py` / `api_response.json` 4 个 stage2 前历史数据处理脚本。
 
 ---
 

@@ -40,6 +40,18 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
+# UTF-8 输出（Windows PowerShell / cmd 默认 GBK，否则中文/emoji 全乱码）
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # 让 import 找到 src/backend/app/*
 ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "src" / "backend"
@@ -145,6 +157,9 @@ def _check_orphan_metrics(
                 continue
             params = detail.get("params") or {}
             if isinstance(params, dict):
+                # action 的 params 键名即上下文变量名(如 D_x、Mwx_0),值可为 "" 占位
+                for pk in params.keys():
+                    referenced.add(str(pk))
                 for value in params.values():
                     if isinstance(value, str):
                         referenced.update(_extract_vars(value))

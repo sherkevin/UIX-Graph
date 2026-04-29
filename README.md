@@ -2,6 +2,7 @@
 
 光刻机拒片根因分析系统(Reject Cause Analysis)。
 
+> **文档中心**:[`docs/README.md`](docs/README.md) — 按角色整理的索引（配置 / 部署 / 联调 / 结构）
 > **30 秒导航**:[`docs/STRUCTURE.md`](docs/STRUCTURE.md) — 项目目录与「我想做 X 件事改哪儿」对照表
 > **配置驱动达成度**:[`docs/CONFIG_DRIVEN_STATUS.md`](docs/CONFIG_DRIVEN_STATUS.md) — 项目目标对照表 + 已达成 / 仍需改代码清单
 > **PR 评审清单**:[`docs/CONFIG_REVIEW_CHECKLIST.md`](docs/CONFIG_REVIEW_CHECKLIST.md) — 改诊断配置时按 8 节自查
@@ -35,6 +36,7 @@
 - Windows:双击 [`start_UIX.bat`](start_UIX.bat)
 - macOS:双击 [`start_UIX.command`](start_UIX.command)
 - 任意 OS:`python scripts/start.py`
+- 无 GUI / SSH 排障:`python scripts/start.py --console --env local`（日志同步写入仓库根目录 `logs/launcher-*.log`）
 
 GUI 会处理:依赖安装 → 切环境(local/test/prod)→ 起后端(:8000)→ 起前端代理(:3000)→ 打开浏览器。
 
@@ -70,7 +72,7 @@ npm run dev
 | 2 | `POST` | `/api/v1/reject-errors/search` | 拒片记录列表(分页 + 筛选) |
 | 3 | `GET` | `/api/v1/reject-errors/{id}/metrics` | 故障详情 + 诊断指标(支持 `requestTime` 缓存绕过) |
 
-> 老路由 `/api/{ontology,knowledge,diagnosis,visualization,propagation,entity,graph}` 默认仍注册,可通过环境变量 `LEGACY_ROUTES_ENABLED=false` 关闭。详见 [`docs/STRUCTURE.md`](docs/STRUCTURE.md) §2。
+> **2026-04-20 起**:老图谱/本体/传播路由(`/api/{ontology,knowledge,diagnosis,visualization,propagation,entity,graph}`)与对应 `app/core/` 实现、两组 PRD1 测试已全部物理删除。完整演进记录见 [`archive/README.md`](archive/README.md)。当前后端只保留 `/api/v1/reject-errors` 一组主线接口。
 
 详细字段见 [`docs/stage3/prd3.md`](docs/stage3/prd3.md);前后端联调见 [`docs/stage3/frontend_backend_integration.md`](docs/stage3/frontend_backend_integration.md)。
 
@@ -90,10 +92,10 @@ npm run dev
 ```bash
 cd src/backend
 
-# 不依赖 DB(CI 常跑,推荐先跑这些)
-python -m pytest tests/test_metric_fetcher_window.py tests/test_rules_validator.py tests/test_rules_engine_conditions.py tests/test_diagnosis_config_store.py tests/test_rules_actions_implementation.py tests/test_rules_actions_binding.py -v
+# 不依赖 DB(CI 常跑,17 个文件中 13 个可离线跑,推荐先跑)
+python -m pytest tests/ --tb=short -q
 
-# 依赖 docker MySQL + ClickHouse
+# 依赖 docker MySQL + ClickHouse(需先 docker-compose up -d)
 python -m pytest tests/test_reject_errors.py tests/test_reject_errors_api.py tests/test_docker_seed_alignment.py tests/test_docker_e2e_extend.py -v
 ```
 
@@ -114,5 +116,5 @@ python -m pytest tests/test_reject_errors.py tests/test_reject_errors_api.py tes
 ## 项目历史与归档
 
 - 原仓库根目录 `frontend/`(老的多页面 UI)已归档至 [`archive/frontend-legacy/`](archive/frontend-legacy/),不再在主线维护
-- `app/core/` 老图谱/本体引擎仍存在,被 7 组老路由依赖;计划在 `LEGACY_ROUTES_ENABLED=false` 观察 30 天无 404 后清除
+- **2026-04-20 大重构**:彻底清除 legacy 路由栈 —— 删除 `app/core/`(7 个文件)、7 个 legacy handlers、2 个 PRD1 测试、4 个 legacy `start_*` 脚本,后端代码量减少 ~30%
 - 详见 [`archive/README.md`](archive/README.md) 与 [`docs/STRUCTURE.md`](docs/STRUCTURE.md)

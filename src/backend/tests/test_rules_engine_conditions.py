@@ -259,6 +259,52 @@ def test_between_threshold_uses_open_interval():
     assert engine._is_within_normal_range(20.0, "between", [-20, 20]) is False
 
 
+def test_equality_operators_are_respected_in_normal_range():
+    """
+    回归测试:`==` / `!=` 是规则里合法的正常条件操作符;过去 `_is_within_normal_range`
+    未处理这两类,会走到默认 "return True" 导致 **任何值都被判为 NORMAL**,
+    从而错失异常指标告警。
+    """
+    engine = DiagnosisEngine()
+    # == limit: value 等于 limit 时 NORMAL
+    assert engine._is_within_normal_range(5.0, "==", 5.0) is True
+    assert engine._is_within_normal_range(5.0, "==", 6.0) is False
+    # = 是 == 的同义词(部分配置用单等号)
+    assert engine._is_within_normal_range(5.0, "=", 5.0) is True
+    # != limit: value 不等于 limit 时 NORMAL
+    assert engine._is_within_normal_range(5.0, "!=", 6.0) is True
+    assert engine._is_within_normal_range(5.0, "!=", 5.0) is False
+    # 浮点小误差应吸收,不会把 1e-15 级别的差错判异常
+    assert engine._is_within_normal_range(1.0 + 1e-12, "==", 1.0) is True
+    # 无阈值操作符("-"/空串)保持"默认正常"的旧行为,不要误把建模参数判为 ABNORMAL
+    assert engine._is_within_normal_range(5.0, "-", 0) is True
+    assert engine._is_within_normal_range(5.0, "", 0) is True
+
+
+def test_find_threshold_handles_explicit_null_next_without_crash():
+    """
+    回归测试:step.get("next", []) 只在 key 不存在时返回 default;显式 "next": null
+    仍然返回 None,后续 for 循环会 TypeError。_find_threshold 必须能安全地跳过
+    这种 step 而不崩溃。
+    """
+    engine = DiagnosisEngine()
+    # 构造一个新的 steps 列表:第一个 step 的 next 显式为 None,第二个 step
+    # 的 next 是正常 list 且包含目标 metric 的阈值。
+    # 工作时 _find_threshold 应跳过第一个、找到第二个。
+    original_steps = engine.rule_loader.steps
+    injected_steps = [
+        {"id": "__probe_null_next__", "metric_id": "bug1_probe", "next": None}
+    ] + list(original_steps)
+    engine.rule_loader.steps = injected_steps
+    try:
+        # 对一个不存在的 metric 查询:仅需验证不崩溃即返回 None
+        assert engine._find_threshold("bug1_probe_no_threshold") is None
+        # 对已有阈值的 metric 仍能正确找到
+        assert engine._find_threshold("Mwx_0") is not None
+    finally:
+        engine.rule_loader.steps = original_steps
+
+
 def test_parallel_targets_execute_independently_and_accumulate_normal_count():
     engine = DiagnosisEngine()
     root_cause, system, trace, abnormal_metrics, final_context = engine._walk_tree(

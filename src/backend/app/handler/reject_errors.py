@@ -10,14 +10,9 @@
 """
 import logging
 import time
-from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
-# 合法时间戳范围：2000-01-01 ~ 2100-01-01（毫秒）
-_TS_MIN = 946_684_800_000
-_TS_MAX = 4_102_444_800_000
+from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.reject_errors import (
     MetadataResponse,
@@ -27,6 +22,11 @@ from app.schemas.reject_errors import (
 )
 from app.service.reject_error_service import RejectErrorService
 from app.utils import detail_trace
+
+logger = logging.getLogger(__name__)
+
+_TS_MIN = 946_684_800_000   # 2000-01-01 (ms)
+_TS_MAX = 4_102_444_800_000  # 2100-01-01 (ms)
 
 router = APIRouter()
 
@@ -164,7 +164,10 @@ async def get_failure_metrics(
     - **NORMAL**: 指标值在阈值范围内，排序在后
 
     ### 缓存行为
-    - `requestTime` 未传，或与 `wafer_product_start_time` 的毫秒时间戳相同：读写 `rejected_detailed_records` 缓存
+    - 内网无 `rejected_detailed_records` 表时：在进程环境设 `REJECTED_DETAILED_CACHE=0`（或 false），
+      不访问该表；每次按源表 + 诊断引擎现算
+    - `REJECTED_DETAILED_CACHE` 未关闭且 `requestTime` 未传、或与 `wafer_product_start_time` 的毫秒时间戳相同：
+      可读写 `rejected_detailed_records` 缓存
     - `requestTime` 与发生时间不同：绕过缓存，直接按 T 计算并返回，不写入缓存
 
     ### 分页逻辑

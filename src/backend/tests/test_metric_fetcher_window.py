@@ -57,6 +57,56 @@ def test_mysql_filter_condition_supports_parentheses_and_or():
     assert "filter_2" in params
 
 
+def test_mysql_filter_normalizes_python_equality_operators():
+    """
+    回归测试:配置里用 Python 风格的 `==` 与 `!=` 写 filter_condition 时,
+    渲染到 SQL 必须转成 MySQL 支持的 `=` / `<>`。否则 MySQL 会报 1064 语法错。
+    """
+    T = datetime(2026, 3, 25, 12, 0, 0)
+    f = MetricFetcher(
+        equipment="SSB8000",
+        reference_time=T,
+        fallback_duration_days=7,
+    )
+
+    sql_eq, params_eq = f._render_mysql_filters("status == 1", T, {})
+    assert "==" not in sql_eq  # 不能把 Python 的 == 原样带进 SQL
+    assert " = :filter_0" in sql_eq
+    assert params_eq == {"filter_0": 1}
+
+    sql_neq, params_neq = f._render_mysql_filters("status != 0", T, {})
+    assert "!=" not in sql_neq
+    assert " <> :filter_0" in sql_neq
+    assert params_neq == {"filter_0": 0}
+
+    # 原生 `=` 与 `>=` 等保持原样,未被错误改写
+    sql_single_eq, _ = f._render_mysql_filters("status = 1", T, {})
+    assert " = :filter_0" in sql_single_eq
+    sql_gte, _ = f._render_mysql_filters("status >= 1", T, {})
+    assert " >= :filter_0" in sql_gte
+
+
+def test_duration_days_accepts_float_strings_and_floats():
+    """
+    回归测试:metric.duration 以浮点写("7.0")或直接写 float 7.5 时,
+    应作为天数被正确解析为整数,而非静默退回到默认 fallback 窗口。
+    """
+    T = datetime(2026, 3, 25, 12, 0, 0)
+    f = MetricFetcher(
+        equipment="SSB8000",
+        reference_time=T,
+        fallback_duration_days=99,  # 取个明显的 fallback 值,便于识别误退
+    )
+    assert f._duration_days_for_meta({"duration": "7"}) == 7
+    assert f._duration_days_for_meta({"duration": "7.0"}) == 7
+    assert f._duration_days_for_meta({"duration": "7.9"}) == 7  # 向下取整
+    assert f._duration_days_for_meta({"duration": 7.0}) == 7
+    assert f._duration_days_for_meta({"duration": 7.5}) == 7
+    # 仍然能识别无效值并走 fallback(不会混淆回归)
+    assert f._duration_days_for_meta({"duration": "not-a-number"}) == 99
+    assert f._duration_days_for_meta({}) == 99
+
+
 def test_extract_direct_metric_applies_transform_and_data_type(monkeypatch):
     T = datetime(2026, 3, 25, 12, 0, 0)
     f = MetricFetcher(

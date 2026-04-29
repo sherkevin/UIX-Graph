@@ -5,7 +5,7 @@ import os
 from typing import Any, Dict, Optional
 
 from app.engine.actions import has_action
-from app.engine.condition_evaluator import _extract_vars_from_definition
+from app.engine.condition_evaluator import extract_vars_from_definition
 from app.engine.rule_validator import validate_rules_config
 from app.utils import detail_trace
 
@@ -242,5 +242,5 @@ class DiagnosisConfigStore:
                     continue
                 for result_key in (branch.get("results") or {}).keys():
                     ensure_metric(result_key, "derived")
-                for var_name in _extract_vars_from_definition(branch.get("condition")):
+                for var_name in extract_vars_from_definition(branch.get("condition")):
                     ensure_metric(var_name, "diagnostic")

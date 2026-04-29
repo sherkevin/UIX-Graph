@@ -38,7 +38,7 @@
             "host": "mysql.datacenter.smee.com.cn",
             "port": 30888,
             "username": "root",
-            "password": "CHANGE_ME_BEFORE_DEPLOY",
+            "password": "DC_SMEE1525",
             "dbname": "datacenter"
         },
         "clickhouse": {

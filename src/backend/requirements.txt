@@ -1,12 +1,21 @@
+# SXEE-LITHO-RCA 后端依赖
+# 上线前请保持版本固定，便于内网复现构建
+
+# ── Web 框架 ──────────────────────────────────────────────────────────
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
-sqlalchemy==2.0.23
 python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-dotenv==1.0.0
+
+# ── ORM 与数据库驱动 ──────────────────────────────────────────────────
+sqlalchemy==2.0.23
 pymysql==1.1.0
-cryptography==41.0.7
 clickhouse-connect==0.7.1
+cryptography==41.0.7
+
+# ── 工具 ──────────────────────────────────────────────────────────────
+python-dotenv==1.0.0
 numpy>=1.24.0,<3
+
+# ── 测试（可选，仅 CI/本地用） ────────────────────────────────────────
+pytest>=7.4,<9.0

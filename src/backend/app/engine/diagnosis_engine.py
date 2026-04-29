@@ -819,7 +819,9 @@ class DiagnosisEngine:
 
         for step in self.rule_loader.steps:
             step_metric_id = step.get("metric_id")
-            branches = step.get("next", [])
+            # 显式 "next": null 时 step.get("next", []) 仍返回 None，后续 for 崩溃；
+            # 用 `or []` 兜底，与 rule_validator 对 null/空数组等价的处理保持一致。
+            branches = step.get("next") or []
             parsed_branches = []
             for branch in branches:
                 condition = str(branch.get("condition", "")).strip()
@@ -985,11 +987,16 @@ class DiagnosisEngine:
 
         operator 表示"正常条件"，值满足该条件为 NORMAL，否则为 ABNORMAL。
 
-        between [lo, hi] → lo <= value <= hi 为 NORMAL
+        between [lo, hi] → lo <  value <  hi 为 NORMAL
         ≤ limit          → value <= limit 为 NORMAL（如 n_88um ≤ 8）
-        < limit          → value < limit 为 NORMAL
-        > limit          → value > limit 为 NORMAL
+        < limit          → value <  limit 为 NORMAL
+        > limit          → value >  limit 为 NORMAL
         >= limit         → value >= limit 为 NORMAL
+        == limit         → value == limit 为 NORMAL（精确等于）
+        != limit         → value != limit 为 NORMAL（不等于）
+
+        若 operator 为空 / "-" / 未实现的其他操作符，返回 True（默认视为正常,
+        避免把"无阈值规则"的指标错误标为 ABNORMAL）。
         """
         try:
             if operator == "any_of":
@@ -1014,6 +1021,11 @@ class DiagnosisEngine:
                 return value > float(limit)
             elif operator == ">=":
                 return value >= float(limit)
+            elif operator in {"==", "="}:
+                # 浮点比较带小阈值容差，避免 1e-15 级差错判 ABNORMAL
+                return abs(float(value) - float(limit)) < 1e-9
+            elif operator == "!=":
+                return abs(float(value) - float(limit)) >= 1e-9
         except (TypeError, ValueError):
             pass
         return True  # 默认正常

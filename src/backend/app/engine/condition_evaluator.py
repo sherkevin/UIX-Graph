@@ -38,7 +38,7 @@ def parse_condition_literal(token: str) -> Any:
         return raw
 
 
-def _extract_vars_from_definition(condition: Any) -> List[str]:
+def extract_vars_from_definition(condition: Any) -> List[str]:
     if isinstance(condition, dict):
         if "compare" in condition and isinstance(condition["compare"], dict):
             left = condition["compare"].get("left")
@@ -46,15 +46,18 @@ def _extract_vars_from_definition(condition: Any) -> List[str]:
         result: List[str] = []
         for key in ("all_of", "any_of"):
             for item in condition.get(key, []) or []:
-                for name in _extract_vars_from_definition(item):
+                for name in extract_vars_from_definition(item):
                     if name not in result:
                         result.append(name)
         if "not" in condition:
-            for name in _extract_vars_from_definition(condition.get("not")):
+            for name in extract_vars_from_definition(condition.get("not")):
                 if name not in result:
                     result.append(name)
         return result
     return extract_condition_vars(str(condition))
+
+
+_extract_vars_from_definition = extract_vars_from_definition
 
 
 def extract_condition_vars(condition: str) -> List[str]:

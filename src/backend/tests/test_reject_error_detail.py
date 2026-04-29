@@ -15,15 +15,43 @@ import sys
 import os
 from pathlib import Path
 
-if sys.platform == "win32":
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+# 仅在直接 `python tests/test_reject_error_detail.py` 时改 stdout。
+# 在 pytest capture 环境下替换 sys.stdout 会破坏 pytest 退出阶段的 readouterr，
+# 表现为 "I/O operation on closed file"。
+if __name__ == "__main__" and sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from app.service.reject_error_service import RejectErrorService
-from app.models.reject_errors_db import RejectedDetailedRecord, get_db_session
+import pytest  # noqa: E402
+
+from app.service.reject_error_service import RejectErrorService  # noqa: E402
+from app.models.reject_errors_db import RejectedDetailedRecord, get_db_session  # noqa: E402
+
+# ── DB 可达性预检 ───────────────────────────────────────────────────────
+# 这套 case 必须连真实 MySQL（datacenter 库 + 已 seed 的 SSB8000 数据）。
+# 没起 docker / 没 seed 时，直接 module-level skip，避免在 CI 里产生 7 个
+# 看起来很吓人的 "ConnectionRefused / Lost connection" failure。
+def _db_reachable() -> tuple[bool, str]:
+    try:
+        with get_db_session() as session:
+            session.execute(__import__("sqlalchemy").text("SELECT 1"))
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+_db_ok, _db_err = _db_reachable()
+if not _db_ok:
+    pytest.skip(
+        f"接口 3 详情测试依赖 MySQL（config/connections.json local 配置 + 已 seed 数据）；"
+        f"当前不可达：{_db_err}。请先 `docker-compose up -d` 起本地库。",
+        allow_module_level=True,
+    )
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 测试工具

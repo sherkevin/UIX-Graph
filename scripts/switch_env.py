@@ -6,11 +6,11 @@
   python scripts/switch_env.py prod     # 切换到内网 prod 环境
 
 脚本会：
-  1. 生成后端 .env 文件（APP_ENV + CORS_ORIGINS + METRIC_SOURCE_MODE）
-  2. 生成前端 .env 文件（VITE_API_BASE_URL）
-  3. 验证数据库连通性
-  4. 自动建缓存表 rejected_detailed_records（如不存在）
-  5. 打印启动命令
+  1. 检查 prod 密码安全性（禁止使用占位符密码）
+  2. 生成后端 .env 文件（APP_ENV + CORS_ORIGINS + METRIC_SOURCE_MODE）
+  3. 生成前端 .env 文件（VITE_API_BASE_URL）
+  4. 验证数据库连通性（MySQL + ClickHouse）
+  5. 自动建缓存表 rejected_detailed_records（如不存在）
 
 前端 API 地址：
   local → 留空（依赖 Vite 代理，开发模式无需配置）
@@ -19,10 +19,10 @@
 """
 
 import sys
-import os
 import json
-import subprocess
 from pathlib import Path
+
+from backend_env_preserve import merge_preserved_from_prev, parse_simple_dotenv
 
 # ── 项目根目录 ────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,11 +39,14 @@ FRONTEND_API_URLS_FALLBACK = {
 }
 
 # ── 颜色输出 ──────────────────────────────────────────────────────────────────
-GREEN  = "\033[92m"
-YELLOW = "\033[93m"
-RED    = "\033[91m"
-CYAN   = "\033[96m"
-RESET  = "\033[0m"
+# 仅当 stdout 是 TTY 时启用 ANSI 颜色；被启动器捕获或重定向到文件时自动剥离，
+# 避免日志里混入 \033[...m 噪音。
+_USE_COLOR = sys.stdout.isatty()
+GREEN  = "\033[92m" if _USE_COLOR else ""
+YELLOW = "\033[93m" if _USE_COLOR else ""
+RED    = "\033[91m" if _USE_COLOR else ""
+CYAN   = "\033[96m" if _USE_COLOR else ""
+RESET  = "\033[0m"  if _USE_COLOR else ""
 
 def ok(msg):   print(f"{GREEN}  [OK] {msg}{RESET}")
 def warn(msg): print(f"{YELLOW}  [!!] {msg}{RESET}")
@@ -60,18 +63,22 @@ def load_connections():
         return json.load(f)
 
 
-def write_backend_env(env: str, mysql_config: dict = None):
-    """写后端 .env 文件"""
-    # CORS：local 用 localhost 白名单；其他环境从 connections.json frontend_api_url 推断
+def write_backend_env(env: str, env_config: dict = None):
+    """写后端 .env 文件
+
+    Args:
+        env: 环境名 (local/test/prod)
+        env_config: connections.json 中该环境的完整配置块（含 mysql/clickhouse/frontend_api_url）
+    """
     if env == "local":
         cors_origins = "http://localhost:3000,http://localhost:8000"
     else:
-        # 若 connections.json 有 frontend_api_url，用它；否则留空（运维手动填写）
-        frontend_url = (mysql_config or {}).get("frontend_api_url", "")
+        frontend_url = (env_config or {}).get("frontend_api_url", "")
         cors_origins = frontend_url if frontend_url else ""
 
     metric_mode = "mock_allowed" if env == "local" else "real"
-    content = f"""# 自动生成，勿手动修改。使用 scripts/switch_env.py 切换环境。
+    prev = parse_simple_dotenv(BACKEND_ENV_FILE)
+    content = f"""# 由 scripts/switch_env.py 生成主配置;内网可保留 REJECTED_DETAILED_CACHE(见文件末尾合并行)
 APP_ENV={env}
 CORS_ORIGINS={cors_origins}
 METRIC_SOURCE_MODE={metric_mode}
@@ -79,6 +86,7 @@ LOG_LEVEL=INFO
 # 拒片详情接口排障日志（前缀 [详情排障]）；设为 0/false/off 可关闭
 UIX_DETAIL_TRACE=1
 """
+    content = merge_preserved_from_prev(content, prev)
     BACKEND_ENV_FILE.write_text(content, encoding="utf-8")
     ok(f"后端 .env → APP_ENV={env}  ({BACKEND_ENV_FILE})")
 
@@ -120,24 +128,36 @@ def check_mysql(config: dict) -> bool:
 
 
 def check_clickhouse(config: dict) -> bool:
-    """测试 ClickHouse 连通性"""
+    """测试 ClickHouse 连通性。
+
+    clickhouse_connect 在连不上时会向 stderr 打印 "Unexpected Http Driver Exception"
+    干扰启动器日志，这里显式捕获并静默(连不上会走 mock，本来就是可接受路径)。
+    """
     try:
         import clickhouse_connect
-        client = clickhouse_connect.get_client(
-            host=config["host"],
-            port=int(config["port"]),
-            username=config.get("username", ""),
-            password=config.get("password", ""),
-            database=config.get("dbname", "default"),
-            connect_timeout=5,
-        )
-        client.ping()
-        client.close()
-        return True
+        import logging as _logging
+        # 把 clickhouse_connect 的 logger 级别临时调高，抑制连接失败时的堆栈打印
+        _ch_logger = _logging.getLogger("clickhouse_connect")
+        _old_level = _ch_logger.level
+        _ch_logger.setLevel(_logging.CRITICAL)
+        try:
+            client = clickhouse_connect.get_client(
+                host=config["host"],
+                port=int(config["port"]),
+                username=config.get("username", ""),
+                password=config.get("password", ""),
+                database=config.get("dbname", "default"),
+                connect_timeout=5,
+            )
+            client.ping()
+            client.close()
+            return True
+        finally:
+            _ch_logger.setLevel(_old_level)
     except ImportError:
         warn("clickhouse_connect 未安装，跳过 ClickHouse 连通性检查")
         return True
-    except Exception as e:
+    except Exception:
         return False
 
 
@@ -158,9 +178,9 @@ def init_cache_table(mysql_config: dict):
           `id`               BIGINT AUTO_INCREMENT PRIMARY KEY,
           `failure_id`       BIGINT NOT NULL,
           `equipment`        VARCHAR(50) NOT NULL,
-          `chuck_id`         INT NOT NULL,
-          `lot_id`           INT NOT NULL,
-          `wafer_id`         INT NOT NULL,
+          `chuck_id`         VARCHAR(100) NOT NULL COMMENT 'Chuck ID（兼容整数与字符串）',
+          `lot_id`           VARCHAR(100) NOT NULL COMMENT 'Lot ID（兼容整数与字符串）',
+          `wafer_id`         VARCHAR(100) NOT NULL COMMENT 'Wafer ID（兼容整数与字符串）',
           `occurred_at`      DATETIME(6) NOT NULL,
           `reject_reason`    VARCHAR(50) NOT NULL,
           `reject_reason_id` BIGINT NOT NULL,
@@ -168,13 +188,15 @@ def init_cache_table(mysql_config: dict):
           `system`           VARCHAR(50) DEFAULT NULL,
           `error_field`      VARCHAR(255) DEFAULT NULL,
           `metrics_data`     JSON DEFAULT NULL,
+          `config_version`   VARCHAR(50) DEFAULT NULL COMMENT '写入时的 pipeline.version，用于按配置版本失效缓存',
           `created_at`       DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
           `updated_at`       DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
           UNIQUE KEY `UK_failure_id` (`failure_id`),
           INDEX `IDX_equipment` (`equipment`),
           INDEX `IDX_occurred_at` (`occurred_at`),
           INDEX `IDX_chuck_lot_wafer` (`chuck_id`, `lot_id`, `wafer_id`),
-          INDEX `IDX_reject_reason` (`reject_reason`)
+          INDEX `IDX_reject_reason` (`reject_reason`),
+          INDEX `IDX_config_version` (`config_version`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         """
         with conn.cursor() as cur:
@@ -186,37 +208,6 @@ def init_cache_table(mysql_config: dict):
         warn("pymysql 未安装，跳过缓存表初始化")
     except Exception as e:
         warn(f"缓存表初始化失败（可能已存在或权限不足）: {e}")
-
-
-def print_startup_commands(env: str, mysql_config: dict):
-    """打印启动命令"""
-    print()
-    print(f"{CYAN}{'─'*60}")
-    print(f"  环境 [{env}] 配置完成，启动命令：")
-    print(f"{'─'*60}{RESET}")
-    print()
-    print("  【后端】")
-    if sys.platform == "win32":
-        print(f"  cd src\\backend")
-        print(f"  python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload")
-        print(f"  （已通过 .env 文件写入 APP_ENV={env}）")
-    else:
-        print(f"  cd src/backend")
-        print(f"  python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload")
-        print(f"  （已通过 .env 文件写入 APP_ENV={env}）")
-    print()
-    print("  【前端（开发模式）】")
-    print(f"  cd src/frontend")
-    print(f"  npm run dev")
-    print()
-    print("  【前端（生产构建）】")
-    print(f"  cd src/frontend")
-    print(f"  npm run build   # 产物在 dist/ 目录，配合反向代理部署")
-    print()
-    print(f"  前端访问：http://localhost:3000")
-    print(f"  后端 API 文档：http://localhost:8000/docs")
-    print(f"  健康检查：http://localhost:8000/health")
-    print()
 
 
 def main():
@@ -244,14 +235,23 @@ def main():
     print(f"{'='*60}{RESET}")
     print()
 
+    env_cfg = connections[env]
+
+    # 安全检查：检测 prod 环境是否忘记修改默认密码
+    mysql_pw = mysql_cfg.get("password", "")
+    if env == "prod" and mysql_pw == "CHANGE_ME_BEFORE_DEPLOY":
+        err("connections.json prod.mysql.password 仍为占位符 CHANGE_ME_BEFORE_DEPLOY")
+        err("请修改为真实密码后重新运行！")
+        sys.exit(1)
+
     # 1. 写 .env 文件
-    print("【1/4】写入环境配置文件...")
-    write_backend_env(env, mysql_cfg)
+    print("【1/5】写入环境配置文件...")
+    write_backend_env(env, env_cfg)
     write_frontend_env(env, connections)
 
     # 2. 检查 MySQL 连通性
     print()
-    print("【2/4】检查 MySQL 连通性...")
+    print("【2/5】检查 MySQL 连通性...")
     info(f"MySQL: {mysql_cfg.get('host')}:{mysql_cfg.get('port')} / {mysql_cfg.get('dbname')}")
     if check_mysql(mysql_cfg):
         ok("MySQL 连接成功")
@@ -261,7 +261,7 @@ def main():
 
     # 3. 检查 ClickHouse 连通性
     print()
-    print("【3/4】检查 ClickHouse 连通性...")
+    print("【3/5】检查 ClickHouse 连通性...")
     if ch_cfg:
         info(f"ClickHouse: {ch_cfg.get('host')}:{ch_cfg.get('port')} / {ch_cfg.get('dbname')}")
         if check_clickhouse(ch_cfg):
@@ -273,8 +273,15 @@ def main():
 
     # 4. 初始化缓存表
     print()
-    print("【4/4】初始化缓存表...")
+    print("【4/5】初始化缓存表...")
     init_cache_table(mysql_cfg)
+
+    # 5. 完成
+    print()
+    print(f"【5/5】环境 [{env.upper()}] 配置完成")
+    info(f"后端 .env: {BACKEND_ENV_FILE}")
+    info(f"前端 .env: {FRONTEND_ENV_FILE}")
+    ok("可通过 start_UIX.bat 或 python scripts/start.py 启动项目")
 
 
 if __name__ == "__main__":

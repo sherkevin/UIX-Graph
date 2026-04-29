@@ -1,9 +1,11 @@
 # SXEE-LITHO-RCA（UIX）项目交接文档
 
-**文档版本**: 1.1  
-**更新日期**: 2026-03-25  
-**适用范围**: 仓库根目录 `D:/Codes/UIX`（光刻机拒片根因分析系统）
+**文档版本**: 1.3
+**更新日期**: 2026-04-20
+**适用范围**: 仓库根目录 `UIX-Graph`（光刻机拒片根因分析系统）
 
+> v1.3：**Legacy 栈彻底清零**——删除 `app/core/`(7 个文件) + 7 个 legacy handlers + 2 个 legacy 测试 + 4 个 legacy `start_*` 脚本 + `LEGACY_ROUTES_ENABLED` 开关。后端 py 文件从 40+ 降到 24，**不再有「历史兼容路径」**，主线只剩 `/api/v1/reject-errors`。
+> v1.2：仓库命名统一为 UIX-Graph；前端精简（删除 6 个未使用组件 + 2 个未用 hooks + 对应重型依赖）；修复 switch_env.py CORS 读取错位 bug；补充 safe_eval / cache_config_version / equipment_whitelist 等配置驱动测试条目；switch_env 针对 prod 占位密码直接报错退出。
 > v1.1：补充「维护须知与已知边界」，收录代码走查结论，便于后续排坑。
 
 ---
@@ -111,10 +113,19 @@ npm run dev
 
 ```bash
 cd src/backend
-python tests/test_metric_fetcher_window.py   # 无 MySQL 也可跑
-python tests/test_reject_errors.py           # 需 MySQL 与 connections.json
-python tests/test_diagnosis_prd1.py
+
+# 全量一键（DB 不可达用例自动 skip）
+python -m pytest tests/ -q
+# ➜ 194 passed, 9 skipped
+
+# 单独跑无 DB 依赖的配置驱动相关（适合外网 CI）
+python -m pytest tests/test_rules_validator.py tests/test_rules_engine_conditions.py \
+                 tests/test_diagnosis_config_store.py tests/test_safe_eval_action.py \
+                 tests/test_rule_validator_metric.py tests/test_cache_config_version.py \
+                 tests/test_equipment_whitelist_config.py -v
 ```
+
+详见 [`docs/STRUCTURE.md`](STRUCTURE.md) §2.1 的完整分类表（17 个测试文件，CI 安全跑 13 个，其余 4 个需 docker）。
 
 ---
 

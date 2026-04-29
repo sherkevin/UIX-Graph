@@ -118,6 +118,26 @@ class RejectErrorService:
             cls._diagnosis_engine = DiagnosisService.get_engine("reject_errors")
         return cls._diagnosis_engine
 
+    @staticmethod
+    def _rejected_detailed_cache_enabled() -> bool:
+        """
+        是否使用 rejected_detailed_records 表做接口 2/3 的「诊断结果」缓存。
+
+        内网若未建此表,设 REJECTED_DETAILED_CACHE=0(或 false),则完全不读/不写该表;
+        每次从源表取数并跑诊断引擎(列表的 rootCause/system 恒为空,无法省算力)。
+
+        未设置时默认启用(与有完整 DDL 的部署行为一致);环境变量为空白视为默认启用。
+
+        关闭(不区分大小写): 0, false, no, off, disabled, none
+        """
+        v = os.environ.get("REJECTED_DETAILED_CACHE")
+        if v is None:
+            v = "1"
+        t = v.strip().lower()
+        if t in ("0", "false", "no", "off", "disabled", "none"):
+            return False
+        return True
+
     @classmethod
     def _current_pipeline_version(cls) -> str:
         """
@@ -326,9 +346,12 @@ class RejectErrorService:
                 "totalPages": total_pages
             }
 
-        # 从缓存表批量查询已诊断的 rootCause / system
+        # 从缓存表批量查询已诊断的 rootCause / system(无表时可 REJECTED_DETAILED_CACHE=0 关闭)
         failure_ids = [r["id"] for r in records]
-        cache_map = cls._batch_get_cache(failure_ids) if failure_ids else {}
+        if failure_ids and cls._rejected_detailed_cache_enabled():
+            cache_map = cls._batch_get_cache(failure_ids)
+        else:
+            cache_map = {}
 
         # 转换为响应格式
         response_records = []
@@ -367,7 +390,7 @@ class RejectErrorService:
         Returns:
             { failure_id: RejectedDetailedRecord }
         """
-        if not failure_ids:
+        if not failure_ids or not cls._rejected_detailed_cache_enabled():
             return {}
 
         db = get_db_session()
@@ -398,9 +421,10 @@ class RejectErrorService:
         获取故障详情（含指标数据）
 
         流程：
-        1. 若传入 requestTime 且与记录发生时间不一致 → 跳过缓存读写
-        2. 否则先查缓存表 rejected_detailed_records，命中则直接返回
-        3. 缓存未命中 → 查源表 → 运行诊断引擎（基准时间 T）→ 条件允许时写入缓存 → 返回
+        1. 若环境变量 REJECTED_DETAILED_CACHE=0(等)则禁用缓存表(内网无表时),每次现算,不读写 rejected_detailed_records
+        2. 若传入 requestTime 且与记录发生时间不一致 → 跳过缓存读写
+        3. 否则先查 rejected_detailed_records(若启用),命中则直接返回
+        4. 缓存未命中 → 查源表 → 运行诊断引擎(基准时间 T) → 条件允许时写入缓存 → 返回
 
         Args:
             failure_id: 故障记录 ID
@@ -462,7 +486,7 @@ class RejectErrorService:
                     source_record.get("wafer_index"),
                 )
 
-            if not bypass_cache:
+            if not bypass_cache and cls._rejected_detailed_cache_enabled():
                 with detail_trace.span("query_cache_table_rejected_detailed_records", failure_id=failure_id):
                     cached = db.query(RejectedDetailedRecord).filter(
                         RejectedDetailedRecord.failure_id == failure_id
@@ -563,7 +587,7 @@ class RejectErrorService:
                             dict(_source_log),
                         )
 
-                if not bypass_cache:
+                if not bypass_cache and cls._rejected_detailed_cache_enabled():
                     cls._save_to_cache(db, source_record, diagnosis)
 
                 detail_data = {

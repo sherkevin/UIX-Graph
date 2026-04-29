@@ -172,3 +172,97 @@ INSERT INTO src.RPT_WAA_SET_UNION_VIEW (
     'local', 'SSB8000', 'seed-union', 'row-1',
     '2026-01-10 08:44:50.000', '2026-01-10 08:44:50.000', ''
 );
+
+-- ============================================================
+-- src.RPT_WAA_V2_SET_OFL (stage4 PRD: ws_pos_x/y 目标源表)
+-- 列结构近似 RPT_WAA_SET_OFL,但通常没有 phase 列;列名大写 WS_pos_x/y。
+-- 本地用 MergeTree 表仿真内网 View 行为,仅用于离线 e2e。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS src.RPT_WAA_V2_SET_OFL (
+    lot_id Nullable(Int32),
+    wafer_id Nullable(Int32),
+    chuck_id Nullable(Int32),
+    scan_id Nullable(Int32),
+    mark_id Nullable(Int32),
+    x_enable Nullable(Int32),
+    y_enable Nullable(Int32),
+    `WS_pos_x` Nullable(String),
+    `WS_pos_y` Nullable(String),
+    env_id LowCardinality(String),
+    equipment LowCardinality(String),
+    file_id String,
+    row_id String,
+    file_time DateTime64(3, 'UTC'),
+    insert_time DateTime64(3, 'UTC'),
+    partition_time String
+) ENGINE = MergeTree ORDER BY (equipment, file_time);
+
+INSERT INTO src.RPT_WAA_V2_SET_OFL (
+    lot_id, wafer_id, chuck_id, scan_id, mark_id, x_enable, y_enable,
+    `WS_pos_x`, `WS_pos_y`, env_id, equipment, file_id, row_id, file_time, insert_time, partition_time
+) VALUES
+    (101, 7, 1, 0, 1, 1, 1, '0.11', '-0.22', 'local', 'SSB8000', 'seed-v2', 'row-1', '2026-01-10 08:44:50.000', '2026-01-10 08:44:50.000', ''),
+    (101, 7, 1, 0, 2, 1, 1, '0.12', '-0.21', 'local', 'SSB8000', 'seed-v2', 'row-2', '2026-01-10 08:44:50.100', '2026-01-10 08:44:50.100', '');
+
+-- ============================================================
+-- las.RPT_WAA_RESULT_OFL (stage4 PRD: mark_candidates 来源表)
+-- 在 lot+wafer+chuck+phase='1ST_COWA' 过滤条件下预期返回 ~4 行,
+-- 每行一个 mark_id (m1..m4);按 row_id asc 取前 4 (PRD §具体步骤 2)。
+-- 本地 mock 写 4 行同 file_time 的数据。
+-- ============================================================
+CREATE DATABASE IF NOT EXISTS las;
+
+CREATE TABLE IF NOT EXISTS las.RPT_WAA_RESULT_OFL (
+    lot_id Nullable(Int32),
+    wafer_id Nullable(Int32),
+    chuck_id Nullable(Int32),
+    mark_id Nullable(Int32),
+    phase Nullable(String),
+    env_id LowCardinality(String),
+    equipment LowCardinality(String),
+    file_id String,
+    row_id String,
+    file_time DateTime64(3, 'UTC'),
+    insert_time DateTime64(3, 'UTC'),
+    partition_time String
+) ENGINE = MergeTree ORDER BY (equipment, file_time);
+
+INSERT INTO las.RPT_WAA_RESULT_OFL (
+    lot_id, wafer_id, chuck_id, mark_id, phase,
+    env_id, equipment, file_id, row_id, file_time, insert_time, partition_time
+) VALUES
+    (101, 7, 1, 1, '1ST_COWA', 'local', 'SSB8000', 'seed-result', 'row-1', '2026-01-10 08:44:50.000', '2026-01-10 08:44:50.000', ''),
+    (101, 7, 1, 2, '1ST_COWA', 'local', 'SSB8000', 'seed-result', 'row-2', '2026-01-10 08:44:50.100', '2026-01-10 08:44:50.100', ''),
+    (101, 7, 1, 3, '1ST_COWA', 'local', 'SSB8000', 'seed-result', 'row-3', '2026-01-10 08:44:50.200', '2026-01-10 08:44:50.200', ''),
+    (101, 7, 1, 4, '1ST_COWA', 'local', 'SSB8000', 'seed-result', 'row-4', '2026-01-10 08:44:50.300', '2026-01-10 08:44:50.300', '');
+
+-- ============================================================
+-- las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW (stage4 PRD: mark_pos_x/y 目标源表)
+-- 按 lot_id + mark_id IN (m1..m4) 关联,每个 mark_id 一行。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW (
+    lot_id Nullable(Int32),
+    chuck_id Nullable(Int32),
+    mark_id Nullable(Int32),
+    mark_type Nullable(String),
+    usage Nullable(String),
+    recipe_id Nullable(String),
+    mark_pos_x Nullable(String),
+    mark_pos_y Nullable(String),
+    env_id LowCardinality(String),
+    equipment LowCardinality(String),
+    file_id String,
+    row_id String,
+    file_time DateTime64(3, 'UTC'),
+    insert_time DateTime64(3, 'UTC'),
+    partition_time String
+) ENGINE = MergeTree ORDER BY (equipment, file_time);
+
+INSERT INTO las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW (
+    lot_id, chuck_id, mark_id, mark_type, usage, recipe_id, mark_pos_x, mark_pos_y,
+    env_id, equipment, file_id, row_id, file_time, insert_time, partition_time
+) VALUES
+    (101, 1, 1, 'standard', 'align', 'RCP-DOCKER-001', '0.055', '-0.063', 'local', 'SSB8000', 'seed-mark', 'row-1', '2026-01-10 08:44:50.000', '2026-01-10 08:44:50.000', ''),
+    (101, 1, 2, 'standard', 'align', 'RCP-DOCKER-001', '0.060', '-0.060', 'local', 'SSB8000', 'seed-mark', 'row-2', '2026-01-10 08:44:50.100', '2026-01-10 08:44:50.100', ''),
+    (101, 1, 3, 'standard', 'align', 'RCP-DOCKER-001', '0.058', '-0.062', 'local', 'SSB8000', 'seed-mark', 'row-3', '2026-01-10 08:44:50.200', '2026-01-10 08:44:50.200', ''),
+    (101, 1, 4, 'standard', 'align', 'RCP-DOCKER-001', '0.057', '-0.061', 'local', 'SSB8000', 'seed-mark', 'row-4', '2026-01-10 08:44:50.300', '2026-01-10 08:44:50.300', '');

@@ -11,7 +11,7 @@
 from typing import Any, Callable, Dict, List, Optional, Set
 
 from app.engine.condition_evaluator import (
-    _extract_vars_from_definition,
+    extract_vars_from_definition,
     extract_condition_vars,
     validate_condition_definition,
 )
@@ -461,7 +461,7 @@ def validate_rules_config(
             if not validate_condition_definition(condition):
                 errors.append(f"scene(id={scene_id}) trigger_condition[{idx}] 无法解析: {condition}")
                 continue
-            used_vars = _extract_vars_from_definition(condition)
+            used_vars = extract_vars_from_definition(condition)
             missing_vars = [var for var in used_vars if var not in scene_metric_ids]
             if missing_vars:
                 errors.append(
@@ -532,7 +532,7 @@ def validate_rules_config(
                 if isinstance(condition, str):
                     used_names = extract_condition_vars(condition)
                 else:
-                    used_names = _extract_vars_from_definition(condition)
+                    used_names = extract_vars_from_definition(condition)
                 for vn in used_names:
                     if vn not in allowed_pipeline_vars:
                         errors.append(

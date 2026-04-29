@@ -94,15 +94,12 @@ python scripts/check_config.py --strict         # warning 也算失败(退出码
 |------|---------|------|
 | [`start_backend.ps1`](./start_backend.ps1)、[`start_backend.sh`](./start_backend.sh) | 改用 [`start.py`](./start.py) | 仅启动后端,无环境切换/前端构建/端口检测;`start.py` 把这些都做了 |
 | [`start_frontend.ps1`](./start_frontend.ps1)、[`start_frontend.sh`](./start_frontend.sh) | 改用 [`start.py`](./start.py) | 同上,仅启动前端 |
-| [`flow2data.py`](./flow2data.py) | (无活跃替代) | 老:流程 JSON → 图谱数据;**stage3 主线已不依赖** |
-| [`merge_data.py`](./merge_data.py) | (无活跃替代) | 老:多 case 数据合并;**stage3 主线已不依赖** |
-| [`process_data.py`](./process_data.py) | (无活跃替代) | 老:数据预处理;**stage3 主线已不依赖** |
-| [`api_response.json`](./api_response.json) | (无替代) | 老:某次接口响应的快照;**已无引用方,可在下一轮清理删除** |
+
+> **已清理**(2026-04-20 重构):`flow2data.py` / `merge_data.py` / `process_data.py` / `api_response.json` 已在本轮重构中删除,它们是 stage2 前的历史数据处理脚本,stage3/stage4 主线已完全不依赖。
 
 **未来清理建议**(独立 PR):
 
 - 4 个 `start_{backend,frontend}.{sh,ps1}` 在 [`docs/STRUCTURE.md`](../docs/STRUCTURE.md) 公示「6 个月不维护后下线」
-- `flow2data.py` / `merge_data.py` / `process_data.py` / `api_response.json` 4 项,如确认 stage3/stage4 不用,可一起 `git rm`
 
 ---
 

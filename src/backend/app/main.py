@@ -5,6 +5,7 @@ import logging
 import traceback
 import json
 import time
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -24,10 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.handler import (
-    reject_errors, ontology, knowledge,
-    diagnosis, visualization, propagation, full_graph, entity
-)
+from app.handler import reject_errors
 from app.utils import detail_trace
 
 # ── 日志配置 ──────────────────────────────────────────────────────────────────
@@ -53,15 +51,24 @@ def _load_frontend_api_url() -> str:
         logger.warning("读取 frontend_api_url 失败: %s", exc)
         return ""
 
-app = FastAPI(
-    title="SMEE-LITHO-RCA API",
-    description="光刻机拒片根因分析系统 API",
-    version="1.0.0"
-)
+
+# ── CORS 配置（须在 lifespan 日志前就绪）──────────────────────────────────────
+_cors_env = os.environ.get("CORS_ORIGINS", "")
+if _cors_env.strip():
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    _cors_origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:8000",
+    ]
+
+logger.info("CORS allow_origins: %s", _cors_origins)
 
 
-@app.on_event("startup")
-async def log_startup_state():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """替代已弃用的 @app.on_event('startup')（FastAPI / Starlette 推荐写法）。"""
     detail_trace.info(
         "应用启动 | APP_ENV=%s | LOG_LEVEL=%s | UIX_DETAIL_TRACE=%s | CORS=%s",
         os.environ.get("APP_ENV", "local"),
@@ -69,6 +76,15 @@ async def log_startup_state():
         os.environ.get("UIX_DETAIL_TRACE", "1"),
         _cors_env or "default_local",
     )
+    yield
+
+
+app = FastAPI(
+    title="SXEE-LITHO-RCA API",
+    description="光刻机拒片根因分析系统 API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 
 @app.middleware("http")
@@ -102,20 +118,6 @@ async def request_log_middleware(request: Request, call_next):
     )
     return response
 
-# ── CORS 配置（由环境变量 CORS_ORIGINS 控制，逗号分隔多个来源） ───────────────
-_cors_env = os.environ.get("CORS_ORIGINS", "")
-if _cors_env.strip():
-    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
-else:
-    # 默认：本地开发白名单
-    _cors_origins = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:8000",
-    ]
-
-logger.info("CORS allow_origins: %s", _cors_origins)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -125,25 +127,8 @@ app.add_middleware(
 )
 
 # ── 路由注册 ──────────────────────────────────────────────────────────────────
-# 主线(stage3/stage4):拒片故障管理始终注册
+# 主线:拒片故障管理
 app.include_router(reject_errors.router, prefix="/api/v1/reject-errors", tags=["拒片故障管理"])
-
-# 老路由(图谱 / 本体 / 传播):前端 src/frontend/ 已不再调用,但内网可能存在
-# 第三方客户端、Postman 集合或运维脚本仍在使用。默认 LEGACY_ROUTES_ENABLED=true
-# 保持向后兼容;内网部署若已确认无人调用,可在 .env 设 LEGACY_ROUTES_ENABLED=false
-# 关闭它们,30 天观察访问日志,确认无 404 后再在后续 PR 中物理删除 handler/core/测试。
-_legacy_enabled = os.environ.get("LEGACY_ROUTES_ENABLED", "true").strip().lower() not in (
-    "0", "false", "no", "off",
-)
-logger.info("Legacy routes enabled: %s", _legacy_enabled)
-if _legacy_enabled:
-    app.include_router(ontology.router,      prefix="/api/ontology",      tags=["本体管理"])
-    app.include_router(knowledge.router,     prefix="/api/knowledge",     tags=["知识库"])
-    app.include_router(diagnosis.router,     prefix="/api/diagnosis",     tags=["诊断"])
-    app.include_router(visualization.router, prefix="/api/visualization", tags=["可视化"])
-    app.include_router(propagation.router,   prefix="/api/propagation",   tags=["传播分析"])
-    app.include_router(entity.router,        prefix="/api/entity",        tags=["实体"])
-    app.include_router(full_graph.router,    prefix="/api/graph",         tags=["全图"])
 
 
 # ── 全局错误 Handler（所有报错实时打印到日志/启动窗口） ───────────────────────
@@ -192,7 +177,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 async def root():
-    return {"message": "SMEE-LITHO-RCA API", "version": "1.0.0"}
+    return {"message": "SXEE-LITHO-RCA API", "version": "1.0.0"}
 
 
 @app.get("/health")

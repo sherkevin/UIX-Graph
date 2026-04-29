@@ -1,21 +1,26 @@
 #!/bin/bash
 # ============================================================
-#  UIX 一键启动器（macOS 双击运行）
+#  UIX 一键启动器 (macOS / Linux 入口)
 #  SXEE-LITHO-RCA 光刻机拒片根因分析系统
+#
+#  用法:
+#    ./start_UIX.command                 默认 Tk GUI
+#    ./start_UIX.command --console       无 GUI, 全部日志打到当前终端
+#    ./start_UIX.command --console --env local
 # ============================================================
 
-# 切换到脚本所在目录（项目根目录）
 cd "$(dirname "$0")"
 
-# ── 确保终端 UTF-8 ──────────────────────────────────────────
 export LANG=zh_CN.UTF-8
 export LC_ALL=zh_CN.UTF-8
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
 
 echo "============================================"
 echo "  UIX 启动器 — SXEE-LITHO-RCA"
 echo "============================================"
 
-# ── 查找 Python ──────────────────────────────────────────────
+# ── 找 Python 3 ──
 PYTHON=""
 for cmd in python3 python; do
     if command -v $cmd &>/dev/null; then
@@ -28,40 +33,24 @@ for cmd in python3 python; do
 done
 
 if [ -z "$PYTHON" ]; then
-    echo "[错误] 未找到 Python 3，请安装 Python 3.9+"
+    echo "[ERROR] 未找到 Python 3，请安装 Python 3.9+"
     read -p "按回车退出..."
     exit 1
 fi
 
-echo "[信息] 使用 Python: $($PYTHON --version 2>&1)"
+echo "[INFO] 使用 Python: $($PYTHON --version 2>&1)"
 
-# ── 检查依赖 ─────────────────────────────────────────────────
-$PYTHON -c "import fastapi" &>/dev/null
-if [ $? -ne 0 ]; then
-    echo "[信息] 首次运行，安装后端依赖..."
-    $PYTHON -m pip install -r src/backend/requirements.txt -q
-    if [ $? -ne 0 ]; then
-        echo "[错误] 依赖安装失败，请检查网络"
-        read -p "按回车退出..."
-        exit 1
-    fi
+# ── 直接把所有参数转给 start.py ──
+$PYTHON scripts/start.py "$@"
+EXIT_CODE=$?
+
+# console 模式下保留终端
+if echo "$*" | grep -q -- "--console"; then
+    echo
+    echo "============================================"
+    echo "[launcher] 进程已退出 (exit=$EXIT_CODE), 按回车关闭"
+    echo "============================================"
+    read -r
 fi
 
-# ── 检查前端构建产物 ─────────────────────────────────────────
-if [ ! -f "src/frontend/dist/index.html" ]; then
-    echo "[信息] 前端尚未构建，开始构建..."
-    if ! command -v node &>/dev/null; then
-        echo "[错误] 未找到 Node.js 且前端未构建"
-        echo "  请先运行: cd src/frontend && npm run build"
-        read -p "按回车退出..."
-        exit 1
-    fi
-    cd src/frontend
-    npm install --prefer-offline -q
-    npx vite build
-    cd ../..
-fi
-
-# ── 启动 GUI ─────────────────────────────────────────────────
-echo "[信息] 正在启动 UIX 启动器..."
-$PYTHON scripts/start.py
+exit $EXIT_CODE

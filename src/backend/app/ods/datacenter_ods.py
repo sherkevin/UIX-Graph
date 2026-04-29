@@ -3,8 +3,7 @@ ODS 层 - Datacenter 数据源封装
 封装 MySQL datacenter 数据库的访问
 """
 from sqlalchemy import create_engine, Column, String, Integer, BigInteger, Boolean, Text, JSON, DateTime, Float, ForeignKey, Index, func, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from sqlalchemy.pool import PoolProxiedConnection
 from typing import Optional, List, Dict, Any, Tuple
 import json

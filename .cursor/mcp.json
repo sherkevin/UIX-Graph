@@ -46,6 +46,28 @@
         "bajie_QUEUE_ROOT": "C:\\Users\\shers\\.cursor\\my-mcp-messages"
       },
       "disabled": false
+    },
+    "my-mcp-4": {
+      "command": "node",
+      "args": [
+        "C:/Users/shers/.cursor/my-mcp-server/index.mjs"
+      ],
+      "env": {
+        "bajie_SESSION": "4",
+        "bajie_QUEUE_ROOT": "C:\\Users\\shers\\.cursor\\my-mcp-messages"
+      },
+      "disabled": false
+    },
+    "my-mcp-5": {
+      "command": "node",
+      "args": [
+        "C:/Users/shers/.cursor/my-mcp-server/index.mjs"
+      ],
+      "env": {
+        "bajie_SESSION": "5",
+        "bajie_QUEUE_ROOT": "C:\\Users\\shers\\.cursor\\my-mcp-messages"
+      },
+      "disabled": false
     }
   }
 }

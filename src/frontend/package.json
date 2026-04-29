@@ -1,27 +1,21 @@
 {
-  "name": "smee-litho-rca-frontend",
+  "name": "sxee-litho-rca-frontend",
   "version": "1.0.0",
   "private": true,
+  "description": "SXEE-LITHO-RCA 光刻机拒片根因分析前端（React + Vite）",
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
-    "@ant-design/pro-components": "^2.6.43",
-    "@ant-design/pro-layout": "^7.20.0",
-    "@antv/g6": "^5.0.6",
     "antd": "^5.11.0",
     "axios": "^1.6.2",
-    "cytoscape": "^3.33.1",
     "dayjs": "^1.11.10",
     "react": "^18.2.0",
-    "react-cytoscapejs": "^2.0.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
-    "recharts": "^3.6.0"
+    "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.42",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
-    "typescript": "^5.3.3",
     "vite": "^5.0.8"
   },
   "scripts": {

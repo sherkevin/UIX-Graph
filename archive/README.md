@@ -17,13 +17,25 @@
 | 最后实际修改时间 | 2026-03-16 前后(`git log` 可查) |
 | 包含 | 6 个老页面的多页面 UI,与 [`src/frontend/`](../src/frontend/) 是**不同**的 React 应用 |
 | 老页面清单 | `KnowledgeEntry`、`OntologyManager`、`OntologyView`、`KnowledgeGraph`、`EntityDashboard`、`FullGraphView` |
-| 后端依赖 | 这 6 个页面调用的是 `/api/{ontology,knowledge,diagnosis,propagation,full_graph,entity,visualization}` 7 组老路由——这些路由本身仍在 [`src/backend/app/handler/`](../src/backend/app/handler/),但已用 `LEGACY_ROUTES_ENABLED` flag 包裹 |
+| 后端依赖 | 这 6 个页面调用的是 `/api/{ontology,knowledge,diagnosis,propagation,full_graph,entity,visualization}` 7 组老路由——**2026-04-20 起这些路由连同 `app/core/` 已全部物理删除**,若需复活参考下方「完整复活流程」|
 
 **为什么归档**:
 
 - [`src/frontend/`](../src/frontend/) 是当前主线 UI(精简版,只有「拒片故障管理」一个页面)
-- 根 `frontend/` 跟它是**两份独立代码**,长期并存导致「有人改 A,有人跑 B」的分叉风险([`docs/HANDOVER.md`](../docs/HANDOVER.md) §9.5 已警告)
+- 根 `frontend/` 跟它是**两份独立代码**,长期并存导致「有人改 A,有人跑 B」的分叉风险
 - 业务上 6 个老页面 6 个月内无人提需求,但**仍可能作为「老 UI 设计参考」复用**,所以归档而非物理删除
+
+### 2026-04-20 后端 legacy 清零
+
+本次后端重构删除的文件清单(如需复活,从 git 历史中 `git show` 恢复):
+
+- `src/backend/app/core/`(7 个文件:`diagnosis_engine.py`、`diagnosis_engine_prd1.py`、`full_graph_builder.py`、`graph_builder.py`、`path_finder.py`、`operators.py`、`test_data.py`)
+- `src/backend/app/handler/`(7 个文件:`ontology.py`、`knowledge.py`、`diagnosis.py`、`visualization.py`、`propagation.py`、`entity.py`、`full_graph.py`)
+- `src/backend/app/schemas/`(2 个文件:`ontology.py`、`diagnosis.py`)
+- `src/backend/app/models/database.py`(未用 SQLite ORM)
+- `src/backend/tests/`(2 个文件:`test_diagnosis_prd1.py`、`test_core_diagnosis_adapter.py`)
+- `scripts/`(4 个文件:`start_backend.{ps1,sh}`、`start_frontend.{ps1,sh}`)
+- `.env` / `main.py` 中的 `LEGACY_ROUTES_ENABLED` 开关
 
 ---
 

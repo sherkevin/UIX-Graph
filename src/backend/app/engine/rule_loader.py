@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, List, Any, Optional
 from app.diagnosis.config_store import DiagnosisConfigStore
-from app.engine.condition_evaluator import _extract_vars_from_definition
+from app.engine.condition_evaluator import extract_vars_from_definition
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class RuleLoader:
             for param_name in params.keys():
                 metric_ids.add(param_name)
             for raw_value in params.values():
-                for var_name in _extract_vars_from_definition(raw_value):
+                for var_name in extract_vars_from_definition(raw_value):
                     metric_ids.add(var_name)
 
             # 收集 details 中的输出 results（新格式建模步骤的输出指标）
@@ -92,8 +92,8 @@ class RuleLoader:
             for result_key in output_results.keys():
                 metric_ids.add(result_key)
 
-            # 遍历 next 分支
-            for branch in step.get("next", []):
+            # 遍历 next 分支（显式 "next": null 时 .get("next", []) 仍为 None，需 or []）
+            for branch in step.get("next") or []:
                 target = branch.get("target")
                 if target is None:
                     continue
@@ -107,7 +107,7 @@ class RuleLoader:
                 results = branch.get("results", {})
                 for result_key in results.keys():
                     metric_ids.add(result_key)
-                for var_name in _extract_vars_from_definition(branch.get("condition")):
+                for var_name in extract_vars_from_definition(branch.get("condition")):
                     metric_ids.add(var_name)
 
         return list(metric_ids)

@@ -1,5 +1,5 @@
 {
-  "version": "3.0.0",
+  "version": "3.1.0",
   "metrics": {
     "trigger_reject_reason_cowa_6": {
       "description": "场景触发：源表 reject_reason 等于 6（COWA / Coarse Alignment Failed）。指标 id 为 snake_case，与 ws_pos_x、Mwx_0 等一致。",
@@ -84,22 +84,17 @@
             "source": "wafer_id"
           }
         ],
-        "filters": [
-          {
-            "target": "phase",
-            "value": "1ST_COWA"
-          }
-        ]
+        "filters": []
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_SET_UNION_VIEW",
+      "table_name": "src.RPT_WAA_V2_SET_OFL",
       "column_name": "WS_pos_x",
       "time_column": "file_time",
       "equipment_column": "equipment",
       "duration": "7",
-      "_note": "按业务问题清单改为 src.RPT_WAA_SET_UNION_VIEW，并补 phase='1ST_COWA' 固定筛选；其余 exact_keys 先保持不变以避免误放大结果集"
+      "_note": "stage4/prd.md §前置工作：WS_pos_x 源表切换到 src.RPT_WAA_V2_SET_OFL；去除 phase 过滤（PRD 未在 WS 段要求）。内网若 V2 视图含 phase 列并需要 1ST_COWA 收窄，可按需加回 filters。"
     },
     "ws_pos_y": {
       "description": "cowa标记对准位置 (mark_scan) ws_pos_y",
@@ -127,6 +122,40 @@
             "source": "wafer_id"
           }
         ],
+        "filters": []
+      },
+      "fallback": {
+        "policy": "nearest_in_window"
+      },
+      "table_name": "src.RPT_WAA_V2_SET_OFL",
+      "column_name": "WS_pos_y",
+      "time_column": "file_time",
+      "equipment_column": "equipment",
+      "duration": "7",
+      "_note": "同 ws_pos_x：stage4 PRD 要求 src.RPT_WAA_V2_SET_OFL"
+    },
+    "mark_candidates": {
+      "description": "先于 mark_pos_x/y 预取的 mark_id 列表（stage4 PRD §具体步骤 2）；在 las.RPT_WAA_RESULT_OFL 里按 lot+wafer+chuck+phase=1ST_COWA 过滤，预期 4 条，本次作为 mark_pos_x/y 的 IN 过滤源",
+      "data_type": null,
+      "unit": null,
+      "source_kind": "clickhouse_window",
+      "role": "internal",
+      "linking": {
+        "mode": "exact_keys",
+        "keys": [
+          {
+            "target": "lot_id",
+            "source": "lot_id"
+          },
+          {
+            "target": "wafer_id",
+            "source": "wafer_id"
+          },
+          {
+            "target": "chuck_id",
+            "source": "chuck_id"
+          }
+        ],
         "filters": [
           {
             "target": "phase",
@@ -137,15 +166,15 @@
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_SET_UNION_VIEW",
-      "column_name": "WS_pos_y",
+      "table_name": "las.RPT_WAA_RESULT_OFL",
+      "column_name": "mark_id",
       "time_column": "file_time",
       "equipment_column": "equipment",
       "duration": "7",
-      "_note": "按业务问题清单改为 src.RPT_WAA_SET_UNION_VIEW，并补 phase='1ST_COWA' 固定筛选；其余 exact_keys 先保持不变以避免误放大结果集"
+      "_note": "stage4/prd.md §具体步骤 2：该 metric 仅作上下文中间件；后续业务若要求 row_id asc 取前 4，再在 ODS 层扩展 order_by/limit。"
     },
     "mark_pos_x": {
-      "description": "cowa标记名义位置 (mark_data) mark_pos_x",
+      "description": "cowa标记名义位置 (mark_data) mark_pos_x；stage4 PRD 两步查：先 mark_candidates（las.RPT_WAA_RESULT_OFL 取 mark_id），再在 las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW 按 mark_id IN (...) 拿 mark_pos_x",
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
@@ -154,36 +183,30 @@
         "mode": "exact_keys",
         "keys": [
           {
-            "target": "equipment",
-            "source": "equipment"
-          },
-          {
             "target": "lot_id",
             "source": "lot_id"
-          },
-          {
-            "target": "chuck_id",
-            "source": "chuck_id"
-          },
-          {
-            "target": "wafer_id",
-            "source": "wafer_id"
           }
         ],
-        "filters": []
+        "filters": [
+          {
+            "target": "mark_id",
+            "operator": "in",
+            "source": "mark_candidates"
+          }
+        ]
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_SET_OFL",
+      "table_name": "las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW",
       "column_name": "mark_pos_x",
       "time_column": "file_time",
       "equipment_column": "equipment",
       "duration": "7",
-      "_note": "按业务最新 metrics_meta.yaml，mark_pos_x 表名已切到 src.RPT_WAA_SET_OFL；列名以业务最新口径保留为 mark_pos_x"
+      "_note": "stage4/prd.md §具体步骤 3：只保留 lot_id 作 exact_keys，与 mark_id IN (...) 组合；equipment/chuck/wafer 不在内网 union view 里对应，容易过滤空。"
     },
     "mark_pos_y": {
-      "description": "cowa标记名义位置 (mark_data) mark_pos_y",
+      "description": "cowa标记名义位置 (mark_data) mark_pos_y；同 mark_pos_x 两步查",
       "data_type": null,
       "unit": null,
       "source_kind": "clickhouse_window",
@@ -192,33 +215,27 @@
         "mode": "exact_keys",
         "keys": [
           {
-            "target": "equipment",
-            "source": "equipment"
-          },
-          {
             "target": "lot_id",
             "source": "lot_id"
-          },
-          {
-            "target": "chuck_id",
-            "source": "chuck_id"
-          },
-          {
-            "target": "wafer_id",
-            "source": "wafer_id"
           }
         ],
-        "filters": []
+        "filters": [
+          {
+            "target": "mark_id",
+            "operator": "in",
+            "source": "mark_candidates"
+          }
+        ]
       },
       "fallback": {
         "policy": "nearest_in_window"
       },
-      "table_name": "src.RPT_WAA_SET_OFL",
+      "table_name": "las.RTP_WAA_LOT_MARK_INFO_UNION_VIEW",
       "column_name": "mark_pos_y",
       "time_column": "file_time",
       "equipment_column": "equipment",
       "duration": "7",
-      "_note": "按业务最新 metrics_meta.yaml，mark_pos_y 表名已切到 src.RPT_WAA_SET_OFL；列名以业务最新口径保留为 mark_pos_y"
+      "_note": "同 mark_pos_x"
     },
     "Msx": {
       "description": "台对准建模结果Msx",

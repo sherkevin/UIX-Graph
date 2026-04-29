@@ -11,7 +11,6 @@
 
 import sys
 import os
-import io
 import logging
 from pathlib import Path
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -37,12 +36,14 @@ class UIXHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(DIST_DIR), **kwargs)
 
-    # ── 日志静默（避免控制台刷屏） ────────────────────────────────
+    # ── 常规访问日志静默（避免控制台刷屏），保留错误日志 ──────────
     def log_message(self, fmt, *args):
         pass
 
     def log_error(self, fmt, *args):
-        pass
+        # 错误必须打到 stdout，启动器窗口才能看到
+        msg = fmt % args if args else fmt
+        print(f"[Frontend][ERROR] {self.client_address[0]} {msg}", flush=True)
 
     # ── 代理判断 ─────────────────────────────────────────────────
     def _is_proxy_path(self):

@@ -8,8 +8,7 @@
 3. 本地开发环境会自动创建同名表结构，保证内网迁移后可直接运行
 """
 from sqlalchemy import create_engine, Column, String, Integer, BigInteger, Boolean, Text, JSON, DateTime, Float, ForeignKey, Index, func
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 from typing import Optional, List
 import json
 import os

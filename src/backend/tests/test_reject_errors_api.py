@@ -16,15 +16,40 @@ import sys
 import os
 from pathlib import Path
 
-if sys.platform == "win32":
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+# 仅在直接 `python tests/test_reject_errors_api.py` 时改 stdout。
+# pytest capture 环境下替换 sys.stdout 会破坏退出阶段的 readouterr。
+if __name__ == "__main__" and sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-import httpx
-from app.main import app
+import pytest  # noqa: E402
+import httpx  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models.reject_errors_db import get_db_session  # noqa: E402
+
+
+def _db_reachable() -> tuple[bool, str]:
+    try:
+        from sqlalchemy import text  # noqa: WPS433
+        with get_db_session() as session:
+            session.execute(text("SELECT 1"))
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+_db_ok, _db_err = _db_reachable()
+if not _db_ok:
+    pytest.skip(
+        f"接口 HTTP 契约测试依赖 MySQL；当前不可达：{_db_err}。"
+        f"请先 `docker-compose up -d` 起本地库。",
+        allow_module_level=True,
+    )
 
 
 class SyncASGIClient:

@@ -19,7 +19,7 @@
 | **加新建模输出别名** | metric `alias_of` 字段 | K3 |
 | **加新 mock 数据(无真库时)** | metric `mock_value` / `mock_range` | K5 |
 | **写一段计算公式作为中间量** | `safe_eval` action + `params.expr` 表达式 | J |
-| **关闭老路由** | 环境变量 `LEGACY_ROUTES_ENABLED=false` | D |
+| ~~关闭老路由~~ | **2026-04-20 起老路由已物理删除,不再有开关** | D + 本轮重构 |
 | **触发缓存按版本失效** | bump `reject_errors.diagnosis.json` 顶部 `version` 字段 | K4 |
 | **改 jsonpath 提取(含 `name[N]` 形式)** | metric `extraction_rule = jsonpath:...`(标准 array 写法即可)| K1 |
 

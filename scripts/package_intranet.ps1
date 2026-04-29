@@ -97,6 +97,8 @@ $excludeDirs = @(
     ".claude", ".codex", ".specstory",
     # 老 UI 归档(不在运行路径上,内网不需要)
     "archive",
+    # 日志目录(运行时产物)
+    "logs",
     # 打包历史 / 临时 staging
     "_intranet_pack_staging"
 )
@@ -113,7 +115,7 @@ $xf = @(
     "cursor_*.md",
     # 备份 / 草稿
     "*.bak", "*.tmp", "*.orig", "*.rej",
-    # 本地 log / env(env 示例文件不匹配 .env.example,安全)
+    # 本地 log；本机 .env 不打包(防密钥泄露) — 打包后改为由 .env.example 注入无密钥默认 .env
     "*.log", ".env", ".env.local"
 )
 
@@ -123,6 +125,22 @@ try {
     $rc = $LASTEXITCODE
     if ($rc -ge 8) {
         throw "robocopy failed with exit code $rc"
+    }
+
+    # 不把开发者本机 src/**/.env 打入 zip ；内网需有默认 .env：从 .env.example 覆写到 staging
+    $backendEx = Join-Path $root "src\backend\.env.example"
+    $backendOut = Join-Path $staging "src\backend\.env"
+    if (Test-Path $backendEx) {
+        Copy-Item -LiteralPath $backendEx -Destination $backendOut -Force
+        Write-Step "Injected src/backend/.env (copied from .env.example, not your local .env)"
+    } else {
+        Write-Warning "[package_intranet] Missing $backendEx — package will not contain backend .env"
+    }
+    $frontendEx = Join-Path $root "src\frontend\.env.example"
+    $frontendOut = Join-Path $staging "src\frontend\.env"
+    if (Test-Path $frontendEx) {
+        Copy-Item -LiteralPath $frontendEx -Destination $frontendOut -Force
+        Write-Step "Injected src/frontend/.env (from .env.example)"
     }
 
     if (Test-Path $outputZipPath) {

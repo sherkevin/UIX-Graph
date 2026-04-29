@@ -7,9 +7,11 @@
 
 不依赖 DB:用 SimpleNamespace 模拟 cached row。
 """
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -78,3 +80,11 @@ def test_init_sql_has_config_version_column():
         "init_docker_db.sql 缺 `config_version` 列;DDL 与 ORM 不一致"
     assert "IDX_config_version" in sql, \
         "init_docker_db.sql 缺 IDX_config_version 索引"
+
+
+def test_rejected_detailed_cache_flag_off_no_batch_query():
+    """内网无表: REJECTED_DETAILED_CACHE=0 时 _batch_get_cache 不访问 DB,恒为空 map。"""
+    with patch.dict(os.environ, {"REJECTED_DETAILED_CACHE": "0"}):
+        assert RejectErrorService._rejected_detailed_cache_enabled() is False
+        out = RejectErrorService._batch_get_cache([1, 2, 3])
+        assert out == {}

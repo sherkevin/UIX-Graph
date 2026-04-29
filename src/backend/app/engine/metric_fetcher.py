@@ -57,11 +57,16 @@ class MetricFetcher:
         self.source_log: Dict[str, str] = {}
 
     def _duration_days_for_meta(self, meta: Dict[str, Any]) -> int:
+        """
+        duration 兼容: 整数("7")、浮点字符串("7.0"/"7.5")与纯数字。
+        先 float 再 int 可向下取整(7.9 → 7 天),避免 "7.0" 被 int() 抛 ValueError
+        而静默退回默认窗口。
+        """
         raw = meta.get("duration")
         if raw is not None:
             try:
-                return int(str(raw).strip())
-            except ValueError:
+                return int(float(str(raw).strip()))
+            except (TypeError, ValueError):
                 logger.warning("指标 duration 无效: %r，使用回退 %s 天", raw, self.fallback_duration_days)
         return self.fallback_duration_days
 
@@ -71,7 +76,75 @@ class MetricFetcher:
         start = end - timedelta(days=days)
         return start, end
 
+    def _metric_linking_source_deps(self, metric_id: str) -> List[str]:
+        """
+        返回 metric_id 的 linking.keys / linking.filters 中 `source` 引用到的其它 metric_id。
+
+        仅当 `source` 的字面量也存在于 self.rule_loader.metrics_meta（其它 metric）里时才算依赖。
+        不把 `equipment / chuck_id / lot_id / wafer_id / reference_time / time_filter` 这种
+        永远由 context / source_record 供给的内置字段算作依赖。
+        """
+        meta = self.rule_loader.get_metric_meta(metric_id) or {}
+        linking = meta.get("linking") or {}
+        if not isinstance(linking, dict):
+            return []
+        deps: List[str] = []
+        for bucket in ("keys", "filters"):
+            for item in linking.get(bucket) or []:
+                if not isinstance(item, dict):
+                    continue
+                src = item.get("source")
+                if not isinstance(src, str):
+                    continue
+                src = src.strip()
+                if not src:
+                    continue
+                if src in self.rule_loader.metrics_meta and src != metric_id:
+                    deps.append(src)
+        return deps
+
+    def _order_metric_ids_with_deps(self, metric_ids: List[str]) -> List[str]:
+        """
+        把 metric_ids 按 linking.source 形成的依赖做拓扑排序：被依赖的先取。
+
+        - 依赖环：保持原相对顺序并打 warning，不阻塞取数。
+        - 依赖外部 metric_id 不在本批：不强行插入，也不报错（外部已有上下文可能由 scene 预取提供）。
+        """
+        order: List[str] = list(metric_ids)
+        wanted = set(order)
+
+        in_deg: Dict[str, int] = {mid: 0 for mid in order}
+        children: Dict[str, List[str]] = {mid: [] for mid in order}
+        for mid in order:
+            for dep in self._metric_linking_source_deps(mid):
+                if dep in wanted:
+                    children[dep].append(mid)
+                    in_deg[mid] += 1
+
+        sorted_order: List[str] = []
+        remaining = list(order)
+        while True:
+            took = False
+            for idx, mid in enumerate(remaining):
+                if in_deg.get(mid, 0) == 0:
+                    sorted_order.append(mid)
+                    for child in children.get(mid, []):
+                        in_deg[child] -= 1
+                    remaining.pop(idx)
+                    took = True
+                    break
+            if not took:
+                if remaining:
+                    logger.warning(
+                        "metric fetch 依赖排序出现环/悬挂，退化为原顺序：remaining=%s",
+                        remaining,
+                    )
+                    sorted_order.extend(remaining)
+                break
+        return sorted_order
+
     def fetch_all(self, metric_ids: List[str], extra_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        metric_ids = self._order_metric_ids_with_deps(list(metric_ids))
         result: Dict[str, Any] = {}
         resolved_context: Dict[str, Any] = dict(extra_context or {})
         t_batch = time.perf_counter()
@@ -563,16 +636,19 @@ class MetricFetcher:
                     params.update(sub_params)
             return " AND ".join(sql_parts), params, idx
 
-        match = re.fullmatch(r"([A-Za-z_]\w*)\s*(==|=|>=|<=|>|<)\s*(.+)", text_expr)
+        match = re.fullmatch(r"([A-Za-z_]\w*)\s*(==|=|>=|<=|!=|<>|>|<)\s*(.+)", text_expr)
         if not match:
             logger.warning("filter_condition 片段无法解析，已忽略: %s", text_expr)
             return "", {}, index_seed
         column_name, operator, raw_value = match.groups()
+        # MySQL 不支持 Python 风格的 `==` / `!=`;这里归一化到 SQL 原生操作符,
+        # 避免配置里写 `col == 5` 时发出无效 SQL(1064 语法错)。
+        sql_operator = {"==": "=", "!=": "<>"}.get(operator, operator)
         param_name = f"filter_{index_seed}"
         value = self._resolve_filter_value(raw_value, time_filter, extra_context)
         if value is None:
             return "", {}, index_seed + 1
-        clause = f"{_safe_identifier(column_name)} {operator} :{param_name}"
+        clause = f"{_safe_identifier(column_name)} {sql_operator} :{param_name}"
         return clause, {param_name: value}, index_seed + 1
 
     @staticmethod

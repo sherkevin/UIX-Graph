@@ -1,11 +1,10 @@
 /**
- * 统一 API 服务层
- * Stage3 拒片故障管理接口（v1）+ 旧版图谱、本体等接口
+ * 统一 API 服务层 - 拒片故障管理接口（/api/v1/reject-errors）
  *
  * API 基址策略：
- *   VITE_API_BASE_URL 未设置或为空 → 请求路径以 /api 开头，依赖 Vite 代理（开发）
+ *   VITE_API_BASE_URL 未设置或为空 → 请求以 /api 开头，依赖 Vite 代理（开发）
  *                                     或同源反代（生产，推荐）
- *   VITE_API_BASE_URL 设置为后端根地址（如 http://backend.example.com）→
+ *   VITE_API_BASE_URL 设为后端根地址（如 http://backend.example.com）→
  *                                     跨域直连后端，需后端 CORS 允许该来源
  */
 import axios from 'axios'
@@ -102,61 +101,6 @@ export const rejectErrorsAPI = {
       timeout: 120000,
     })
   },
-}
-
-// ── 辅助 API：旧版图谱 / 实体 / 诊断 / 知识模块 ──────────────────────────
-export const knowledgeApi = {
-  getRecords:          ()         => apiClient.get('/knowledge/records'),
-  getRecord:           (caseId)   => apiClient.get(`/knowledge/records/${caseId}`),
-  createRecord:        (payload)  => apiClient.post('/knowledge/records', payload),
-  updateRecord:        (caseId, payload) => apiClient.put(`/knowledge/records/${caseId}`, payload),
-  deleteRecord:        (caseId)   => apiClient.delete(`/knowledge/records/${caseId}`),
-}
-
-export const propagationApi = {
-  getPropagationPath:  (caseId, startNode = null) => {
-    const params = {}
-    if (startNode) params.start_node = startNode
-    return apiClient.get(`/propagation/${caseId}`, { params })
-  },
-  getEntityDetail:     (entityId) => apiClient.get(`/entity/${entityId}`),
-  getEntityTimeseries: (entityId, timeRange = '7d') =>
-    apiClient.get(`/entity/${entityId}/timeseries`, { params: { time_range: timeRange } }),
-}
-
-// ── 旧版：实体 / 图谱 / 诊断 / 本体等接口 ──────────────────────────────
-export const api = {
-  // 实体
-  getEntities:         (params)   => apiClient.get('/entity', { params }),
-  getEntity:           (id)       => apiClient.get(`/entity/${id}`),
-  getEntityConnections:(id)       => apiClient.get(`/entity/${id}/connections`),
-  getEntityMetrics:    (id)       => apiClient.get(`/entity/${id}/timeseries`),
-
-  // 诊断
-  getDiagnosis:        (payload)  => apiClient.post('/diagnosis/analyze', payload),
-  getDiagnosisHistory: ()         => apiClient.get('/diagnosis/history'),
-  getDiagnosisDetails: (id)       => apiClient.get(`/diagnosis/${id}`),
-
-  // 图谱
-  getFullGraph:        ()         => apiClient.get('/graph/full-graph'),
-  getSubgraph:         (caseId)   => apiClient.get(`/graph/subgraph/${caseId}`),
-  getGraphStats:       ()         => apiClient.get('/graph/stats'),
-
-  // 故障传播
-  getPropagationPaths: (caseId, startNode = null) => propagationApi.getPropagationPath(caseId, startNode),
-  getPropagationImpact:(params)   => apiClient.post('/propagation/impact', params),
-
-  // 知识
-  searchKnowledge:     (query)    => apiClient.get('/knowledge/search', { params: { q: query } }),
-  getKnowledgeGraph:   (topic)    => apiClient.get(`/knowledge/graph/${topic}`),
-
-  // 本体
-  getOntologyTree:     ()         => apiClient.get('/ontology/tree'),
-  getOntologyDetails:  (type)     => apiClient.get(`/ontology/details/${type}`),
-
-  // 可视化
-  getVisualizationData:(params)   => apiClient.get('/visualization/data', { params }),
-  exportVisualization: (params)   => apiClient.post('/visualization/export', params),
 }
 
 export default apiClient
